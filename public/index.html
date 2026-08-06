@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LeadGremlin | Sales Funnel & Business Lead Engine</title>
+  <meta name="description" content="AI Outbound Lead Engine & Sales Funnel Dashboard for local business discovery and contact extraction.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app" class="dashboard-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo-icon">⚡</div>
+        <div class="brand-text">
+          <h2>LeadGremlin</h2>
+          <span class="version-badge">v2.0 Funnel</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-item active" id="nav-kanban" onclick="switchView('kanban')">
+          <span class="icon">📊</span>
+          <span class="label">Sales Pipeline</span>
+        </button>
+        <button class="nav-item" id="nav-table" onclick="switchView('table')">
+          <span class="icon">📋</span>
+          <span class="label">Prospect Database</span>
+        </button>
+        <button class="nav-item" id="nav-analytics" onclick="switchView('analytics')">
+          <span class="icon">📈</span>
+          <span class="label">Lead Analytics</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-preset">
+        <div class="preset-label">TARGET REGION</div>
+        <div class="region-badge">
+          <span class="pulse-dot"></span>
+          <strong>Umhlanga & Coast</strong>
+        </div>
+        <p class="preset-desc">Umhlanga Rocks, Ridge, Gateway, La Lucia & Cornubia</p>
+      </div>
+
+      <div class="sidebar-footer">
+        <button class="btn btn-primary btn-block" id="open-extract-btn" onclick="openExtractModal()">
+          <span class="btn-icon">⚡</span> Extract New Leads
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="main-content">
+      <!-- Top Action Header -->
+      <header class="top-header">
+        <div class="header-left">
+          <h1 id="view-title">Sales Pipeline</h1>
+          <p class="subtitle" id="view-subtitle">Manage prospects across outreach & deal stages</p>
+        </div>
+
+        <div class="header-actions">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="global-search" placeholder="Search business, email, phone..." oninput="handleSearch(this.value)">
+          </div>
+
+          <button class="btn btn-secondary" onclick="triggerEnrichment()">
+            <span>✨ Enrich Missing Contacts</span>
+          </button>
+          
+          <div class="dropdown">
+            <button class="btn btn-outline" onclick="toggleExportMenu()">
+              <span>📥 Export</span>
+            </button>
+            <div class="dropdown-menu" id="export-menu">
+              <button onclick="downloadExport('csv')" class="dropdown-item" style="width:100%; text-align:left; background:none; border:none; cursor:pointer;">CSV Format (.csv)</button>
+              <button onclick="downloadExport('json')" class="dropdown-item" style="width:100%; text-align:left; background:none; border:none; cursor:pointer;">JSON Format (.json)</button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- KPI Summary Cards -->
+      <section class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-icon total">🎯</div>
+          <div class="metric-data">
+            <span class="metric-title">Total Prospects</span>
+            <h3 id="stat-total">0</h3>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon web">🌐</div>
+          <div class="metric-data">
+            <span class="metric-title">Website Coverage</span>
+            <h3 id="stat-web">0%</h3>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon email">📧</div>
+          <div class="metric-data">
+            <span class="metric-title">Email Verified</span>
+            <h3 id="stat-email">0%</h3>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon phone">📞</div>
+          <div class="metric-data">
+            <span class="metric-title">Phone Contactable</span>
+            <h3 id="stat-phone">0%</h3>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon social">📱</div>
+          <div class="metric-data">
+            <span class="metric-title">Social Media Links</span>
+            <h3 id="stat-social">0%</h3>
+          </div>
+        </div>
+      </section>
+
+      <!-- Category Filter Tabs -->
+      <section class="category-filters">
+        <span class="filter-label">Category Group:</span>
+        <div class="filter-pills" id="category-pills">
+          <button class="pill active" onclick="filterByCategory('ALL')">All Categories</button>
+          <button class="pill" onclick="filterByCategory('Fitness')">🏋️ Fitness</button>
+          <button class="pill" onclick="filterByCategory('Beauty and Hair')">💇 Beauty & Hair</button>
+          <button class="pill" onclick="filterByCategory('Restaurant')">🍽️ Restaurants</button>
+          <button class="pill" onclick="filterByCategory('Healthcare & Wellness')">🩺 Healthcare</button>
+          <button class="pill" onclick="filterByCategory('Real Estate')">🏠 Real Estate</button>
+          <button class="pill" onclick="filterByCategory('Professional Services')">⚖️ Professional</button>
+          <button class="pill" onclick="filterByCategory('Automotive & Trades')">🔧 Automotive</button>
+        </div>
+      </section>
+
+      <!-- VIEW 1: KANBAN BOARD (Pipeline View) -->
+      <div id="view-kanban-container" class="view-panel active">
+        <div class="kanban-board" id="kanban-board">
+          <!-- Dynamically populated via app.js -->
+        </div>
+      </div>
+
+      <!-- VIEW 2: PROSPECT DATABASE (Table View) -->
+      <div id="view-table-container" class="view-panel">
+        <div class="table-card glass-panel">
+          <div class="table-toolbar">
+            <div class="toolbar-left">
+              <span id="table-count-badge" class="badge">0 Prospects</span>
+            </div>
+            <div class="toolbar-right">
+              <button class="btn btn-sm btn-outline" onclick="openAddLeadModal()">+ Add Prospect Manually</button>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Business Name</th>
+                  <th>Category</th>
+                  <th>Area</th>
+                  <th>Contact Info</th>
+                  <th>Website</th>
+                  <th>Social Handles</th>
+                  <th>Stage</th>
+                  <th>Score</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="leads-table-body">
+                <!-- Dynamically populated via app.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 3: ANALYTICS & COVERAGE -->
+      <div id="view-analytics-container" class="view-panel">
+        <div class="analytics-grid">
+          <div class="analytics-card glass-panel">
+            <h3>Prospect Category Distribution</h3>
+            <div class="chart-bars" id="category-chart"></div>
+          </div>
+          <div class="analytics-card glass-panel">
+            <h3>Funnel Stage Pipeline Breakdown</h3>
+            <div class="chart-bars" id="stage-chart"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- MODAL 1: EXTRACT LEADS SCRAPER TRIGGER -->
+  <div class="modal-overlay" id="extract-modal">
+    <div class="modal-card glass-panel">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span class="modal-icon">⚡</span>
+          <div>
+            <h3>Extract New Leads</h3>
+            <p>One-click scraper targeting businesses in Umhlanga & Surrounds</p>
+          </div>
+        </div>
+        <button class="close-btn" onclick="closeExtractModal()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <form id="extract-form" onsubmit="handleStartExtraction(event)">
+          <div class="form-group">
+            <label>Target Area / Location</label>
+            <select id="extract-area" class="form-control">
+              <option value="Umhlanga" selected>Umhlanga (Rocks, Ridge, Gateway, La Lucia)</option>
+              <option value="Durban North">Durban North & Broadway</option>
+              <option value="Ballito">Ballito & North Coast</option>
+              <option value="Durban Central">Durban Central & Morningside</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Prospect Categories to Extract</label>
+            <div class="checkbox-grid">
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="gym" checked> Gym & Fitness</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="beauty salon" checked> Beauty & Hair Salons</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="restaurant" checked> Restaurants & Cafes</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="dentist" checked> Dentists & Clinics</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="real estate agent" checked> Real Estate</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="law firm" checked> Professional Services</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="car detailing" checked> Auto & Services</label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Extended Search Engines Beyond Google Maps</label>
+            <div class="checkbox-group">
+              <label class="checkbox-label"><input type="checkbox" id="ext-google-maps" checked disabled> Google Maps Scraper</label>
+              <label class="checkbox-label"><input type="checkbox" id="ext-web-search" checked> DuckDuckGo / Web Engine Search</label>
+              <label class="checkbox-label"><input type="checkbox" id="ext-deep-crawl" checked> Direct Website Deep Crawl (Email & Socials)</label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Max Results Per Category</label>
+            <input type="number" id="extract-max" class="form-control" value="5" min="1" max="25">
+          </div>
+
+          <!-- Live Progress Terminal -->
+          <div id="extraction-terminal" class="terminal-box hidden">
+            <div class="terminal-header">
+              <span class="terminal-dot red"></span>
+              <span class="terminal-dot yellow"></span>
+              <span class="terminal-dot green"></span>
+              <span class="terminal-title">Scraper Execution Engine</span>
+            </div>
+            <div class="terminal-body" id="terminal-logs">
+              <div class="log-line info">Initialising Playwright Chromium...</div>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeExtractModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btn-run-scraper">
+              <span>🚀 Start Lead Extraction</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: PROSPECT DETAIL DRAWER -->
+  <div class="modal-overlay" id="detail-modal">
+    <div class="modal-card glass-panel wide">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span class="modal-icon" id="detail-icon">🏢</span>
+          <div>
+            <h3 id="detail-name">Business Name</h3>
+            <span class="badge" id="detail-category">Category</span>
+          </div>
+        </div>
+        <button class="close-btn" onclick="closeDetailModal()">&times;</button>
+      </div>
+
+      <div class="modal-body detail-grid">
+        <!-- Left Pane: Contact & Social Info -->
+        <div class="detail-left">
+          <div class="detail-section">
+            <h4 class="section-title">Verified Contact Channels</h4>
+            <div class="contact-cards">
+              <div class="contact-card">
+                <span class="icon">🌐</span>
+                <div class="info">
+                  <span class="label">Website</span>
+                  <a href="#" id="detail-website" target="_blank" rel="noopener">Not Found</a>
+                </div>
+              </div>
+              <div class="contact-card">
+                <span class="icon">📞</span>
+                <div class="info">
+                  <span class="label">Phone</span>
+                  <a href="#" id="detail-phone">Not Found</a>
+                </div>
+              </div>
+              <div class="contact-card">
+                <span class="icon">📧</span>
+                <div class="info">
+                  <span class="label">Email</span>
+                  <a href="#" id="detail-email">Not Found</a>
+                </div>
+              </div>
+              <div class="contact-card">
+                <span class="icon">📍</span>
+                <div class="info">
+                  <span class="label">Address</span>
+                  <span id="detail-address">Umhlanga</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="detail-section">
+            <h4 class="section-title">Social Media Profiles</h4>
+            <div class="social-badges-list" id="detail-socials">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Pane: Pipeline Stage & AI Outreach -->
+        <div class="detail-right">
+          <div class="detail-section">
+            <h4 class="section-title">Pipeline Funnel Stage</h4>
+            <select id="detail-stage-select" class="form-control" onchange="updateLeadStageFromModal(this.value)">
+              <option value="new">🆕 New Prospect</option>
+              <option value="enriched">✨ Enriched / Qualified</option>
+              <option value="outreach">📧 Outreach Sent</option>
+              <option value="meeting">📅 Meeting Booked</option>
+              <option value="proposal">📝 Proposal Sent</option>
+              <option value="won">🎉 Closed Won</option>
+              <option value="lost">❌ Closed Lost</option>
+            </select>
+          </div>
+
+          <div class="detail-section">
+            <h4 class="section-title">Opportunity & Lead Score</h4>
+            <div class="score-container">
+              <div class="score-badge" id="detail-score">85</div>
+              <p class="score-desc">High priority lead. Missing website optimization and social booking link.</p>
+            </div>
+          </div>
+
+          <div class="detail-section">
+            <h4 class="section-title">Notes & Activity Log</h4>
+            <textarea id="detail-notes" class="form-control" rows="4" placeholder="Add notes about conversations or follow-up details..."></textarea>
+            <button class="btn btn-sm btn-secondary mt-2" onclick="saveLeadNotes()">Save Notes</button>
+          </div>
+
+          <div class="detail-section">
+            <h4 class="section-title">AI Email & Cold Outreach Script</h4>
+            <button class="btn btn-outline btn-block" onclick="generateAiScript()">✨ Generate Tailored Email Pitch</button>
+            <div class="ai-output-box hidden" id="ai-script-output">
+              <pre id="ai-script-text"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

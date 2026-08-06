@@ -1,0 +1,42 @@
+{
+  "name": "leadgremlin",
+  "version": "1.0.0",
+  "description": "LeadGremlin - AI Outbound Lead Engine (MVP)",
+  "main": "dist/index.js",
+  "scripts": {
+    "dashboard": "tsx src/server.ts",
+    "start": "tsx src/server.ts",
+    "deploy": "gh-pages -d docs",
+    "scrape": "tsx src/index.ts",
+    "enrich": "tsx src/enrichment/cli.ts",
+    "sync": "tsx src/notion/sync.ts",
+    "build": "tsc",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write \"src/**/*.ts\""
+  },
+  "keywords": [
+    "lead-generation",
+    "scraper",
+    "google-maps",
+    "playwright",
+    "notion"
+  ],
+  "author": "LaunchGremlin",
+  "license": "MIT",
+  "dependencies": {
+    "@notionhq/client": "^2.2.15",
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.7",
+    "express": "^5.2.1",
+    "playwright": "^1.49.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "@typescript-eslint/parser": "^8.18.0",
+    "eslint": "^9.17.0",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
