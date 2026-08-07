@@ -10,11 +10,12 @@ import { logger } from './utils/logger.js';
 import { CategoryClassifier } from './utils/categoryClassifier.js';
 import crypto from 'crypto';
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+const INITIAL_PORT = parseInt(process.env.PORT || '3005', 10);
 const DATA_DIR = path.resolve(process.cwd(), './data');
 const DASHBOARD_FILE = path.join(DATA_DIR, 'leads_dashboard.json');
 const PUBLIC_DIR = path.resolve(process.cwd(), './public');
+
+const app = express();
 
 app.use(cors());
 app.use(express.json());
@@ -367,11 +368,24 @@ app.get('/api/export/json', (req: Request, res: Response) => {
   res.json(leads);
 });
 
-app.listen(PORT, () => {
-  console.log(`
+function startServer(port: number) {
+  const server = app.listen(port, () => {
+    console.log(`
 ┌──────────────────────────────────────────────────────────┐
 │   🚀 LeadGremlin Sales Funnel Dashboard Server Active    │
-│   Dashboard: http://localhost:${PORT}                       │
+│   Dashboard: http://localhost:${port}                       │
 └──────────────────────────────────────────────────────────┘
-  `);
-});
+    `);
+  });
+
+  server.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log(`Port ${port} is in use, trying port ${port + 1}...`);
+      startServer(port + 1);
+    } else {
+      console.error('Server error:', err);
+    }
+  });
+}
+
+startServer(INITIAL_PORT);
