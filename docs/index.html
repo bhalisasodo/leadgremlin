@@ -365,10 +365,30 @@
           </div>
 
           <div class="detail-section">
-            <h4 class="section-title">AI Email & Cold Outreach Script</h4>
-            <button class="btn btn-outline btn-block" onclick="generateAiScript()">✨ Generate Tailored Email Pitch</button>
+            <h4 class="section-title">✨ Multi-Channel AI Pitch & Outreach Suite</h4>
+            <div class="script-controls" style="display:flex; gap: 8px; margin-bottom: 12px; align-items:center;">
+              <select id="script-tone-select" class="form-control" style="flex:1;" onchange="changeScriptTone(this.value)">
+                <option value="consultative" selected>🎯 Consultative & Helpful</option>
+                <option value="direct">⚡ Direct & High Value</option>
+                <option value="casual">💬 Casual & Friendly</option>
+                <option value="urgent">⚠️ Urgent Opportunity</option>
+              </select>
+              <button class="btn btn-primary" onclick="generateAiScript()">Generate All</button>
+            </div>
+
+            <div class="channel-tabs" style="display:flex; gap:6px; margin-bottom:12px; border-bottom: 1px solid var(--border-color, #333); padding-bottom:6px;">
+              <button class="pill active" id="tab-email" onclick="switchScriptChannel('email')">📧 Cold Email</button>
+              <button class="pill" id="tab-whatsapp" onclick="switchScriptChannel('whatsapp')">💬 WhatsApp</button>
+              <button class="pill" id="tab-social_dm" onclick="switchScriptChannel('social_dm')">📱 Social DM</button>
+              <button class="pill" id="tab-cold_call" onclick="switchScriptChannel('cold_call')">📞 Phone Script</button>
+            </div>
+
             <div class="ai-output-box hidden" id="ai-script-output">
-              <pre id="ai-script-text"></pre>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span class="badge" id="ai-channel-badge">Cold Email</span>
+                <button class="btn btn-sm btn-outline" id="btn-copy-script" onclick="copyScriptToClipboard()">📋 Copy to Clipboard</button>
+              </div>
+              <pre id="ai-script-text" style="white-space: pre-wrap; font-family: 'JetBrains Mono', monospace; font-size:0.85rem; line-height:1.45; background: rgba(0,0,0,0.3); padding:12px; border-radius:6px; border:1px solid rgba(255,255,255,0.1); max-height:220px; overflow-y:auto;"></pre>
             </div>
           </div>
         </div>

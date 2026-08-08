@@ -632,32 +632,144 @@ async function saveLeadNotes() {
   renderDashboard();
 }
 
+let activeScriptChannel = 'email';
+let activeScriptTone = 'consultative';
+let generatedScripts = null;
+
 /**
- * Generate AI Outreach Script Generator
+ * Generate AI Outreach Multi-Channel Script Suite
  */
 function generateAiScript() {
   if (!selectedLead) return;
 
   const outputBox = document.getElementById('ai-script-output');
-  const textEl = document.getElementById('ai-script-text');
   outputBox.classList.remove('hidden');
 
-  const pitch = `SUBJECT: Quick question regarding ${selectedLead.name}'s digital lead intake in Umhlanga
+  const tone = document.getElementById('script-tone-select') ? document.getElementById('script-tone-select').value : activeScriptTone;
+  activeScriptTone = tone;
 
-Hi ${selectedLead.name} Team,
+  const name = selectedLead.name || 'Business';
+  const category = selectedLead.category || 'local business';
+  const area = selectedLead.area || 'Umhlanga';
+  const rating = selectedLead.rating || 4.8;
+  const reviews = selectedLead.reviewCount || 35;
 
-I came across ${selectedLead.name} while auditing top-rated ${selectedLead.category} businesses in ${selectedLead.area || 'Umhlanga'}.
+  generatedScripts = buildMultiChannelPitch(name, category, area, rating, reviews, tone);
+  renderScriptOutput();
+}
 
-I noticed your team has an incredible rating (${selectedLead.rating || 4.8}★ with ${selectedLead.reviewCount || 50}+ reviews), but your website could convert 35% more high-intent local clients through automated WhatsApp booking widgets and instant lead capture.
+/**
+ * Script Builder Engine (Runs locally in static GitHub Pages or server)
+ */
+function buildMultiChannelPitch(name, category, area, rating, reviews, tone) {
+  if (tone === 'direct') {
+    return {
+      email: `SUBJECT: 35% Lead Increase for ${name} in ${area}\n\nHi ${name} Team,\n\nWe audited top ${category} providers in ${area} and noticed ${name} has a stellar ${rating}★ score with ${reviews}+ reviews.\n\nHowever, your website is missing a 1-click WhatsApp lead booking widget, costing you 10-15 client leads every week.\n\nWe build automated 24/7 lead intake funnels for ${category} businesses. Can we show you a 5-minute live preview this Thursday at 10 AM?\n\nBest regards,\nLeadGremlin Engine`,
+      whatsapp: `⚡ *Quick Question for ${name}*\n\nHi team, loved your ${rating}★ reviews in ${area}! We noticed your website lacks an instant WhatsApp booking link, letting client inquiries slip away to competitors.\n\nWould you be open to a 2-min demo showing how to capture 3x more instant bookings? 🚀`,
+      social_dm: `Hey ${name} team! 👋 Super impressive work with ${reviews}+ reviews in ${area}. Quick heads up: adding a direct social booking link to your profile can double your weekly client inquiries. Sent you a quick email breakdown! 📩`,
+      cold_call: `[OPENER]: Hi, is this the manager at ${name}? My name is LeadGremlin, calling briefly from Umhlanga Digital Lead Engine.\n\n[DISCOVERY]: We were reviewing top ${category} spots in ${area}. You have a great ${rating}★ rating, but no direct WhatsApp booking widget on your site. Are you taking online bookings?\n\n[OBJECTION]: I completely understand you're busy! That's why we built this automated widget—it handles bookings 24/7 without staff needing to answer calls.\n\n[CLOSE]: Can I send a 60-second video demo directly to your WhatsApp? What's the best number?`
+    };
+  }
 
-We recently built a sales funnel engine specifically for Umhlanga businesses to extract & capture inbound leads 24/7.
+  if (tone === 'casual') {
+    return {
+      email: `SUBJECT: Quick idea for ${name} 💡\n\nHey ${name} team,\n\nCame across your profile while exploring top ${category} spots around ${area}. Big fans of your ${rating}★ reputation!\n\nJust noticed a small tweak on your website that could bring in extra client bookings every single day without spending a dime on ads.\n\nWould love to send over a quick 2-minute video showing how it works if you're open to it?\n\nCheers,\nLeadGremlin Team`,
+      whatsapp: `Hey ${name} 👋 Came across your ${category} business in ${area} and noticed you guys have awesome ${rating}★ reviews! Had a quick idea on how you can get more direct client bookings automatically. Mind if I share a 1-min quick link? 😊`,
+      social_dm: `Hey guys! Love the work ${name} is doing in ${area} 🔥 Noticed your page doesn't have an instant booking button—we set these up for local businesses in 24 hours. DM us if you want a free mockup! 🙌`,
+      cold_call: `[OPENER]: Hey there! Is this ${name}? Hope your day is going awesome. Calling really quick from ${area}.\n\n[DISCOVERY]: I saw your ${reviews}+ great reviews online! Quick question—how are you currently handling client leads coming in after hours?\n\n[OBJECTION]: Totally get it! We built a simple 1-click booking tool so you never miss an after-hours lead again.\n\n[CLOSE]: Would it be alright if I dropped a quick link to your WhatsApp so you can take a look whenever you have a free minute?`
+    };
+  }
 
-Would you be open to a 10-minute demo this Thursday?
+  if (tone === 'urgent') {
+    return {
+      email: `SUBJECT: URGENT: ${name} is missing 15+ weekly inquiries in ${area}\n\nAttention ${name} Management,\n\nOur automated audit revealed that ${name} is currently missing up to 35% of high-intent local ${category} searches in ${area}.\n\nWhile your rating (${rating}★) is excellent, your competitors are capturing after-hours clients using automated WhatsApp lead intake.\n\nWe have 2 slots open this week for complimentary sales funnel setups for ${area} businesses. Let's get this fixed today.\n\nRegards,\nLeadGremlin Engine`,
+      whatsapp: `⚠️ *Missed Lead Alert for ${name}*\n\nHi team, your ${category} page in ${area} is missing an instant mobile lead capture widget, letting up to 15+ leads leak weekly.\n\nWe have a free setup slot open today. Reply YES for instant deployment! ⏱️`,
+      social_dm: `⚠️ Hey ${name}! Local ${category} competitors in ${area} are using mobile WhatsApp widgets to steal after-hours leads. We can install your lead capture in under 2 hours. Tap back if interested! ⚡`,
+      cold_call: `[OPENER]: Hi, urgency call for ${name} management regarding your ${area} digital lead capture. Do you have 30 seconds?\n\n[DISCOVERY]: Our system detected your website is missing mobile SSL & WhatsApp instant response. You're losing around 15 client signups every week to nearby competitors.\n\n[OBJECTION]: I understand you have an existing site, but right now it's leaking potential revenue every single day.\n\n[CLOSE]: Let's lock in 10 minutes tomorrow morning to fix this lead leak. Does 9:30 AM or 11:00 AM work better?`
+    };
+  }
 
-Best regards,
-LeadGremlin Automated Engine`;
+  // Consultative (Default)
+  return {
+    email: `SUBJECT: Optimizing ${name}'s digital lead intake in ${area}\n\nHi ${name} Team,\n\nI came across ${name} while auditing top-rated ${category} businesses in ${area}.\n\nI noticed your team has an incredible rating (${rating}★ with ${reviews}+ reviews), but your website could convert 35% more high-intent local clients through automated WhatsApp booking widgets and instant lead capture.\n\nWe recently built a sales funnel engine specifically for ${area} businesses to extract & capture inbound leads 24/7.\n\nWould you be open to a 10-minute demo this Thursday?\n\nBest regards,\nLeadGremlin Automated Engine`,
+    whatsapp: `Hi ${name} Team 👋 We audited top ${category} businesses in ${area} and loved your ${rating}★ rating!\n\nWe put together a complimentary growth breakdown showing how an automated WhatsApp lead capture widget can boost your weekly bookings by 35%.\n\nWould you like us to send the PDF audit over? 📄`,
+    social_dm: `Hi ${name}! 🌟 Compliments on your ${reviews}+ positive reviews in ${area}. We created a short audit showing how your ${category} page can capture 35% more inbound client messages directly on Instagram/WhatsApp. Would love to send it over!`,
+    cold_call: `[OPENER]: Good morning/afternoon, my name is LeadGremlin. I'm calling regarding ${name}'s online client intake in ${area}.\n\n[DISCOVERY]: We conduct digital growth audits for top ${category} providers. I noticed your ${rating}★ rating is top-tier, but your site lacks automated lead response. How are you following up with web visitors?\n\n[OBJECTION]: That makes total sense. Many ${category} owners we work with felt the same way until they saw how much staff time the automated assistant saves.\n\n[CLOSE]: Would Thursday at 10 AM or 2 PM work for a brief 10-minute screenshare to walk through the audit?`
+  };
+}
 
-  textEl.innerText = pitch;
+/**
+ * Channel Tab Switcher
+ */
+function switchScriptChannel(channel) {
+  activeScriptChannel = channel;
+  ['email', 'whatsapp', 'social_dm', 'cold_call'].forEach(ch => {
+    const tab = document.getElementById(`tab-${ch}`);
+    if (tab) {
+      if (ch === channel) tab.classList.add('active');
+      else tab.classList.remove('active');
+    }
+  });
+
+  renderScriptOutput();
+}
+
+/**
+ * Tone Selector Handler
+ */
+function changeScriptTone(tone) {
+  activeScriptTone = tone;
+  if (selectedLead) {
+    generateAiScript();
+  }
+}
+
+/**
+ * Render Script Output Text
+ */
+function renderScriptOutput() {
+  if (!generatedScripts) {
+    generateAiScript();
+    return;
+  }
+
+  const textEl = document.getElementById('ai-script-text');
+  const badgeEl = document.getElementById('ai-channel-badge');
+
+  const channelLabels = {
+    email: '📧 Cold Email Pitch',
+    whatsapp: '💬 WhatsApp Instant Message',
+    social_dm: '📱 Social Media DM',
+    cold_call: '📞 Cold Call Script'
+  };
+
+  if (badgeEl) badgeEl.innerText = channelLabels[activeScriptChannel] || activeScriptChannel;
+  if (textEl) textEl.innerText = generatedScripts[activeScriptChannel] || 'Script generation failed.';
+}
+
+/**
+ * 1-Click Copy Script to Clipboard
+ */
+function copyScriptToClipboard() {
+  const textEl = document.getElementById('ai-script-text');
+  const copyBtn = document.getElementById('btn-copy-script');
+  if (!textEl || !textEl.innerText) return;
+
+  navigator.clipboard.writeText(textEl.innerText).then(() => {
+    if (copyBtn) {
+      const origText = copyBtn.innerText;
+      copyBtn.innerText = '✅ Copied!';
+      copyBtn.style.borderColor = '#10b981';
+      copyBtn.style.color = '#10b981';
+      setTimeout(() => {
+        copyBtn.innerText = origText;
+        copyBtn.style.borderColor = '';
+        copyBtn.style.color = '';
+      }, 2000);
+    }
+  }).catch(err => {
+    console.error('Failed to copy text:', err);
+  });
 }
 
 function toggleExportMenu() {

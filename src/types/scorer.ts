@@ -29,15 +29,27 @@ export interface WebsiteScoreResult {
   scrapedAt: string;
 }
 
-/**
- * Phase 3: AI Website Auditing Interfaces
- */
+export type OutreachChannel = 'email' | 'whatsapp' | 'social_dm' | 'cold_call';
+export type OutreachTone = 'consultative' | 'direct' | 'casual' | 'urgent';
+
+export interface MultiChannelScripts {
+  email: { subject: string; body: string };
+  whatsapp: string;
+  socialDm: string;
+  coldCall: { opener: string; discovery: string; objectionHandling: string; close: string };
+}
+
 export interface AIAuditInput {
   businessName: string;
   websiteUrl: string;
+  category?: string;
+  area?: string;
+  rating?: number;
+  reviewCount?: number;
   htmlContent?: string;
   screenshotPaths?: string[];
   technicalAudit?: TechnicalAudit;
+  tone?: OutreachTone;
 }
 
 export interface AIAuditOutput {
@@ -45,5 +57,6 @@ export interface AIAuditOutput {
   recommendations: string[];
   estimatedProjectValueZAR: number;
   personalizedOutreachScript: string;
+  multiChannelScripts?: MultiChannelScripts;
   auditTimestamp: string;
 }
