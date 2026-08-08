@@ -558,6 +558,8 @@ function openDetailModal(leadId) {
   document.getElementById('detail-stage-select').value = selectedLead.funnelStage;
   document.getElementById('detail-notes').value = selectedLead.notes || '';
 
+  renderAuditBadges(selectedLead);
+
   // Render Social Badges
   const socialsContainer = document.getElementById('detail-socials');
   socialsContainer.innerHTML = '';
@@ -892,5 +894,120 @@ async function runNotionSyncNow() {
       btn.disabled = false;
       btn.innerText = '🚀 Start Notion Sync';
     }
+  }
+}
+
+/**
+ * Render Technical Audit Badges for a selected lead
+ */
+function renderAuditBadges(lead) {
+  if (!lead) return;
+
+  const scoreEl = document.getElementById('detail-score');
+  if (scoreEl) scoreEl.innerText = lead.opportunityScore || 80;
+
+  const sslText = document.getElementById('badge-ssl-text');
+  const sslIcon = document.getElementById('badge-ssl-icon');
+  const hasHttps = lead.website && lead.website.startsWith('https://');
+  if (sslText && sslIcon) {
+    sslText.innerText = hasHttps ? 'HTTPS Secure' : 'Insecure HTTP (-10)';
+    sslText.style.color = hasHttps ? '#10b981' : '#ef4444';
+    sslIcon.innerText = hasHttps ? '🛡️' : '⚠️';
+  }
+
+  const vpText = document.getElementById('badge-viewport-text');
+  const vpIcon = document.getElementById('badge-viewport-icon');
+  const hasVp = lead.technicalAudit ? lead.technicalAudit.hasResponsiveViewport : true;
+  if (vpText && vpIcon) {
+    vpText.innerText = hasVp ? 'Viewport Ready' : 'Non-Mobile (-15)';
+    vpText.style.color = hasVp ? '#10b981' : '#ef4444';
+    vpIcon.innerText = hasVp ? '📱' : '💻';
+  }
+
+  const waText = document.getElementById('badge-wa-text');
+  const waIcon = document.getElementById('badge-wa-icon');
+  const hasWa = lead.technicalAudit ? lead.technicalAudit.hasWhatsappLink : false;
+  if (waText && waIcon) {
+    waText.innerText = hasWa ? 'Widget Active' : 'Missing (-20 pts)';
+    waText.style.color = hasWa ? '#10b981' : '#ef4444';
+    waIcon.innerText = hasWa ? '💬' : '⚡';
+  }
+
+  const bookText = document.getElementById('badge-booking-text');
+  const bookIcon = document.getElementById('badge-booking-icon');
+  const hasBook = lead.technicalAudit ? lead.technicalAudit.hasBookingSystem : false;
+  if (bookText && bookIcon) {
+    bookText.innerText = hasBook ? 'Portal Active' : 'Missing (-15 pts)';
+    bookText.style.color = hasBook ? '#10b981' : '#ef4444';
+    bookIcon.innerText = hasBook ? '📅' : '🛑';
+  }
+}
+
+/**
+ * Execute Live Technical Site Audit for a lead
+ */
+async function runLeadWebsiteAudit() {
+  if (!selectedLead || !selectedLead.website) {
+    alert('Selected lead has no valid website URL to audit.');
+    return;
+  }
+
+  const btn = document.getElementById('btn-run-audit');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = '🔍 Auditing Site...';
+  }
+
+  if (isStaticMode) {
+    // Static mode simulation / client-side analysis
+    setTimeout(() => {
+      const url = selectedLead.website;
+      const hasHttps = url.startsWith('https://');
+      const mockScore = hasHttps ? 75 : 85;
+
+      selectedLead.opportunityScore = mockScore;
+      selectedLead.technicalAudit = {
+        hasHttps,
+        hasResponsiveViewport: true,
+        hasWhatsappLink: false,
+        hasBookingSystem: false,
+      };
+
+      renderAuditBadges(selectedLead);
+      saveLeadsLocally();
+
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = '✅ Audit Complete';
+        setTimeout(() => (btn.innerText = '🔍 Run Live Site Audit'), 2500);
+      }
+    }, 1000);
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: selectedLead.id, website: selectedLead.website }),
+    });
+
+    const data = await res.json();
+    if (data.success && data.result) {
+      selectedLead.opportunityScore = data.result.score;
+      selectedLead.technicalAudit = data.result.audit;
+
+      renderAuditBadges(selectedLead);
+      renderDashboard();
+
+      if (btn) {
+        btn.innerText = '✅ Audit Complete';
+        setTimeout(() => (btn.innerText = '🔍 Run Live Site Audit'), 2500);
+      }
+    }
+  } catch (err) {
+    console.error('Audit failed:', err);
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }

@@ -10,6 +10,7 @@ import { logger } from './utils/logger.js';
 import { CategoryClassifier } from './utils/categoryClassifier.js';
 import { syncLeadsToNotion } from './notion/sync.js';
 import { getConfig } from './config/config.js';
+import { websiteAnalyzer } from './scoring/websiteAnalyzer.js';
 import crypto from 'crypto';
 
 const INITIAL_PORT = parseInt(process.env.PORT || '3005', 10);
@@ -334,10 +335,45 @@ app.post('/api/notion/sync', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     logger.error('Notion Sync API Error:', err);
-    res.status(500).json({
-      success: false,
-      error: err.message || 'Failed to sync with Notion.',
+    res.status(500).json({ success: false, error: err.message || 'Failed to sync with Notion.' });
+  }
+});
+
+/**
+ * POST /api/audit - Run technical website audit & calculate opportunity score for a lead
+ */
+app.post('/api/audit', async (req: Request, res: Response) => {
+  const { id, website } = req.body;
+  if (!website) {
+    return res.status(400).json({ success: false, error: 'Target website URL is required.' });
+  }
+
+  try {
+    const auditResult = await websiteAnalyzer.analyzeWebsite(website);
+    const leads = loadLeads();
+
+    let updatedLead: Business | null = null;
+    const updatedLeads = leads.map((l) => {
+      if (l.id === id || l.website === website) {
+        l.opportunityScore = auditResult.score;
+        (l as any).technicalAudit = auditResult.audit;
+        updatedLead = l;
+      }
+      return l;
     });
+
+    if (updatedLead) {
+      saveLeads(updatedLeads);
+    }
+
+    res.json({
+      success: true,
+      result: auditResult,
+      lead: updatedLead,
+    });
+  } catch (err: any) {
+    logger.error('Website audit error:', err);
+    res.status(500).json({ success: false, error: err.message || 'Audit failed.' });
   }
 });
 

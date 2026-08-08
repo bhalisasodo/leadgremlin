@@ -355,10 +355,48 @@
           </div>
 
           <div class="detail-section">
-            <h4 class="section-title">Opportunity & Lead Score</h4>
-            <div class="score-container">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <h4 class="section-title" style="margin:0;">Opportunity & Lead Score</h4>
+              <button class="btn btn-sm btn-outline" id="btn-run-audit" onclick="runLeadWebsiteAudit()" style="font-size:0.75rem;">🔍 Run Live Site Audit</button>
+            </div>
+            <div class="score-container" style="margin-top:8px;">
               <div class="score-badge" id="detail-score">85</div>
-              <p class="score-desc">High priority lead. Missing website optimization and social booking link.</p>
+              <p class="score-desc" id="detail-score-desc">High priority lead opportunity score. Click Run Live Site Audit to scan website capabilities.</p>
+            </div>
+          </div>
+
+          <!-- Technical Site Audit Badges -->
+          <div class="detail-section">
+            <h4 class="section-title">🛡️ Technical Site Audit Badges</h4>
+            <div id="audit-badges-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+              <div class="contact-card" style="padding:8px;">
+                <span class="icon" id="badge-ssl-icon">🛡️</span>
+                <div class="info">
+                  <span class="label">SSL Security</span>
+                  <strong id="badge-ssl-text" style="font-size:0.8rem; color:#10b981;">HTTPS Secure</strong>
+                </div>
+              </div>
+              <div class="contact-card" style="padding:8px;">
+                <span class="icon" id="badge-viewport-icon">📱</span>
+                <div class="info">
+                  <span class="label">Mobile Layout</span>
+                  <strong id="badge-viewport-text" style="font-size:0.8rem; color:#10b981;">Viewport Ready</strong>
+                </div>
+              </div>
+              <div class="contact-card" style="padding:8px;">
+                <span class="icon" id="badge-wa-icon">💬</span>
+                <div class="info">
+                  <span class="label">WhatsApp Lead CTA</span>
+                  <strong id="badge-wa-text" style="font-size:0.8rem; color:#ef4444;">Missing (-20 pts)</strong>
+                </div>
+              </div>
+              <div class="contact-card" style="padding:8px;">
+                <span class="icon" id="badge-booking-icon">📅</span>
+                <div class="info">
+                  <span class="label">Online Booking</span>
+                  <strong id="badge-booking-text" style="font-size:0.8rem; color:#ef4444;">Missing (-15 pts)</strong>
+                </div>
+              </div>
             </div>
           </div>
 
