@@ -820,3 +820,77 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+/**
+ * Open Notion Sync Modal
+ */
+function triggerNotionSync() {
+  const modal = document.getElementById('notion-modal');
+  if (modal) modal.classList.add('active');
+
+  const statFound = document.getElementById('notion-stat-found');
+  if (statFound) statFound.innerText = allLeads ? allLeads.length : 0;
+
+  if (isStaticMode) {
+    const msg = document.getElementById('notion-sync-message');
+    if (msg) {
+      msg.innerHTML = '⚠️ <strong>Static GitHub Pages Mode:</strong> Direct API calls require the local server.<br>To sync with Notion from CLI, run: <code style="background:rgba(0,0,0,0.4); padding:2px 6px; border-radius:4px;">npm run sync</code>';
+    }
+  }
+}
+
+/**
+ * Close Notion Sync Modal
+ */
+function closeNotionModal() {
+  const modal = document.getElementById('notion-modal');
+  if (modal) modal.classList.remove('active');
+}
+
+/**
+ * Run Notion Sync API request
+ */
+async function runNotionSyncNow() {
+  const btn = document.getElementById('btn-run-notion-sync');
+  const msg = document.getElementById('notion-sync-message');
+  const title = document.getElementById('notion-status-title');
+
+  if (isStaticMode) {
+    alert('Notion Sync via web UI is available when running locally (`npm run dashboard`). On static GitHub Pages, use `npm run sync` in terminal.');
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = '⏳ Syncing with Notion...';
+  }
+
+  if (title) title.innerText = 'Syncing...';
+  if (msg) msg.innerText = 'Connecting to Notion API and checking duplicate records...';
+
+  try {
+    const res = await fetch('/api/notion/sync', { method: 'POST' });
+    const data = await res.json();
+
+    if (data.success && data.summary) {
+      if (title) title.innerText = '✅ Sync Complete!';
+      if (msg) msg.innerText = data.message;
+
+      document.getElementById('notion-stat-found').innerText = data.summary.totalFound || allLeads.length;
+      document.getElementById('notion-stat-uploaded').innerText = data.summary.uploaded || 0;
+      document.getElementById('notion-stat-updated').innerText = data.summary.updated || 0;
+      document.getElementById('notion-stat-skipped').innerText = data.summary.skipped || 0;
+    } else {
+      if (title) title.innerText = '❌ Sync Failed';
+      if (msg) msg.innerText = data.error || 'Failed to sync with Notion.';
+    }
+  } catch (err) {
+    if (title) title.innerText = '❌ Sync Error';
+    if (msg) msg.innerText = err.message || 'Error connecting to Notion API.';
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = '🚀 Start Notion Sync';
+    }
+  }
+}

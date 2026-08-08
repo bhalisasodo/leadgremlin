@@ -8,6 +8,8 @@ import { contactEnricher } from './enrichment/contactEnricher.js';
 import { Exporter } from './utils/exporter.js';
 import { logger } from './utils/logger.js';
 import { CategoryClassifier } from './utils/categoryClassifier.js';
+import { syncLeadsToNotion } from './notion/sync.js';
+import { getConfig } from './config/config.js';
 import crypto from 'crypto';
 
 const INITIAL_PORT = parseInt(process.env.PORT || '3005', 10);
@@ -293,9 +295,49 @@ app.post('/api/enrich', async (req: Request, res: Response) => {
     const enrichedMap = new Map(result.enriched.map((e) => [e.id, e]));
 
     const updatedAll = leads.map((l) => enrichedMap.get(l.id) || l);
-    saveLeads(updatedAll);
   } catch (err) {
     logger.error('Enrichment batch error:', err);
+  }
+});
+
+/**
+ * GET /api/notion/status - Check Notion integration status
+ */
+app.get('/api/notion/status', (req: Request, res: Response) => {
+  const config = getConfig();
+  const configured = Boolean(config.notionToken && config.notionDatabaseId);
+  res.json({
+    configured,
+    databaseId: config.notionDatabaseId ? `${config.notionDatabaseId.slice(0, 6)}...` : null,
+  });
+});
+
+/**
+ * POST /api/notion/sync - Sync local dashboard leads to Notion CRM
+ */
+app.post('/api/notion/sync', async (req: Request, res: Response) => {
+  try {
+    const config = getConfig();
+    if (!config.notionToken || !config.notionDatabaseId) {
+      return res.status(400).json({
+        success: false,
+        error: 'NOTION_TOKEN or NOTION_DATABASE_ID missing in environment config.',
+      });
+    }
+
+    logger.info('Starting Notion Live Sync via Dashboard API...');
+    const summary = await syncLeadsToNotion(DASHBOARD_FILE);
+    res.json({
+      success: true,
+      message: `Notion Sync Complete! Uploaded ${summary.uploaded}, Updated ${summary.updated}, Skipped ${summary.skipped}.`,
+      summary,
+    });
+  } catch (err: any) {
+    logger.error('Notion Sync API Error:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Failed to sync with Notion.',
+    });
   }
 });
 
