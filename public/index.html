@@ -71,6 +71,10 @@
           <button class="btn btn-secondary" onclick="triggerEnrichment()">
             <span>✨ Enrich Missing Contacts</span>
           </button>
+
+          <button class="btn btn-outline" id="btn-notion-sync" onclick="triggerNotionSync()">
+            <span>🔗 Sync to Notion</span>
+          </button>
           
           <div class="dropdown">
             <button class="btn btn-outline" onclick="toggleExportMenu()">
@@ -333,6 +337,17 @@
               <!-- Dynamically populated -->
             </div>
           </div>
+
+          <!-- Technical Website Audit Breakdown -->
+          <div class="detail-section">
+            <div class="section-title-row">
+              <h4 class="section-title">Technical Website Audit</h4>
+              <button class="btn-text" id="btn-run-audit" onclick="triggerWebsiteAudit()">🔄 Run Audit</button>
+            </div>
+            <div class="audit-chips-grid" id="detail-audit-box">
+              <!-- Populated by app.js -->
+            </div>
+          </div>
         </div>
 
         <!-- Right Pane: Pipeline Stage & AI Outreach -->
@@ -354,27 +369,58 @@
             <h4 class="section-title">Opportunity & Lead Score</h4>
             <div class="score-container">
               <div class="score-badge" id="detail-score">85</div>
-              <p class="score-desc">High priority lead. Missing website optimization and social booking link.</p>
+              <div class="score-info">
+                <span class="est-value" id="detail-est-value">Est. Deal: R18,500</span>
+                <p class="score-desc" id="detail-score-desc">High priority lead. Missing website optimization and social booking link.</p>
+              </div>
             </div>
           </div>
 
           <div class="detail-section">
             <h4 class="section-title">Notes & Activity Log</h4>
-            <textarea id="detail-notes" class="form-control" rows="4" placeholder="Add notes about conversations or follow-up details..."></textarea>
+            <textarea id="detail-notes" class="form-control" rows="3" placeholder="Add notes about conversations or follow-up details..."></textarea>
             <button class="btn btn-sm btn-secondary mt-2" onclick="saveLeadNotes()">Save Notes</button>
           </div>
 
+          <!-- Multi-Channel AI Outreach Pitch Suite -->
           <div class="detail-section">
-            <h4 class="section-title">AI Email & Cold Outreach Script</h4>
-            <button class="btn btn-outline btn-block" onclick="generateAiScript()">✨ Generate Tailored Email Pitch</button>
-            <div class="ai-output-box hidden" id="ai-script-output">
-              <pre id="ai-script-text"></pre>
+            <div class="section-title-row">
+              <h4 class="section-title">AI Multi-Channel Pitch Suite</h4>
+              <div class="tone-select-wrap">
+                <select id="pitch-tone-select" class="form-control-sm" onchange="changePitchTone(this.value)">
+                  <option value="consultative">Consultative</option>
+                  <option value="direct">Direct</option>
+                  <option value="casual">Casual</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Pitch Channel Tabs -->
+            <div class="pitch-tabs" id="pitch-tabs">
+              <button class="pitch-tab active" data-channel="email" onclick="switchPitchTab('email')">📧 Email</button>
+              <button class="pitch-tab" data-channel="whatsapp" onclick="switchPitchTab('whatsapp')">💬 WhatsApp</button>
+              <button class="pitch-tab" data-channel="socialDm" onclick="switchPitchTab('socialDm')">📱 Social DM</button>
+              <button class="pitch-tab" data-channel="coldCall" onclick="switchPitchTab('coldCall')">📞 Cold Call</button>
+            </div>
+
+            <div class="pitch-body-wrap">
+              <div class="pitch-body-header">
+                <span class="pitch-channel-label" id="pitch-channel-label">Email Outreach Script</span>
+                <button class="btn btn-sm btn-outline" id="btn-copy-pitch" onclick="copyPitchToClipboard()">📋 Copy Script</button>
+              </div>
+              <div class="ai-output-box" id="ai-script-output">
+                <pre id="ai-script-text">Select or generate pitch script above...</pre>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- Toast Notification -->
+  <div id="toast-notification" class="toast"></div>
 
   <script src="app.js"></script>
 </body>

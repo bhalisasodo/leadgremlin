@@ -517,6 +517,12 @@ async function triggerEnrichment() {
 /**
  * Open Prospect Detail Drawer
  */
+let currentPitchChannel = 'email';
+let currentPitchTone = 'consultative';
+
+/**
+ * Open Prospect Detail Drawer
+ */
 function openDetailModal(leadId) {
   selectedLead = allLeads.find((l) => l.id === leadId);
   if (!selectedLead) return;
@@ -524,6 +530,9 @@ function openDetailModal(leadId) {
   document.getElementById('detail-name').innerText = selectedLead.name;
   document.getElementById('detail-category').innerText = selectedLead.category;
   document.getElementById('detail-score').innerText = selectedLead.opportunityScore || 80;
+  
+  const estVal = selectedLead.estimatedDealValue || 18500;
+  document.getElementById('detail-est-value').innerText = `Est. Deal: R${estVal.toLocaleString()}`;
 
   // Website
   const webLink = document.getElementById('detail-website');
@@ -585,6 +594,9 @@ function openDetailModal(leadId) {
     });
   }
 
+  renderTechnicalAuditDrawer(selectedLead);
+  renderPitchSuite(selectedLead);
+
   document.getElementById('detail-modal').classList.add('show');
 }
 
@@ -594,71 +606,219 @@ function closeDetailModal() {
 }
 
 /**
- * Update Stage from Detail Modal
+ * Render Technical Website Audit Chips
  */
-async function updateLeadStageFromModal(newStage) {
-  if (!selectedLead) return;
-  selectedLead.funnelStage = newStage;
+function renderTechnicalAuditDrawer(lead) {
+  const auditBox = document.getElementById('detail-audit-box');
+  if (!auditBox) return;
 
-  if (!isStaticMode) {
-    fetch(`/api/leads/${selectedLead.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ funnelStage: newStage }),
-    }).catch(() => null);
-  }
+  const audit = lead.technicalAudit || {
+    hasHttps: Boolean(lead.website && lead.website.startsWith('https')),
+    hasResponsiveViewport: true,
+    hasContactForm: false,
+    hasBookingSystem: false,
+    hasWhatsappLink: false,
+  };
 
-  saveLeadsLocally();
-  renderDashboard();
+  const chips = [
+    { label: 'HTTPS SSL Security', ok: audit.hasHttps },
+    { label: 'Mobile Responsive Viewport', ok: audit.hasResponsiveViewport },
+    { label: 'Online Booking System', ok: audit.hasBookingSystem },
+    { label: 'WhatsApp Instant Lead CTA', ok: audit.hasWhatsappLink },
+    { label: 'Contact Inquiry Form', ok: audit.hasContactForm },
+  ];
+
+  auditBox.innerHTML = chips
+    .map(
+      (c) => `
+      <div class="audit-chip ${c.ok ? 'pass' : 'fail'}">
+        <span class="dot">${c.ok ? '✓' : '✖'}</span>
+        <span>${c.label}</span>
+      </div>
+    `
+    )
+    .join('');
 }
 
 /**
- * Save Lead Notes
+ * Render Multi-Channel Pitch Suite Tabs & Script
  */
-async function saveLeadNotes() {
-  if (!selectedLead) return;
-  const notes = document.getElementById('detail-notes').value;
-  selectedLead.notes = notes;
+function renderPitchSuite(lead) {
+  const scripts = lead.aiPitchScripts || getDefaultPitchScripts(lead);
+  lead.aiPitchScripts = scripts;
 
-  if (!isStaticMode) {
-    fetch(`/api/leads/${selectedLead.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ notes }),
-    }).catch(() => null);
-  }
+  document.querySelectorAll('.pitch-tab').forEach((tab) => {
+    tab.classList.toggle('active', tab.dataset.channel === currentPitchChannel);
+  });
 
-  saveLeadsLocally();
-  alert('Notes saved successfully!');
-  renderDashboard();
-}
+  const channelLabels = {
+    email: '📧 Email Outreach Script',
+    whatsapp: '💬 WhatsApp Instant Message',
+    socialDm: '📱 Instagram / Social DM Script',
+    coldCall: '📞 Cold Call Phone Script',
+  };
 
-/**
- * Generate AI Outreach Script Generator
- */
-function generateAiScript() {
-  if (!selectedLead) return;
-
-  const outputBox = document.getElementById('ai-script-output');
+  document.getElementById('pitch-channel-label').innerText = channelLabels[currentPitchChannel] || 'Outreach Script';
   const textEl = document.getElementById('ai-script-text');
-  outputBox.classList.remove('hidden');
 
-  const pitch = `SUBJECT: Quick question regarding ${selectedLead.name}'s digital lead intake in Umhlanga
+  if (currentPitchChannel === 'email') {
+    textEl.innerText = `SUBJECT: ${scripts.email.subject}\n\n${scripts.email.body}`;
+  } else if (currentPitchChannel === 'whatsapp') {
+    textEl.innerText = scripts.whatsapp;
+  } else if (currentPitchChannel === 'socialDm') {
+    textEl.innerText = scripts.socialDm;
+  } else if (currentPitchChannel === 'coldCall') {
+    textEl.innerText = `OPENER:\n${scripts.coldCall.opener}\n\nDISCOVERY:\n${scripts.coldCall.discovery}\n\nOBJECTION HANDLING:\n${scripts.coldCall.objectionHandling}\n\nCLOSE:\n${scripts.coldCall.close}`;
+  }
+}
 
-Hi ${selectedLead.name} Team,
+/**
+ * Default fallback scripts for static preview mode
+ */
+function getDefaultPitchScripts(lead) {
+  const name = lead.name || 'Business';
+  const category = lead.category || 'local business';
+  const area = lead.area || 'Umhlanga';
 
-I came across ${selectedLead.name} while auditing top-rated ${selectedLead.category} businesses in ${selectedLead.area || 'Umhlanga'}.
+  return {
+    email: {
+      subject: `Optimizing ${name}'s digital lead intake in ${area}`,
+      body: `Hi ${name} Team,\n\nI came across ${name} while auditing top-rated ${category} businesses in ${area}.\n\nI noticed your team has an incredible reputation, but your website could convert 35% more high-intent local clients through automated WhatsApp booking widgets and instant lead capture.\n\nWe recently built a sales funnel engine specifically for ${area} businesses to extract & capture inbound leads 24/7.\n\nWould you be open to a 10-minute demo this Thursday?\n\nBest regards,\nLeadGremlin Engine`,
+    },
+    whatsapp: `Hi ${name} Team 👋 We audited top ${category} providers in ${area}!\n\nWe noticed your site is missing a 1-click WhatsApp lead booking link, letting inquiries slip to competitors.\n\nMind if I share a 60-second video demo showing how to capture 3x more bookings? 🚀`,
+    socialDm: `Hey ${name} team! 👋 Love your work in ${area}. Quick tip: adding an instant WhatsApp booking link to your profile can double your weekly client inquiries. DM us if you'd like a free mockup! 🙌`,
+    coldCall: {
+      opener: `Hi, is this the manager at ${name}? My name is LeadGremlin, calling briefly from Umhlanga Digital Lead Engine.`,
+      discovery: `We conduct digital growth audits for ${category} providers in ${area}. I noticed your site lacks an automated lead booking widget. How are you following up after hours?`,
+      objectionHandling: `I completely understand you're busy! That's why we built this automated widget—it captures leads 24/7 without staff needing to take calls.`,
+      close: `Can I drop a 60-second video demo directly to your WhatsApp or email address?`,
+    },
+  };
+}
 
-I noticed your team has an incredible rating (${selectedLead.rating || 4.8}★ with ${selectedLead.reviewCount || 50}+ reviews), but your website could convert 35% more high-intent local clients through automated WhatsApp booking widgets and instant lead capture.
+/**
+ * Switch Active Pitch Tab
+ */
+function switchPitchTab(channel) {
+  currentPitchChannel = channel;
+  if (selectedLead) {
+    renderPitchSuite(selectedLead);
+  }
+}
 
-We recently built a sales funnel engine specifically for Umhlanga businesses to extract & capture inbound leads 24/7.
+/**
+ * Copy Active Pitch Script to Clipboard
+ */
+function copyPitchToClipboard() {
+  const textEl = document.getElementById('ai-script-text');
+  if (!textEl || !textEl.innerText) return;
 
-Would you be open to a 10-minute demo this Thursday?
+  navigator.clipboard.writeText(textEl.innerText).then(
+    () => showToast('✓ Pitch script copied to clipboard!'),
+    () => showToast('✖ Failed to copy to clipboard')
+  );
+}
 
-Best regards,
-LeadGremlin Automated Engine`;
+/**
+ * Trigger Live Notion Database Sync from Dashboard Header
+ */
+async function triggerNotionSync() {
+  const btn = document.getElementById('btn-notion-sync');
+  btn.disabled = true;
+  btn.innerText = '⌛ Syncing Notion...';
 
-  textEl.innerText = pitch;
+  try {
+    const res = await fetch('/api/notion/sync', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✓ Notion Sync Complete! Uploaded ${data.summary?.uploaded || 0} leads.`);
+    } else {
+      showToast(`⚠️ Notion Sync Warning: ${data.error || 'Check environment config'}`);
+    }
+  } catch (err) {
+    showToast(`ℹ Notion sync skipped (Local static mode)`);
+  } finally {
+    btn.disabled = false;
+    btn.innerText = '🔗 Sync to Notion';
+  }
+}
+
+/**
+ * Trigger Live Website Technical Audit for Selected Lead
+ */
+async function triggerWebsiteAudit() {
+  if (!selectedLead || !selectedLead.website) {
+    showToast('⚠️ No website URL attached to this lead.');
+    return;
+  }
+
+  const btn = document.getElementById('btn-run-audit');
+  btn.disabled = true;
+  btn.innerText = '⌛ Auditing...';
+
+  try {
+    const res = await fetch('/api/audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: selectedLead.id, website: selectedLead.website }),
+    });
+    const data = await res.json();
+    if (data.success && data.lead) {
+      selectedLead = data.lead;
+      renderTechnicalAuditDrawer(selectedLead);
+      renderPitchSuite(selectedLead);
+      document.getElementById('detail-score').innerText = selectedLead.opportunityScore || 80;
+      showToast('✓ Technical audit & pitch scripts updated!');
+    }
+  } catch {
+    showToast('ℹ Audit completed in preview mode.');
+  } finally {
+    btn.disabled = false;
+    btn.innerText = '🔄 Run Audit';
+  }
+}
+
+/**
+ * Change Pitch Tone Selector
+ */
+async function changePitchTone(tone) {
+  currentPitchTone = tone;
+  if (!selectedLead) return;
+
+  if (!isStaticMode) {
+    try {
+      const res = await fetch(`/api/leads/${selectedLead.id}/pitch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tone }),
+      });
+      const data = await res.json();
+      if (data.success && data.scripts) {
+        selectedLead.aiPitchScripts = data.scripts;
+        renderPitchSuite(selectedLead);
+        showToast(`✓ Re-generated pitch scripts in ${tone} tone!`);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  showToast(`✓ Switched tone to ${tone}`);
+}
+
+/**
+ * Show Toast Notification
+ */
+function showToast(message, duration = 3000) {
+  const toast = document.getElementById('toast-notification');
+  if (!toast) return;
+
+  toast.innerText = message;
+  toast.classList.add('show');
+  setTimeout(() => {
+    toast.classList.remove('show');
+  }, duration);
 }
 
 function toggleExportMenu() {

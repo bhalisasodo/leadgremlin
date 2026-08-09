@@ -11,6 +11,7 @@ import { CategoryClassifier } from './utils/categoryClassifier.js';
 import { syncLeadsToNotion } from './notion/sync.js';
 import { getConfig } from './config/config.js';
 import { websiteAnalyzer } from './scoring/websiteAnalyzer.js';
+import { aiAuditor } from './scoring/aiAuditor.js';
 import crypto from 'crypto';
 
 const INITIAL_PORT = parseInt(process.env.PORT || '3005', 10);
@@ -356,13 +357,33 @@ app.post('/api/audit', async (req: Request, res: Response) => {
     const updatedLeads = leads.map((l) => {
       if (l.id === id || l.website === website) {
         l.opportunityScore = auditResult.score;
-        (l as any).technicalAudit = auditResult.audit;
+        l.websiteScore = Math.max(10, 100 - auditResult.score);
+        l.technicalAudit = auditResult.audit;
         updatedLead = l;
       }
       return l;
     });
 
     if (updatedLead) {
+      // Also generate AI pitch scripts
+      try {
+        const pitchOutput = await aiAuditor.generateAudit({
+          businessName: (updatedLead as Business).name,
+          websiteUrl: (updatedLead as Business).website || '',
+          category: (updatedLead as Business).category,
+          area: (updatedLead as Business).area,
+          rating: (updatedLead as Business).rating,
+          reviewCount: (updatedLead as Business).reviewCount,
+          technicalAudit: (updatedLead as Business).technicalAudit,
+          tone: 'consultative',
+        });
+
+        (updatedLead as Business).aiPitchScripts = pitchOutput.multiChannelScripts;
+        (updatedLead as Business).estimatedDealValue = pitchOutput.estimatedProjectValueZAR;
+      } catch (err) {
+        logger.warn(`AI Pitch generation skipped during audit: ${String(err)}`);
+      }
+
       saveLeads(updatedLeads);
     }
 
@@ -374,6 +395,51 @@ app.post('/api/audit', async (req: Request, res: Response) => {
   } catch (err: any) {
     logger.error('Website audit error:', err);
     res.status(500).json({ success: false, error: err.message || 'Audit failed.' });
+  }
+});
+
+/**
+ * POST /api/leads/:id/pitch - Generate or customize AI pitch scripts for a lead with requested tone
+ */
+app.post('/api/leads/:id/pitch', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { tone } = req.body;
+
+  const leads = loadLeads();
+  const lead = leads.find((l) => l.id === id);
+
+  if (!lead) {
+    return res.status(404).json({ success: false, error: 'Lead not found.' });
+  }
+
+  try {
+    const pitchOutput = await aiAuditor.generateAudit({
+      businessName: lead.name,
+      websiteUrl: lead.website || '',
+      category: lead.category,
+      area: lead.area,
+      rating: lead.rating,
+      reviewCount: lead.reviewCount,
+      technicalAudit: lead.technicalAudit,
+      tone: tone || 'consultative',
+    });
+
+    lead.aiPitchScripts = pitchOutput.multiChannelScripts;
+    lead.estimatedDealValue = pitchOutput.estimatedProjectValueZAR;
+
+    saveLeads(leads);
+
+    res.json({
+      success: true,
+      scripts: pitchOutput.multiChannelScripts,
+      issues: pitchOutput.issues,
+      recommendations: pitchOutput.recommendations,
+      estimatedValue: pitchOutput.estimatedProjectValueZAR,
+      lead,
+    });
+  } catch (err: any) {
+    logger.error('AI Pitch API error:', err);
+    res.status(500).json({ success: false, error: err.message || 'Pitch generation failed.' });
   }
 });
 

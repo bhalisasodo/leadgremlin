@@ -435,6 +435,7 @@ async function handleStartExtraction(e) {
       btn.disabled = false;
       btn.innerText = '🚀 Start Lead Extraction';
 
+      // Generate a new simulated lead
       const newId = `ext_${Date.now()}`;
       const sampleNames = ['Umhlanga Wellness Hub', 'Gateway Laser & Beauty', 'Umhlanga Executive Auto', 'Ridge CrossFit'];
       const sampleCategories = ['Healthcare & Wellness', 'Beauty and Hair', 'Automotive & Trades', 'Fitness'];
@@ -516,6 +517,12 @@ async function triggerEnrichment() {
 /**
  * Open Prospect Detail Drawer
  */
+let currentPitchChannel = 'email';
+let currentPitchTone = 'consultative';
+
+/**
+ * Open Prospect Detail Drawer
+ */
 function openDetailModal(leadId) {
   selectedLead = allLeads.find((l) => l.id === leadId);
   if (!selectedLead) return;
@@ -523,6 +530,9 @@ function openDetailModal(leadId) {
   document.getElementById('detail-name').innerText = selectedLead.name;
   document.getElementById('detail-category').innerText = selectedLead.category;
   document.getElementById('detail-score').innerText = selectedLead.opportunityScore || 80;
+  
+  const estVal = selectedLead.estimatedDealValue || 18500;
+  document.getElementById('detail-est-value').innerText = `Est. Deal: R${estVal.toLocaleString()}`;
 
   // Website
   const webLink = document.getElementById('detail-website');
@@ -558,8 +568,6 @@ function openDetailModal(leadId) {
   document.getElementById('detail-stage-select').value = selectedLead.funnelStage;
   document.getElementById('detail-notes').value = selectedLead.notes || '';
 
-  renderAuditBadges(selectedLead);
-
   // Render Social Badges
   const socialsContainer = document.getElementById('detail-socials');
   socialsContainer.innerHTML = '';
@@ -586,6 +594,9 @@ function openDetailModal(leadId) {
     });
   }
 
+  renderTechnicalAuditDrawer(selectedLead);
+  renderPitchSuite(selectedLead);
+
   document.getElementById('detail-modal').classList.add('show');
 }
 
@@ -595,183 +606,219 @@ function closeDetailModal() {
 }
 
 /**
- * Update Stage from Detail Modal
+ * Render Technical Website Audit Chips
  */
-async function updateLeadStageFromModal(newStage) {
-  if (!selectedLead) return;
-  selectedLead.funnelStage = newStage;
+function renderTechnicalAuditDrawer(lead) {
+  const auditBox = document.getElementById('detail-audit-box');
+  if (!auditBox) return;
 
-  if (!isStaticMode) {
-    fetch(`/api/leads/${selectedLead.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ funnelStage: newStage }),
-    }).catch(() => null);
-  }
+  const audit = lead.technicalAudit || {
+    hasHttps: Boolean(lead.website && lead.website.startsWith('https')),
+    hasResponsiveViewport: true,
+    hasContactForm: false,
+    hasBookingSystem: false,
+    hasWhatsappLink: false,
+  };
 
-  saveLeadsLocally();
-  renderDashboard();
+  const chips = [
+    { label: 'HTTPS SSL Security', ok: audit.hasHttps },
+    { label: 'Mobile Responsive Viewport', ok: audit.hasResponsiveViewport },
+    { label: 'Online Booking System', ok: audit.hasBookingSystem },
+    { label: 'WhatsApp Instant Lead CTA', ok: audit.hasWhatsappLink },
+    { label: 'Contact Inquiry Form', ok: audit.hasContactForm },
+  ];
+
+  auditBox.innerHTML = chips
+    .map(
+      (c) => `
+      <div class="audit-chip ${c.ok ? 'pass' : 'fail'}">
+        <span class="dot">${c.ok ? '✓' : '✖'}</span>
+        <span>${c.label}</span>
+      </div>
+    `
+    )
+    .join('');
 }
 
 /**
- * Save Lead Notes
+ * Render Multi-Channel Pitch Suite Tabs & Script
  */
-async function saveLeadNotes() {
-  if (!selectedLead) return;
-  const notes = document.getElementById('detail-notes').value;
-  selectedLead.notes = notes;
+function renderPitchSuite(lead) {
+  const scripts = lead.aiPitchScripts || getDefaultPitchScripts(lead);
+  lead.aiPitchScripts = scripts;
 
-  if (!isStaticMode) {
-    fetch(`/api/leads/${selectedLead.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ notes }),
-    }).catch(() => null);
+  document.querySelectorAll('.pitch-tab').forEach((tab) => {
+    tab.classList.toggle('active', tab.dataset.channel === currentPitchChannel);
+  });
+
+  const channelLabels = {
+    email: '📧 Email Outreach Script',
+    whatsapp: '💬 WhatsApp Instant Message',
+    socialDm: '📱 Instagram / Social DM Script',
+    coldCall: '📞 Cold Call Phone Script',
+  };
+
+  document.getElementById('pitch-channel-label').innerText = channelLabels[currentPitchChannel] || 'Outreach Script';
+  const textEl = document.getElementById('ai-script-text');
+
+  if (currentPitchChannel === 'email') {
+    textEl.innerText = `SUBJECT: ${scripts.email.subject}\n\n${scripts.email.body}`;
+  } else if (currentPitchChannel === 'whatsapp') {
+    textEl.innerText = scripts.whatsapp;
+  } else if (currentPitchChannel === 'socialDm') {
+    textEl.innerText = scripts.socialDm;
+  } else if (currentPitchChannel === 'coldCall') {
+    textEl.innerText = `OPENER:\n${scripts.coldCall.opener}\n\nDISCOVERY:\n${scripts.coldCall.discovery}\n\nOBJECTION HANDLING:\n${scripts.coldCall.objectionHandling}\n\nCLOSE:\n${scripts.coldCall.close}`;
   }
-
-  saveLeadsLocally();
-  alert('Notes saved successfully!');
-  renderDashboard();
-}
-
-let activeScriptChannel = 'email';
-let activeScriptTone = 'consultative';
-let generatedScripts = null;
-
-/**
- * Generate AI Outreach Multi-Channel Script Suite
- */
-function generateAiScript() {
-  if (!selectedLead) return;
-
-  const outputBox = document.getElementById('ai-script-output');
-  outputBox.classList.remove('hidden');
-
-  const tone = document.getElementById('script-tone-select') ? document.getElementById('script-tone-select').value : activeScriptTone;
-  activeScriptTone = tone;
-
-  const name = selectedLead.name || 'Business';
-  const category = selectedLead.category || 'local business';
-  const area = selectedLead.area || 'Umhlanga';
-  const rating = selectedLead.rating || 4.8;
-  const reviews = selectedLead.reviewCount || 35;
-
-  generatedScripts = buildMultiChannelPitch(name, category, area, rating, reviews, tone);
-  renderScriptOutput();
 }
 
 /**
- * Script Builder Engine (Runs locally in static GitHub Pages or server)
+ * Default fallback scripts for static preview mode
  */
-function buildMultiChannelPitch(name, category, area, rating, reviews, tone) {
-  if (tone === 'direct') {
-    return {
-      email: `SUBJECT: 35% Lead Increase for ${name} in ${area}\n\nHi ${name} Team,\n\nWe audited top ${category} providers in ${area} and noticed ${name} has a stellar ${rating}★ score with ${reviews}+ reviews.\n\nHowever, your website is missing a 1-click WhatsApp lead booking widget, costing you 10-15 client leads every week.\n\nWe build automated 24/7 lead intake funnels for ${category} businesses. Can we show you a 5-minute live preview this Thursday at 10 AM?\n\nBest regards,\nLeadGremlin Engine`,
-      whatsapp: `⚡ *Quick Question for ${name}*\n\nHi team, loved your ${rating}★ reviews in ${area}! We noticed your website lacks an instant WhatsApp booking link, letting client inquiries slip away to competitors.\n\nWould you be open to a 2-min demo showing how to capture 3x more instant bookings? 🚀`,
-      social_dm: `Hey ${name} team! 👋 Super impressive work with ${reviews}+ reviews in ${area}. Quick heads up: adding a direct social booking link to your profile can double your weekly client inquiries. Sent you a quick email breakdown! 📩`,
-      cold_call: `[OPENER]: Hi, is this the manager at ${name}? My name is LeadGremlin, calling briefly from Umhlanga Digital Lead Engine.\n\n[DISCOVERY]: We were reviewing top ${category} spots in ${area}. You have a great ${rating}★ rating, but no direct WhatsApp booking widget on your site. Are you taking online bookings?\n\n[OBJECTION]: I completely understand you're busy! That's why we built this automated widget—it handles bookings 24/7 without staff needing to answer calls.\n\n[CLOSE]: Can I send a 60-second video demo directly to your WhatsApp? What's the best number?`
-    };
-  }
+function getDefaultPitchScripts(lead) {
+  const name = lead.name || 'Business';
+  const category = lead.category || 'local business';
+  const area = lead.area || 'Umhlanga';
 
-  if (tone === 'casual') {
-    return {
-      email: `SUBJECT: Quick idea for ${name} 💡\n\nHey ${name} team,\n\nCame across your profile while exploring top ${category} spots around ${area}. Big fans of your ${rating}★ reputation!\n\nJust noticed a small tweak on your website that could bring in extra client bookings every single day without spending a dime on ads.\n\nWould love to send over a quick 2-minute video showing how it works if you're open to it?\n\nCheers,\nLeadGremlin Team`,
-      whatsapp: `Hey ${name} 👋 Came across your ${category} business in ${area} and noticed you guys have awesome ${rating}★ reviews! Had a quick idea on how you can get more direct client bookings automatically. Mind if I share a 1-min quick link? 😊`,
-      social_dm: `Hey guys! Love the work ${name} is doing in ${area} 🔥 Noticed your page doesn't have an instant booking button—we set these up for local businesses in 24 hours. DM us if you want a free mockup! 🙌`,
-      cold_call: `[OPENER]: Hey there! Is this ${name}? Hope your day is going awesome. Calling really quick from ${area}.\n\n[DISCOVERY]: I saw your ${reviews}+ great reviews online! Quick question—how are you currently handling client leads coming in after hours?\n\n[OBJECTION]: Totally get it! We built a simple 1-click booking tool so you never miss an after-hours lead again.\n\n[CLOSE]: Would it be alright if I dropped a quick link to your WhatsApp so you can take a look whenever you have a free minute?`
-    };
-  }
-
-  if (tone === 'urgent') {
-    return {
-      email: `SUBJECT: URGENT: ${name} is missing 15+ weekly inquiries in ${area}\n\nAttention ${name} Management,\n\nOur automated audit revealed that ${name} is currently missing up to 35% of high-intent local ${category} searches in ${area}.\n\nWhile your rating (${rating}★) is excellent, your competitors are capturing after-hours clients using automated WhatsApp lead intake.\n\nWe have 2 slots open this week for complimentary sales funnel setups for ${area} businesses. Let's get this fixed today.\n\nRegards,\nLeadGremlin Engine`,
-      whatsapp: `⚠️ *Missed Lead Alert for ${name}*\n\nHi team, your ${category} page in ${area} is missing an instant mobile lead capture widget, letting up to 15+ leads leak weekly.\n\nWe have a free setup slot open today. Reply YES for instant deployment! ⏱️`,
-      social_dm: `⚠️ Hey ${name}! Local ${category} competitors in ${area} are using mobile WhatsApp widgets to steal after-hours leads. We can install your lead capture in under 2 hours. Tap back if interested! ⚡`,
-      cold_call: `[OPENER]: Hi, urgency call for ${name} management regarding your ${area} digital lead capture. Do you have 30 seconds?\n\n[DISCOVERY]: Our system detected your website is missing mobile SSL & WhatsApp instant response. You're losing around 15 client signups every week to nearby competitors.\n\n[OBJECTION]: I understand you have an existing site, but right now it's leaking potential revenue every single day.\n\n[CLOSE]: Let's lock in 10 minutes tomorrow morning to fix this lead leak. Does 9:30 AM or 11:00 AM work better?`
-    };
-  }
-
-  // Consultative (Default)
   return {
-    email: `SUBJECT: Optimizing ${name}'s digital lead intake in ${area}\n\nHi ${name} Team,\n\nI came across ${name} while auditing top-rated ${category} businesses in ${area}.\n\nI noticed your team has an incredible rating (${rating}★ with ${reviews}+ reviews), but your website could convert 35% more high-intent local clients through automated WhatsApp booking widgets and instant lead capture.\n\nWe recently built a sales funnel engine specifically for ${area} businesses to extract & capture inbound leads 24/7.\n\nWould you be open to a 10-minute demo this Thursday?\n\nBest regards,\nLeadGremlin Automated Engine`,
-    whatsapp: `Hi ${name} Team 👋 We audited top ${category} businesses in ${area} and loved your ${rating}★ rating!\n\nWe put together a complimentary growth breakdown showing how an automated WhatsApp lead capture widget can boost your weekly bookings by 35%.\n\nWould you like us to send the PDF audit over? 📄`,
-    social_dm: `Hi ${name}! 🌟 Compliments on your ${reviews}+ positive reviews in ${area}. We created a short audit showing how your ${category} page can capture 35% more inbound client messages directly on Instagram/WhatsApp. Would love to send it over!`,
-    cold_call: `[OPENER]: Good morning/afternoon, my name is LeadGremlin. I'm calling regarding ${name}'s online client intake in ${area}.\n\n[DISCOVERY]: We conduct digital growth audits for top ${category} providers. I noticed your ${rating}★ rating is top-tier, but your site lacks automated lead response. How are you following up with web visitors?\n\n[OBJECTION]: That makes total sense. Many ${category} owners we work with felt the same way until they saw how much staff time the automated assistant saves.\n\n[CLOSE]: Would Thursday at 10 AM or 2 PM work for a brief 10-minute screenshare to walk through the audit?`
+    email: {
+      subject: `Optimizing ${name}'s digital lead intake in ${area}`,
+      body: `Hi ${name} Team,\n\nI came across ${name} while auditing top-rated ${category} businesses in ${area}.\n\nI noticed your team has an incredible reputation, but your website could convert 35% more high-intent local clients through automated WhatsApp booking widgets and instant lead capture.\n\nWe recently built a sales funnel engine specifically for ${area} businesses to extract & capture inbound leads 24/7.\n\nWould you be open to a 10-minute demo this Thursday?\n\nBest regards,\nLeadGremlin Engine`,
+    },
+    whatsapp: `Hi ${name} Team 👋 We audited top ${category} providers in ${area}!\n\nWe noticed your site is missing a 1-click WhatsApp lead booking link, letting inquiries slip to competitors.\n\nMind if I share a 60-second video demo showing how to capture 3x more bookings? 🚀`,
+    socialDm: `Hey ${name} team! 👋 Love your work in ${area}. Quick tip: adding an instant WhatsApp booking link to your profile can double your weekly client inquiries. DM us if you'd like a free mockup! 🙌`,
+    coldCall: {
+      opener: `Hi, is this the manager at ${name}? My name is LeadGremlin, calling briefly from Umhlanga Digital Lead Engine.`,
+      discovery: `We conduct digital growth audits for ${category} providers in ${area}. I noticed your site lacks an automated lead booking widget. How are you following up after hours?`,
+      objectionHandling: `I completely understand you're busy! That's why we built this automated widget—it captures leads 24/7 without staff needing to take calls.`,
+      close: `Can I drop a 60-second video demo directly to your WhatsApp or email address?`,
+    },
   };
 }
 
 /**
- * Channel Tab Switcher
+ * Switch Active Pitch Tab
  */
-function switchScriptChannel(channel) {
-  activeScriptChannel = channel;
-  ['email', 'whatsapp', 'social_dm', 'cold_call'].forEach(ch => {
-    const tab = document.getElementById(`tab-${ch}`);
-    if (tab) {
-      if (ch === channel) tab.classList.add('active');
-      else tab.classList.remove('active');
-    }
-  });
-
-  renderScriptOutput();
-}
-
-/**
- * Tone Selector Handler
- */
-function changeScriptTone(tone) {
-  activeScriptTone = tone;
+function switchPitchTab(channel) {
+  currentPitchChannel = channel;
   if (selectedLead) {
-    generateAiScript();
+    renderPitchSuite(selectedLead);
   }
 }
 
 /**
- * Render Script Output Text
+ * Copy Active Pitch Script to Clipboard
  */
-function renderScriptOutput() {
-  if (!generatedScripts) {
-    generateAiScript();
+function copyPitchToClipboard() {
+  const textEl = document.getElementById('ai-script-text');
+  if (!textEl || !textEl.innerText) return;
+
+  navigator.clipboard.writeText(textEl.innerText).then(
+    () => showToast('✓ Pitch script copied to clipboard!'),
+    () => showToast('✖ Failed to copy to clipboard')
+  );
+}
+
+/**
+ * Trigger Live Notion Database Sync from Dashboard Header
+ */
+async function triggerNotionSync() {
+  const btn = document.getElementById('btn-notion-sync');
+  btn.disabled = true;
+  btn.innerText = '⌛ Syncing Notion...';
+
+  try {
+    const res = await fetch('/api/notion/sync', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✓ Notion Sync Complete! Uploaded ${data.summary?.uploaded || 0} leads.`);
+    } else {
+      showToast(`⚠️ Notion Sync Warning: ${data.error || 'Check environment config'}`);
+    }
+  } catch (err) {
+    showToast(`ℹ Notion sync skipped (Local static mode)`);
+  } finally {
+    btn.disabled = false;
+    btn.innerText = '🔗 Sync to Notion';
+  }
+}
+
+/**
+ * Trigger Live Website Technical Audit for Selected Lead
+ */
+async function triggerWebsiteAudit() {
+  if (!selectedLead || !selectedLead.website) {
+    showToast('⚠️ No website URL attached to this lead.');
     return;
   }
 
-  const textEl = document.getElementById('ai-script-text');
-  const badgeEl = document.getElementById('ai-channel-badge');
+  const btn = document.getElementById('btn-run-audit');
+  btn.disabled = true;
+  btn.innerText = '⌛ Auditing...';
 
-  const channelLabels = {
-    email: '📧 Cold Email Pitch',
-    whatsapp: '💬 WhatsApp Instant Message',
-    social_dm: '📱 Social Media DM',
-    cold_call: '📞 Cold Call Script'
-  };
-
-  if (badgeEl) badgeEl.innerText = channelLabels[activeScriptChannel] || activeScriptChannel;
-  if (textEl) textEl.innerText = generatedScripts[activeScriptChannel] || 'Script generation failed.';
+  try {
+    const res = await fetch('/api/audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: selectedLead.id, website: selectedLead.website }),
+    });
+    const data = await res.json();
+    if (data.success && data.lead) {
+      selectedLead = data.lead;
+      renderTechnicalAuditDrawer(selectedLead);
+      renderPitchSuite(selectedLead);
+      document.getElementById('detail-score').innerText = selectedLead.opportunityScore || 80;
+      showToast('✓ Technical audit & pitch scripts updated!');
+    }
+  } catch {
+    showToast('ℹ Audit completed in preview mode.');
+  } finally {
+    btn.disabled = false;
+    btn.innerText = '🔄 Run Audit';
+  }
 }
 
 /**
- * 1-Click Copy Script to Clipboard
+ * Change Pitch Tone Selector
  */
-function copyScriptToClipboard() {
-  const textEl = document.getElementById('ai-script-text');
-  const copyBtn = document.getElementById('btn-copy-script');
-  if (!textEl || !textEl.innerText) return;
+async function changePitchTone(tone) {
+  currentPitchTone = tone;
+  if (!selectedLead) return;
 
-  navigator.clipboard.writeText(textEl.innerText).then(() => {
-    if (copyBtn) {
-      const origText = copyBtn.innerText;
-      copyBtn.innerText = '✅ Copied!';
-      copyBtn.style.borderColor = '#10b981';
-      copyBtn.style.color = '#10b981';
-      setTimeout(() => {
-        copyBtn.innerText = origText;
-        copyBtn.style.borderColor = '';
-        copyBtn.style.color = '';
-      }, 2000);
+  if (!isStaticMode) {
+    try {
+      const res = await fetch(`/api/leads/${selectedLead.id}/pitch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tone }),
+      });
+      const data = await res.json();
+      if (data.success && data.scripts) {
+        selectedLead.aiPitchScripts = data.scripts;
+        renderPitchSuite(selectedLead);
+        showToast(`✓ Re-generated pitch scripts in ${tone} tone!`);
+        return;
+      }
+    } catch {
+      // ignore
     }
-  }).catch(err => {
-    console.error('Failed to copy text:', err);
-  });
+  }
+
+  showToast(`✓ Switched tone to ${tone}`);
+}
+
+/**
+ * Show Toast Notification
+ */
+function showToast(message, duration = 3000) {
+  const toast = document.getElementById('toast-notification');
+  if (!toast) return;
+
+  toast.innerText = message;
+  toast.classList.add('show');
+  setTimeout(() => {
+    toast.classList.remove('show');
+  }, duration);
 }
 
 function toggleExportMenu() {
@@ -821,193 +868,4 @@ function escapeHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
-}
-
-/**
- * Open Notion Sync Modal
- */
-function triggerNotionSync() {
-  const modal = document.getElementById('notion-modal');
-  if (modal) modal.classList.add('active');
-
-  const statFound = document.getElementById('notion-stat-found');
-  if (statFound) statFound.innerText = allLeads ? allLeads.length : 0;
-
-  if (isStaticMode) {
-    const msg = document.getElementById('notion-sync-message');
-    if (msg) {
-      msg.innerHTML = '⚠️ <strong>Static GitHub Pages Mode:</strong> Direct API calls require the local server.<br>To sync with Notion from CLI, run: <code style="background:rgba(0,0,0,0.4); padding:2px 6px; border-radius:4px;">npm run sync</code>';
-    }
-  }
-}
-
-/**
- * Close Notion Sync Modal
- */
-function closeNotionModal() {
-  const modal = document.getElementById('notion-modal');
-  if (modal) modal.classList.remove('active');
-}
-
-/**
- * Run Notion Sync API request
- */
-async function runNotionSyncNow() {
-  const btn = document.getElementById('btn-run-notion-sync');
-  const msg = document.getElementById('notion-sync-message');
-  const title = document.getElementById('notion-status-title');
-
-  if (isStaticMode) {
-    alert('Notion Sync via web UI is available when running locally (`npm run dashboard`). On static GitHub Pages, use `npm run sync` in terminal.');
-    return;
-  }
-
-  if (btn) {
-    btn.disabled = true;
-    btn.innerText = '⏳ Syncing with Notion...';
-  }
-
-  if (title) title.innerText = 'Syncing...';
-  if (msg) msg.innerText = 'Connecting to Notion API and checking duplicate records...';
-
-  try {
-    const res = await fetch('/api/notion/sync', { method: 'POST' });
-    const data = await res.json();
-
-    if (data.success && data.summary) {
-      if (title) title.innerText = '✅ Sync Complete!';
-      if (msg) msg.innerText = data.message;
-
-      document.getElementById('notion-stat-found').innerText = data.summary.totalFound || allLeads.length;
-      document.getElementById('notion-stat-uploaded').innerText = data.summary.uploaded || 0;
-      document.getElementById('notion-stat-updated').innerText = data.summary.updated || 0;
-      document.getElementById('notion-stat-skipped').innerText = data.summary.skipped || 0;
-    } else {
-      if (title) title.innerText = '❌ Sync Failed';
-      if (msg) msg.innerText = data.error || 'Failed to sync with Notion.';
-    }
-  } catch (err) {
-    if (title) title.innerText = '❌ Sync Error';
-    if (msg) msg.innerText = err.message || 'Error connecting to Notion API.';
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerText = '🚀 Start Notion Sync';
-    }
-  }
-}
-
-/**
- * Render Technical Audit Badges for a selected lead
- */
-function renderAuditBadges(lead) {
-  if (!lead) return;
-
-  const scoreEl = document.getElementById('detail-score');
-  if (scoreEl) scoreEl.innerText = lead.opportunityScore || 80;
-
-  const sslText = document.getElementById('badge-ssl-text');
-  const sslIcon = document.getElementById('badge-ssl-icon');
-  const hasHttps = lead.website && lead.website.startsWith('https://');
-  if (sslText && sslIcon) {
-    sslText.innerText = hasHttps ? 'HTTPS Secure' : 'Insecure HTTP (-10)';
-    sslText.style.color = hasHttps ? '#10b981' : '#ef4444';
-    sslIcon.innerText = hasHttps ? '🛡️' : '⚠️';
-  }
-
-  const vpText = document.getElementById('badge-viewport-text');
-  const vpIcon = document.getElementById('badge-viewport-icon');
-  const hasVp = lead.technicalAudit ? lead.technicalAudit.hasResponsiveViewport : true;
-  if (vpText && vpIcon) {
-    vpText.innerText = hasVp ? 'Viewport Ready' : 'Non-Mobile (-15)';
-    vpText.style.color = hasVp ? '#10b981' : '#ef4444';
-    vpIcon.innerText = hasVp ? '📱' : '💻';
-  }
-
-  const waText = document.getElementById('badge-wa-text');
-  const waIcon = document.getElementById('badge-wa-icon');
-  const hasWa = lead.technicalAudit ? lead.technicalAudit.hasWhatsappLink : false;
-  if (waText && waIcon) {
-    waText.innerText = hasWa ? 'Widget Active' : 'Missing (-20 pts)';
-    waText.style.color = hasWa ? '#10b981' : '#ef4444';
-    waIcon.innerText = hasWa ? '💬' : '⚡';
-  }
-
-  const bookText = document.getElementById('badge-booking-text');
-  const bookIcon = document.getElementById('badge-booking-icon');
-  const hasBook = lead.technicalAudit ? lead.technicalAudit.hasBookingSystem : false;
-  if (bookText && bookIcon) {
-    bookText.innerText = hasBook ? 'Portal Active' : 'Missing (-15 pts)';
-    bookText.style.color = hasBook ? '#10b981' : '#ef4444';
-    bookIcon.innerText = hasBook ? '📅' : '🛑';
-  }
-}
-
-/**
- * Execute Live Technical Site Audit for a lead
- */
-async function runLeadWebsiteAudit() {
-  if (!selectedLead || !selectedLead.website) {
-    alert('Selected lead has no valid website URL to audit.');
-    return;
-  }
-
-  const btn = document.getElementById('btn-run-audit');
-  if (btn) {
-    btn.disabled = true;
-    btn.innerText = '🔍 Auditing Site...';
-  }
-
-  if (isStaticMode) {
-    // Static mode simulation / client-side analysis
-    setTimeout(() => {
-      const url = selectedLead.website;
-      const hasHttps = url.startsWith('https://');
-      const mockScore = hasHttps ? 75 : 85;
-
-      selectedLead.opportunityScore = mockScore;
-      selectedLead.technicalAudit = {
-        hasHttps,
-        hasResponsiveViewport: true,
-        hasWhatsappLink: false,
-        hasBookingSystem: false,
-      };
-
-      renderAuditBadges(selectedLead);
-      saveLeadsLocally();
-
-      if (btn) {
-        btn.disabled = false;
-        btn.innerText = '✅ Audit Complete';
-        setTimeout(() => (btn.innerText = '🔍 Run Live Site Audit'), 2500);
-      }
-    }, 1000);
-    return;
-  }
-
-  try {
-    const res = await fetch('/api/audit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: selectedLead.id, website: selectedLead.website }),
-    });
-
-    const data = await res.json();
-    if (data.success && data.result) {
-      selectedLead.opportunityScore = data.result.score;
-      selectedLead.technicalAudit = data.result.audit;
-
-      renderAuditBadges(selectedLead);
-      renderDashboard();
-
-      if (btn) {
-        btn.innerText = '✅ Audit Complete';
-        setTimeout(() => (btn.innerText = '🔍 Run Live Site Audit'), 2500);
-      }
-    }
-  } catch (err) {
-    console.error('Audit failed:', err);
-  } finally {
-    if (btn) btn.disabled = false;
-  }
 }
