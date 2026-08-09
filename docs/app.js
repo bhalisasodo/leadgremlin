@@ -162,6 +162,22 @@ document.addEventListener('DOMContentLoaded', () => {
   checkNotionStatus();
   checkExtractionStatusOnLoad();
   renderSuburbsGrid();
+
+  // Global Keyboard Shortcuts (Ctrl+K to search, Esc to close modals)
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      const searchInput = document.getElementById('global-search');
+      if (searchInput) {
+        searchInput.focus();
+        searchInput.select();
+      }
+    } else if (e.key === 'Escape') {
+      closeDetailModal();
+      closeExtractModal();
+      closeAddLeadModal();
+    }
+  });
 });
 
 /**
@@ -406,6 +422,7 @@ function getFilteredLeads() {
  */
 function renderDashboard() {
   const filtered = getFilteredLeads();
+  updateCategoryPillCounts();
 
   if (activeView === 'kanban') {
     renderKanban(filtered);
@@ -414,6 +431,50 @@ function renderDashboard() {
   } else if (activeView === 'analytics') {
     renderAnalytics();
   }
+}
+
+/**
+ * Update live category count badges on filter pills
+ */
+function updateCategoryPillCounts() {
+  const counts = {
+    ALL: allLeads.length,
+    Fitness: 0,
+    'Beauty and Hair': 0,
+    Restaurant: 0,
+    'Healthcare & Wellness': 0,
+    'Real Estate': 0,
+    'Professional Services': 0,
+    'Automotive & Trades': 0,
+  };
+
+  allLeads.forEach((l) => {
+    if (counts[l.category] !== undefined) {
+      counts[l.category]++;
+    }
+  });
+
+  const pills = document.querySelectorAll('#category-pills .pill');
+  pills.forEach((pill) => {
+    const text = pill.innerText;
+    if (text.includes('All Categories')) {
+      pill.innerHTML = `All Categories <span class="pill-count">${counts.ALL}</span>`;
+    } else if (text.includes('Fitness')) {
+      pill.innerHTML = `🏋️ Fitness <span class="pill-count">${counts.Fitness}</span>`;
+    } else if (text.includes('Beauty')) {
+      pill.innerHTML = `💇 Beauty & Hair <span class="pill-count">${counts['Beauty and Hair']}</span>`;
+    } else if (text.includes('Restaurants')) {
+      pill.innerHTML = `🍽️ Restaurants <span class="pill-count">${counts.Restaurant}</span>`;
+    } else if (text.includes('Healthcare')) {
+      pill.innerHTML = `🩺 Healthcare <span class="pill-count">${counts['Healthcare & Wellness']}</span>`;
+    } else if (text.includes('Real Estate')) {
+      pill.innerHTML = `🏠 Real Estate <span class="pill-count">${counts['Real Estate']}</span>`;
+    } else if (text.includes('Professional')) {
+      pill.innerHTML = `⚖️ Professional <span class="pill-count">${counts['Professional Services']}</span>`;
+    } else if (text.includes('Automotive')) {
+      pill.innerHTML = `🔧 Automotive <span class="pill-count">${counts['Automotive & Trades']}</span>`;
+    }
+  });
 }
 
 /**
@@ -430,7 +491,7 @@ function renderKanban(leads) {
     const col = document.createElement('div');
     col.className = 'kanban-column';
     col.innerHTML = `
-      <div class="column-header">
+      <div class="column-header column-header-${stage.id}">
         <div class="column-title">
           <span>${stage.label}</span>
         </div>
@@ -459,13 +520,14 @@ function renderKanban(leads) {
 
       const score = lead.opportunityScore || 80;
       const scoreClass = score >= 80 ? '' : 'med';
+      const dealValStr = lead.estimatedDealValue ? ` • R${lead.estimatedDealValue.toLocaleString()}` : '';
 
       card.innerHTML = `
         <div class="card-top">
           <span class="business-name">${escapeHtml(lead.name)}</span>
           <span class="score-tag ${scoreClass}">${score} Score</span>
         </div>
-        <div class="card-category">${escapeHtml(lead.category)} • ${escapeHtml(lead.area || 'South Africa')}</div>
+        <div class="card-category">${escapeHtml(lead.category)} • ${escapeHtml(lead.area || 'South Africa')}${dealValStr}</div>
         <div class="card-location">
           📍 ${escapeHtml(lead.address || lead.area || 'South Africa')}
         </div>
@@ -506,6 +568,10 @@ function renderTable(leads) {
     if (lead.socials?.facebook) socialIcons.push(`<a href="${lead.socials.facebook}" target="_blank" style="color:var(--sky);">FB</a>`);
     if (lead.socials?.linkedin) socialIcons.push(`<a href="${lead.socials.linkedin}" target="_blank" style="color:var(--sky);">IN</a>`);
 
+    const stageOptionsHTML = FUNNEL_STAGES.map(
+      (s) => `<option value="${s.id}" ${s.id === lead.funnelStage ? 'selected' : ''}>${s.label}</option>`
+    ).join('');
+
     tr.innerHTML = `
       <td><strong>${escapeHtml(lead.name)}</strong></td>
       <td><span class="badge">${escapeHtml(lead.category)}</span></td>
@@ -523,14 +589,76 @@ function renderTable(leads) {
         }
       </td>
       <td>${socialIcons.length > 0 ? socialIcons.join(' • ') : '<span style="color:var(--text-dim); font-size:11px;">-</span>'}</td>
-      <td><span class="status-badge status-${lead.funnelStage}">${lead.funnelStage}</span></td>
+      <td>
+        <select class="form-control-sm inline-stage-select status-${lead.funnelStage}" onchange="updateLeadStageInline('${lead.id}', this.value)">
+          ${stageOptionsHTML}
+        </select>
+      </td>
       <td><strong>${lead.opportunityScore || 75}</strong></td>
       <td>
-        <button class="btn btn-sm btn-outline" onclick="openDetailModal('${lead.id}')">View Drawer</button>
+        <div class="action-buttons-group">
+          <button class="btn btn-sm btn-outline" onclick="openDetailModal('${lead.id}')" title="View Lead Drawer">📋 View</button>
+          ${lead.email ? `<button class="btn btn-sm btn-icon-only" onclick="copyEmailToClipboard('${escapeHtml(lead.email)}', event)" title="Copy Email">📧</button>` : ''}
+          <button class="btn btn-sm btn-icon-only btn-danger-icon" onclick="handleDeleteLead('${lead.id}')" title="Delete Lead">🗑️</button>
+        </div>
       </td>
     `;
     tbody.appendChild(tr);
   });
+}
+
+/**
+ * Inline Stage Switcher Handler
+ */
+function updateLeadStageInline(leadId, newStage) {
+  const lead = allLeads.find((l) => l.id === leadId);
+  if (lead) {
+    lead.funnelStage = newStage;
+    lead.lastContactedAt = new Date().toISOString();
+    saveLeadsLocally();
+    if (!isStaticMode) {
+      fetch(`/api/leads/${leadId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ funnelStage: newStage }),
+      }).catch(() => null);
+    }
+    showToast(`✓ Stage updated for "${lead.name}" to ${newStage}`);
+    renderDashboard();
+  }
+}
+
+/**
+ * Delete Lead Handler
+ */
+async function handleDeleteLead(leadId) {
+  const lead = allLeads.find((l) => l.id === leadId);
+  if (!lead) return;
+
+  if (!confirm(`Are you sure you want to remove "${lead.name}" from your sales pipeline?`)) {
+    return;
+  }
+
+  allLeads = allLeads.filter((l) => l.id !== leadId);
+  saveLeadsLocally();
+
+  if (!isStaticMode) {
+    fetch(`/api/leads/${leadId}`, { method: 'DELETE' }).catch(() => null);
+  }
+
+  showToast(`🗑️ Lead "${lead.name}" deleted successfully.`);
+  populateAreaFilterOptions();
+  renderDashboard();
+  renderStatsLocal();
+}
+
+/**
+ * Copy Email Helper
+ */
+function copyEmailToClipboard(email, e) {
+  if (e) e.stopPropagation();
+  navigator.clipboard.writeText(email);
+  showToast(`📋 Email copied: ${email}`);
 }
 
 /**
