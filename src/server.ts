@@ -76,7 +76,7 @@ let extractionProgress: { status: string; log: string[]; totalFound: number; cur
  */
 app.get('/api/leads', (req: Request, res: Response) => {
   let leads = loadLeads();
-  const { category, stage, q, area } = req.query;
+  const { category, stage, q, area, hasEmail, hasWebsite, hasPhone } = req.query;
 
   if (category) {
     leads = leads.filter((l) => l.category.toLowerCase() === String(category).toLowerCase());
@@ -88,6 +88,18 @@ app.get('/api/leads', (req: Request, res: Response) => {
 
   if (area) {
     leads = leads.filter((l) => l.area.toLowerCase().includes(String(area).toLowerCase()));
+  }
+
+  if (hasEmail === 'true') {
+    leads = leads.filter((l) => Boolean(l.email && l.email.trim() !== ''));
+  }
+
+  if (hasWebsite === 'true') {
+    leads = leads.filter((l) => Boolean(l.website && l.website.trim() !== ''));
+  }
+
+  if (hasPhone === 'true') {
+    leads = leads.filter((l) => Boolean(l.phone && l.phone.trim() !== ''));
   }
 
   if (q) {

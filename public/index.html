@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LeadGremlin | Sales Funnel & Business Lead Engine</title>
+  <title>LeadGremlin | AI Outbound Lead Engine & Sales Funnel</title>
   <meta name="description" content="AI Outbound Lead Engine & Sales Funnel Dashboard for local business discovery and contact extraction.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -46,8 +46,17 @@
         <p class="preset-desc">Umhlanga Rocks, Ridge, Gateway, La Lucia & Cornubia</p>
       </div>
 
+      <div class="notion-status-card" id="notion-status-box">
+        <div class="notion-status-header">
+          <span class="notion-icon">🔗</span>
+          <span class="notion-label">Notion Integration</span>
+          <span class="notion-dot-status" id="notion-dot"></span>
+        </div>
+        <div class="notion-status-text" id="notion-status-text">Checking status...</div>
+      </div>
+
       <div class="sidebar-footer">
-        <button class="btn btn-primary btn-block" id="open-extract-btn" onclick="openExtractModal()">
+        <button class="btn btn-primary btn-block glow-btn" id="open-extract-btn" onclick="openExtractModal()">
           <span class="btn-icon">⚡</span> Extract New Leads
         </button>
       </div>
@@ -55,6 +64,18 @@
 
     <!-- Main Workspace -->
     <main class="main-content">
+      <!-- Top Live Extraction Progress Banner (Floating) -->
+      <div class="live-extraction-banner hidden" id="live-extraction-banner">
+        <div class="banner-content">
+          <div class="pulse-loader"></div>
+          <div class="banner-text">
+            <strong>Lead Extraction Active:</strong>
+            <span id="banner-status-text">Searching businesses...</span>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-outline-light" onclick="openExtractModal()">View Execution Log</button>
+      </div>
+
       <!-- Top Action Header -->
       <header class="top-header">
         <div class="header-left">
@@ -68,8 +89,8 @@
             <input type="text" id="global-search" placeholder="Search business, email, phone..." oninput="handleSearch(this.value)">
           </div>
 
-          <button class="btn btn-secondary" onclick="triggerEnrichment()">
-            <span>✨ Enrich Missing Contacts</span>
+          <button class="btn btn-secondary" onclick="triggerEnrichment()" id="btn-enrich">
+            <span>✨ Enrich Contacts</span>
           </button>
 
           <button class="btn btn-outline" id="btn-notion-sync" onclick="triggerNotionSync()">
@@ -81,8 +102,8 @@
               <span>📥 Export</span>
             </button>
             <div class="dropdown-menu" id="export-menu">
-              <button onclick="downloadExport('csv')" class="dropdown-item" style="width:100%; text-align:left; background:none; border:none; cursor:pointer;">CSV Format (.csv)</button>
-              <button onclick="downloadExport('json')" class="dropdown-item" style="width:100%; text-align:left; background:none; border:none; cursor:pointer;">JSON Format (.json)</button>
+              <button onclick="downloadExport('csv')" class="dropdown-item">CSV Format (.csv)</button>
+              <button onclick="downloadExport('json')" class="dropdown-item">JSON Format (.json)</button>
             </div>
           </div>
         </div>
@@ -96,6 +117,7 @@
             <span class="metric-title">Total Prospects</span>
             <h3 id="stat-total">0</h3>
           </div>
+          <div class="metric-sparkline" id="spark-total"></div>
         </div>
 
         <div class="metric-card">
@@ -104,6 +126,7 @@
             <span class="metric-title">Website Coverage</span>
             <h3 id="stat-web">0%</h3>
           </div>
+          <div class="metric-progress-bar"><div class="bar-fill web" id="bar-web"></div></div>
         </div>
 
         <div class="metric-card">
@@ -112,6 +135,7 @@
             <span class="metric-title">Email Verified</span>
             <h3 id="stat-email">0%</h3>
           </div>
+          <div class="metric-progress-bar"><div class="bar-fill email" id="bar-email"></div></div>
         </div>
 
         <div class="metric-card">
@@ -120,29 +144,51 @@
             <span class="metric-title">Phone Contactable</span>
             <h3 id="stat-phone">0%</h3>
           </div>
+          <div class="metric-progress-bar"><div class="bar-fill phone" id="bar-phone"></div></div>
         </div>
 
         <div class="metric-card">
           <div class="metric-icon social">📱</div>
           <div class="metric-data">
-            <span class="metric-title">Social Media Links</span>
+            <span class="metric-title">Social Links</span>
             <h3 id="stat-social">0%</h3>
           </div>
+          <div class="metric-progress-bar"><div class="bar-fill social" id="bar-social"></div></div>
         </div>
       </section>
 
-      <!-- Category Filter Tabs -->
-      <section class="category-filters">
-        <span class="filter-label">Category Group:</span>
-        <div class="filter-pills" id="category-pills">
-          <button class="pill active" onclick="filterByCategory('ALL')">All Categories</button>
-          <button class="pill" onclick="filterByCategory('Fitness')">🏋️ Fitness</button>
-          <button class="pill" onclick="filterByCategory('Beauty and Hair')">💇 Beauty & Hair</button>
-          <button class="pill" onclick="filterByCategory('Restaurant')">🍽️ Restaurants</button>
-          <button class="pill" onclick="filterByCategory('Healthcare & Wellness')">🩺 Healthcare</button>
-          <button class="pill" onclick="filterByCategory('Real Estate')">🏠 Real Estate</button>
-          <button class="pill" onclick="filterByCategory('Professional Services')">⚖️ Professional</button>
-          <button class="pill" onclick="filterByCategory('Automotive & Trades')">🔧 Automotive</button>
+      <!-- Category & Quick Filter Bar -->
+      <section class="filter-toolbar">
+        <div class="category-filters">
+          <span class="filter-label">Category:</span>
+          <div class="filter-pills" id="category-pills">
+            <button class="pill active" onclick="filterByCategory('ALL')">All Categories</button>
+            <button class="pill" onclick="filterByCategory('Fitness')">🏋️ Fitness</button>
+            <button class="pill" onclick="filterByCategory('Beauty and Hair')">💇 Beauty & Hair</button>
+            <button class="pill" onclick="filterByCategory('Restaurant')">🍽️ Restaurants</button>
+            <button class="pill" onclick="filterByCategory('Healthcare & Wellness')">🩺 Healthcare</button>
+            <button class="pill" onclick="filterByCategory('Real Estate')">🏠 Real Estate</button>
+            <button class="pill" onclick="filterByCategory('Professional Services')">⚖️ Professional</button>
+            <button class="pill" onclick="filterByCategory('Automotive & Trades')">🔧 Automotive</button>
+          </div>
+        </div>
+
+        <div class="sub-filter-bar">
+          <div class="toggle-group">
+            <label class="toggle-btn"><input type="checkbox" id="filter-has-email" onchange="applyFilters()"> 📧 Has Email</label>
+            <label class="toggle-btn"><input type="checkbox" id="filter-has-website" onchange="applyFilters()"> 🌐 Has Website</label>
+            <label class="toggle-btn"><input type="checkbox" id="filter-has-phone" onchange="applyFilters()"> 📞 Has Phone</label>
+          </div>
+
+          <div class="sort-selector">
+            <label>Sort By:</label>
+            <select id="sort-select" class="form-control-sm" onchange="applySort(this.value)">
+              <option value="score-desc">Opportunity Score (High to Low)</option>
+              <option value="name-asc">Business Name (A-Z)</option>
+              <option value="rating-desc">Rating (Highest)</option>
+              <option value="date-desc">Recently Scraped</option>
+            </select>
+          </div>
         </div>
       </section>
 
@@ -168,14 +214,14 @@
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>Business Name</th>
-                  <th>Category</th>
+                  <th onclick="toggleSort('name')" class="sortable">Business Name ↕</th>
+                  <th onclick="toggleSort('category')" class="sortable">Category ↕</th>
                   <th>Area</th>
                   <th>Contact Info</th>
                   <th>Website</th>
                   <th>Social Handles</th>
                   <th>Stage</th>
-                  <th>Score</th>
+                  <th onclick="toggleSort('opportunityScore')" class="sortable">Opp. Score ↕</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -191,12 +237,29 @@
       <div id="view-analytics-container" class="view-panel">
         <div class="analytics-grid">
           <div class="analytics-card glass-panel">
-            <h3>Prospect Category Distribution</h3>
+            <div class="card-header-sm">
+              <h3>Prospect Category Distribution</h3>
+              <span class="hint">Breakdown by business type</span>
+            </div>
             <div class="chart-bars" id="category-chart"></div>
           </div>
+          
           <div class="analytics-card glass-panel">
-            <h3>Funnel Stage Pipeline Breakdown</h3>
+            <div class="card-header-sm">
+              <h3>Funnel Stage Pipeline Breakdown</h3>
+              <span class="hint">Active deal volume</span>
+            </div>
             <div class="chart-bars" id="stage-chart"></div>
+          </div>
+
+          <div class="analytics-card glass-panel full-width">
+            <div class="card-header-sm">
+              <h3>Contact Enrichment & Audit Readiness</h3>
+              <span class="hint">Lead data completion score</span>
+            </div>
+            <div class="coverage-meters-grid" id="coverage-meters">
+              <!-- Dynamically populated -->
+            </div>
           </div>
         </div>
       </div>
@@ -211,7 +274,7 @@
           <span class="modal-icon">⚡</span>
           <div>
             <h3>Extract New Leads</h3>
-            <p>One-click scraper targeting businesses in Umhlanga & Surrounds</p>
+            <p>Target local businesses with Google Maps & Deep Web Search</p>
           </div>
         </div>
         <button class="close-btn" onclick="closeExtractModal()">&times;</button>
@@ -270,7 +333,7 @@
           </div>
 
           <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" onclick="closeExtractModal()">Cancel</button>
+            <button type="button" class="btn btn-secondary" onclick="closeExtractModal()">Close</button>
             <button type="submit" class="btn btn-primary" id="btn-run-scraper">
               <span>🚀 Start Lead Extraction</span>
             </button>
@@ -342,7 +405,7 @@
           <div class="detail-section">
             <div class="section-title-row">
               <h4 class="section-title">Technical Website Audit</h4>
-              <button class="btn-text" id="btn-run-audit" onclick="triggerWebsiteAudit()">🔄 Run Audit</button>
+              <button class="btn-text" id="btn-run-audit" onclick="triggerWebsiteAudit()">🔄 Run Technical Audit</button>
             </div>
             <div class="audit-chips-grid" id="detail-audit-box">
               <!-- Populated by app.js -->
@@ -371,7 +434,7 @@
               <div class="score-badge" id="detail-score">85</div>
               <div class="score-info">
                 <span class="est-value" id="detail-est-value">Est. Deal: R18,500</span>
-                <p class="score-desc" id="detail-score-desc">High priority lead. Missing website optimization and social booking link.</p>
+                <p class="score-desc" id="detail-score-desc">High priority lead. Target for AI outreach script generation.</p>
               </div>
             </div>
           </div>
@@ -419,7 +482,64 @@
     </div>
   </div>
 
-  <!-- Toast Notification -->
+  <!-- MODAL 3: ADD MANUAL LEAD -->
+  <div class="modal-overlay" id="add-lead-modal">
+    <div class="modal-card glass-panel">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span class="modal-icon">➕</span>
+          <div>
+            <h3>Add New Prospect</h3>
+            <p>Manually insert lead entry into sales pipeline</p>
+          </div>
+        </div>
+        <button class="close-btn" onclick="closeAddLeadModal()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <form id="add-lead-form" onsubmit="handleAddLeadSubmit(event)">
+          <div class="form-group">
+            <label>Business Name *</label>
+            <input type="text" id="add-name" class="form-control" placeholder="e.g. Umhlanga Fitness Club" required>
+          </div>
+          <div class="form-group">
+            <label>Category *</label>
+            <select id="add-category" class="form-control" required>
+              <option value="Fitness">Fitness & Gyms</option>
+              <option value="Beauty and Hair">Beauty & Salons</option>
+              <option value="Restaurant">Restaurants & Dining</option>
+              <option value="Healthcare & Wellness">Healthcare & Wellness</option>
+              <option value="Real Estate">Real Estate</option>
+              <option value="Professional Services">Professional Services</option>
+              <option value="Automotive & Trades">Automotive & Trades</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Area / Location</label>
+            <input type="text" id="add-area" class="form-control" placeholder="e.g. Umhlanga Ridge" value="Umhlanga">
+          </div>
+          <div class="form-group">
+            <label>Website</label>
+            <input type="url" id="add-website" class="form-control" placeholder="https://example.co.za">
+          </div>
+          <div class="form-group">
+            <label>Phone Number</label>
+            <input type="tel" id="add-phone" class="form-control" placeholder="+27 31 123 4567">
+          </div>
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" id="add-email" class="form-control" placeholder="info@example.co.za">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeAddLeadModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Lead</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification System -->
   <div id="toast-notification" class="toast"></div>
 
   <script src="app.js"></script>
