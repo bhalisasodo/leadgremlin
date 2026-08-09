@@ -25,7 +25,7 @@ export const getConfig = (): AppConfig => {
   const headless = process.env.HEADLESS !== 'false';
   const outputDir = path.resolve(process.cwd(), process.env.OUTPUT_DIR || './data');
   const logDir = path.resolve(process.cwd(), process.env.LOG_DIR || './logs');
-  const notionToken = process.env.NOTION_TOKEN || '';
+  const notionToken = process.env.NOTION_TOKEN || process.env.NOTION_API_KEY || '';
   const notionDatabaseId = process.env.NOTION_DATABASE_ID || '';
 
   return {
