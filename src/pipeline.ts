@@ -59,8 +59,8 @@ async function runPipeline() {
   const cliArgs = parseArgs();
 
   // Combine CLI flags with environment config
-  const areaInput = cliArgs.area || 'Umhlanga';
-  const areasList = areaInput.split(',').map((a) => a.trim()).filter(Boolean);
+  const area = cliArgs.area || 'Umhlanga';
+  const areasList = area.split(',').map((a) => a.trim()).filter(Boolean);
   let searchTerms = cliArgs.terms;
   if (!searchTerms || searchTerms.length === 0) {
     searchTerms = buildMultiRegionQueries(['gym', 'beauty salon', 'restaurant', 'dentist'], areasList);

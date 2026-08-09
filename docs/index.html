@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LeadGremlin | Sales Funnel & Business Lead Engine</title>
-  <meta name="description" content="AI Outbound Lead Engine & Sales Funnel Dashboard for local business discovery and contact extraction.">
+  <title>LeadGremlin | AI Outbound Lead Engine & South Africa Search Universe</title>
+  <meta name="description" content="AI Outbound Lead Engine & Sales Funnel Dashboard for South African business discovery across Durban, Sandton, Cape Town, and national metro hubs.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -18,7 +18,7 @@
         <div class="logo-icon">⚡</div>
         <div class="brand-text">
           <h2>LeadGremlin</h2>
-          <span class="version-badge">v2.0 Funnel</span>
+          <span class="version-badge">v2.5 SA Engine</span>
         </div>
       </div>
 
@@ -38,16 +38,36 @@
       </nav>
 
       <div class="sidebar-preset">
-        <div class="preset-label">TARGET REGION</div>
-        <div class="region-badge">
+        <div class="preset-label">TARGET SA REGION</div>
+        <div class="region-badge" id="active-region-badge">
           <span class="pulse-dot"></span>
-          <strong>Umhlanga & Coast</strong>
+          <strong id="active-region-text">KZN Coast Metro</strong>
         </div>
-        <p class="preset-desc">Umhlanga Rocks, Ridge, Gateway, La Lucia & Cornubia</p>
+        <select id="sidebar-region-select" class="form-control-sm mt-2" onchange="handleSidebarRegionChange(this.value)">
+          <option value="ALL">🇿🇦 All South Africa</option>
+          <option value="KZN" selected>🌊 KZN (Durban, Umhlanga, Ballito)</option>
+          <option value="GP">🏙️ Gauteng (Sandton, JHB, Pretoria)</option>
+          <option value="WC">⛰️ Western Cape (Cape Town, Winelands)</option>
+          <option value="EC">🏖️ Eastern Cape (Gqeberha, East London)</option>
+          <option value="FS">🌾 Free State (Bloemfontein, Clarens)</option>
+          <option value="MP">🌄 Mpumalanga (Nelspruit, Witbank)</option>
+          <option value="LP">🦁 Limpopo (Polokwane, Tzaneen)</option>
+          <option value="NW">⛏️ North West (Rustenburg, Potchefstroom)</option>
+          <option value="NC">💎 Northern Cape (Kimberley, Upington)</option>
+        </select>
+      </div>
+
+      <div class="notion-status-card" id="notion-status-box">
+        <div class="notion-status-header">
+          <span class="notion-icon">🔗</span>
+          <span class="notion-label">Notion Integration</span>
+          <span class="notion-dot-status" id="notion-dot"></span>
+        </div>
+        <div class="notion-status-text" id="notion-status-text">Checking status...</div>
       </div>
 
       <div class="sidebar-footer">
-        <button class="btn btn-primary btn-block" id="open-extract-btn" onclick="openExtractModal()">
+        <button class="btn btn-primary btn-block glow-btn" id="open-extract-btn" onclick="openExtractModal()">
           <span class="btn-icon">⚡</span> Extract New Leads
         </button>
       </div>
@@ -55,6 +75,18 @@
 
     <!-- Main Workspace -->
     <main class="main-content">
+      <!-- Top Live Extraction Progress Banner (Floating) -->
+      <div class="live-extraction-banner hidden" id="live-extraction-banner">
+        <div class="banner-content">
+          <div class="pulse-loader"></div>
+          <div class="banner-text">
+            <strong>Lead Extraction Active:</strong>
+            <span id="banner-status-text">Searching businesses across South Africa...</span>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-outline-light" onclick="openExtractModal()">View Execution Log</button>
+      </div>
+
       <!-- Top Action Header -->
       <header class="top-header">
         <div class="header-left">
@@ -65,11 +97,11 @@
         <div class="header-actions">
           <div class="search-box">
             <span class="search-icon">🔍</span>
-            <input type="text" id="global-search" placeholder="Search business, email, phone..." oninput="handleSearch(this.value)">
+            <input type="text" id="global-search" placeholder="Search business, suburb, email..." oninput="handleSearch(this.value)">
           </div>
 
-          <button class="btn btn-secondary" onclick="triggerEnrichment()">
-            <span>✨ Enrich Missing Contacts</span>
+          <button class="btn btn-secondary" onclick="triggerEnrichment()" id="btn-enrich">
+            <span>✨ Enrich Contacts</span>
           </button>
 
           <button class="btn btn-outline" id="btn-notion-sync" onclick="triggerNotionSync()">
@@ -81,8 +113,8 @@
               <span>📥 Export</span>
             </button>
             <div class="dropdown-menu" id="export-menu">
-              <button onclick="downloadExport('csv')" class="dropdown-item" style="width:100%; text-align:left; background:none; border:none; cursor:pointer;">CSV Format (.csv)</button>
-              <button onclick="downloadExport('json')" class="dropdown-item" style="width:100%; text-align:left; background:none; border:none; cursor:pointer;">JSON Format (.json)</button>
+              <button onclick="downloadExport('csv')" class="dropdown-item">CSV Format (.csv)</button>
+              <button onclick="downloadExport('json')" class="dropdown-item">JSON Format (.json)</button>
             </div>
           </div>
         </div>
@@ -96,6 +128,7 @@
             <span class="metric-title">Total Prospects</span>
             <h3 id="stat-total">0</h3>
           </div>
+          <div class="metric-sparkline" id="spark-total"></div>
         </div>
 
         <div class="metric-card">
@@ -104,6 +137,7 @@
             <span class="metric-title">Website Coverage</span>
             <h3 id="stat-web">0%</h3>
           </div>
+          <div class="metric-progress-bar"><div class="bar-fill web" id="bar-web"></div></div>
         </div>
 
         <div class="metric-card">
@@ -112,6 +146,7 @@
             <span class="metric-title">Email Verified</span>
             <h3 id="stat-email">0%</h3>
           </div>
+          <div class="metric-progress-bar"><div class="bar-fill email" id="bar-email"></div></div>
         </div>
 
         <div class="metric-card">
@@ -120,29 +155,60 @@
             <span class="metric-title">Phone Contactable</span>
             <h3 id="stat-phone">0%</h3>
           </div>
+          <div class="metric-progress-bar"><div class="bar-fill phone" id="bar-phone"></div></div>
         </div>
 
         <div class="metric-card">
           <div class="metric-icon social">📱</div>
           <div class="metric-data">
-            <span class="metric-title">Social Media Links</span>
+            <span class="metric-title">Social Links</span>
             <h3 id="stat-social">0%</h3>
           </div>
+          <div class="metric-progress-bar"><div class="bar-fill social" id="bar-social"></div></div>
         </div>
       </section>
 
-      <!-- Category Filter Tabs -->
-      <section class="category-filters">
-        <span class="filter-label">Category Group:</span>
-        <div class="filter-pills" id="category-pills">
-          <button class="pill active" onclick="filterByCategory('ALL')">All Categories</button>
-          <button class="pill" onclick="filterByCategory('Fitness')">🏋️ Fitness</button>
-          <button class="pill" onclick="filterByCategory('Beauty and Hair')">💇 Beauty & Hair</button>
-          <button class="pill" onclick="filterByCategory('Restaurant')">🍽️ Restaurants</button>
-          <button class="pill" onclick="filterByCategory('Healthcare & Wellness')">🩺 Healthcare</button>
-          <button class="pill" onclick="filterByCategory('Real Estate')">🏠 Real Estate</button>
-          <button class="pill" onclick="filterByCategory('Professional Services')">⚖️ Professional</button>
-          <button class="pill" onclick="filterByCategory('Automotive & Trades')">🔧 Automotive</button>
+      <!-- Category & Quick Filter Bar -->
+      <section class="filter-toolbar">
+        <div class="category-filters">
+          <span class="filter-label">Category:</span>
+          <div class="filter-pills" id="category-pills">
+            <button class="pill active" onclick="filterByCategory('ALL')">All Categories</button>
+            <button class="pill" onclick="filterByCategory('Fitness')">🏋️ Fitness</button>
+            <button class="pill" onclick="filterByCategory('Beauty and Hair')">💇 Beauty & Hair</button>
+            <button class="pill" onclick="filterByCategory('Restaurant')">🍽️ Restaurants</button>
+            <button class="pill" onclick="filterByCategory('Healthcare & Wellness')">🩺 Healthcare</button>
+            <button class="pill" onclick="filterByCategory('Real Estate')">🏠 Real Estate</button>
+            <button class="pill" onclick="filterByCategory('Professional Services')">⚖️ Professional</button>
+            <button class="pill" onclick="filterByCategory('Automotive & Trades')">🔧 Automotive</button>
+          </div>
+        </div>
+
+        <div class="sub-filter-bar">
+          <div class="toggle-group">
+            <label class="toggle-btn"><input type="checkbox" id="filter-has-email" onchange="applyFilters()"> 📧 Has Email</label>
+            <label class="toggle-btn"><input type="checkbox" id="filter-has-website" onchange="applyFilters()"> 🌐 Has Website</label>
+            <label class="toggle-btn"><input type="checkbox" id="filter-has-phone" onchange="applyFilters()"> 📞 Has Phone</label>
+          </div>
+
+          <div class="filter-controls-right">
+            <div class="area-selector">
+              <label>SA Area:</label>
+              <select id="filter-area-select" class="form-control-sm" onchange="applyFilters()">
+                <option value="ALL">All South Africa Areas</option>
+              </select>
+            </div>
+
+            <div class="sort-selector">
+              <label>Sort By:</label>
+              <select id="sort-select" class="form-control-sm" onchange="applySort(this.value)">
+                <option value="score-desc">Opportunity Score (High to Low)</option>
+                <option value="name-asc">Business Name (A-Z)</option>
+                <option value="rating-desc">Rating (Highest)</option>
+                <option value="date-desc">Recently Scraped</option>
+              </select>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -168,14 +234,14 @@
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>Business Name</th>
-                  <th>Category</th>
-                  <th>Area</th>
+                  <th onclick="toggleSort('name')" class="sortable">Business Name ↕</th>
+                  <th onclick="toggleSort('category')" class="sortable">Category ↕</th>
+                  <th>Area / Suburb</th>
                   <th>Contact Info</th>
                   <th>Website</th>
                   <th>Social Handles</th>
                   <th>Stage</th>
-                  <th>Score</th>
+                  <th onclick="toggleSort('opportunityScore')" class="sortable">Opp. Score ↕</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -191,12 +257,29 @@
       <div id="view-analytics-container" class="view-panel">
         <div class="analytics-grid">
           <div class="analytics-card glass-panel">
-            <h3>Prospect Category Distribution</h3>
+            <div class="card-header-sm">
+              <h3>Prospect Category Distribution</h3>
+              <span class="hint">Breakdown by business type</span>
+            </div>
             <div class="chart-bars" id="category-chart"></div>
           </div>
+          
           <div class="analytics-card glass-panel">
-            <h3>Funnel Stage Pipeline Breakdown</h3>
+            <div class="card-header-sm">
+              <h3>Funnel Stage Pipeline Breakdown</h3>
+              <span class="hint">Active deal volume</span>
+            </div>
             <div class="chart-bars" id="stage-chart"></div>
+          </div>
+
+          <div class="analytics-card glass-panel full-width">
+            <div class="card-header-sm">
+              <h3>Contact Enrichment & Audit Readiness</h3>
+              <span class="hint">Lead data completion score</span>
+            </div>
+            <div class="coverage-meters-grid" id="coverage-meters">
+              <!-- Dynamically populated -->
+            </div>
           </div>
         </div>
       </div>
@@ -205,13 +288,13 @@
 
   <!-- MODAL 1: EXTRACT LEADS SCRAPER TRIGGER -->
   <div class="modal-overlay" id="extract-modal">
-    <div class="modal-card glass-panel">
+    <div class="modal-card glass-panel wide">
       <div class="modal-header">
         <div class="modal-title">
-          <span class="modal-icon">⚡</span>
+          <span class="modal-icon">🇿🇦</span>
           <div>
-            <h3>Extract New Leads</h3>
-            <p>One-click scraper targeting businesses in Umhlanga & Surrounds</p>
+            <h3>Extract New Leads - South Africa Universe</h3>
+            <p>Batch scrape businesses across KwaZulu-Natal, Gauteng, Western Cape & national hubs</p>
           </div>
         </div>
         <button class="close-btn" onclick="closeExtractModal()">&times;</button>
@@ -220,13 +303,34 @@
       <div class="modal-body">
         <form id="extract-form" onsubmit="handleStartExtraction(event)">
           <div class="form-group">
-            <label>Target Area / Location</label>
-            <select id="extract-area" class="form-control">
-              <option value="Umhlanga" selected>Umhlanga (Rocks, Ridge, Gateway, La Lucia)</option>
-              <option value="Durban North">Durban North & Broadway</option>
-              <option value="Ballito">Ballito & North Coast</option>
-              <option value="Durban Central">Durban Central & Morningside</option>
-            </select>
+            <div class="section-title-row">
+              <label>Target Regions & Locations across South Africa</label>
+              <button type="button" class="btn-text" onclick="selectAllSuburbs(true)">Select All</button>
+            </div>
+
+            <!-- Province Tabs -->
+            <div class="province-tabs" id="province-tabs">
+              <button type="button" class="province-tab active" data-province="KZN" onclick="switchProvinceTab('KZN')">🌊 KZN</button>
+              <button type="button" class="province-tab" data-province="GP" onclick="switchProvinceTab('GP')">🏙️ Gauteng</button>
+              <button type="button" class="province-tab" data-province="WC" onclick="switchProvinceTab('WC')">⛰️ W. Cape</button>
+              <button type="button" class="province-tab" data-province="EC" onclick="switchProvinceTab('EC')">🏖️ E. Cape</button>
+              <button type="button" class="province-tab" data-province="FS" onclick="switchProvinceTab('FS')">🌾 Free State</button>
+              <button type="button" class="province-tab" data-province="MP" onclick="switchProvinceTab('MP')">🌄 Mpumalanga</button>
+              <button type="button" class="province-tab" data-province="LP" onclick="switchProvinceTab('LP')">🦁 Limpopo</button>
+              <button type="button" class="province-tab" data-province="NW" onclick="switchProvinceTab('NW')">⛏️ North West</button>
+              <button type="button" class="province-tab" data-province="NC" onclick="switchProvinceTab('NC')">💎 N. Cape</button>
+            </div>
+
+            <!-- Suburbs Checkbox Grid -->
+            <div class="checkbox-grid mt-2" id="suburbs-checkbox-grid">
+              <!-- Dynamically populated via app.js -->
+            </div>
+
+            <!-- Custom Location Input -->
+            <div class="mt-3">
+              <label style="font-size:11px; color:var(--text-dim);">Additional Custom SA Cities / Suburbs (comma-separated):</label>
+              <input type="text" id="extract-custom-areas" class="form-control" placeholder="e.g. Umhlanga, Sandton, Sea Point, Rosebank, Constantia">
+            </div>
           </div>
 
           <div class="form-group">
@@ -252,7 +356,7 @@
           </div>
 
           <div class="form-group">
-            <label>Max Results Per Category</label>
+            <label>Max Results Per Category & Location</label>
             <input type="number" id="extract-max" class="form-control" value="5" min="1" max="25">
           </div>
 
@@ -262,7 +366,7 @@
               <span class="terminal-dot red"></span>
               <span class="terminal-dot yellow"></span>
               <span class="terminal-dot green"></span>
-              <span class="terminal-title">Scraper Execution Engine</span>
+              <span class="terminal-title">Scraper Execution Engine - SA Universe</span>
             </div>
             <div class="terminal-body" id="terminal-logs">
               <div class="log-line info">Initialising Playwright Chromium...</div>
@@ -270,9 +374,9 @@
           </div>
 
           <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" onclick="closeExtractModal()">Cancel</button>
+            <button type="button" class="btn btn-secondary" onclick="closeExtractModal()">Close</button>
             <button type="submit" class="btn btn-primary" id="btn-run-scraper">
-              <span>🚀 Start Lead Extraction</span>
+              <span>🚀 Start Multi-Area Lead Extraction</span>
             </button>
           </div>
         </form>
@@ -324,7 +428,7 @@
               <div class="contact-card">
                 <span class="icon">📍</span>
                 <div class="info">
-                  <span class="label">Address</span>
+                  <span class="label">Address / Suburb</span>
                   <span id="detail-address">Umhlanga</span>
                 </div>
               </div>
@@ -342,7 +446,7 @@
           <div class="detail-section">
             <div class="section-title-row">
               <h4 class="section-title">Technical Website Audit</h4>
-              <button class="btn-text" id="btn-run-audit" onclick="triggerWebsiteAudit()">🔄 Run Audit</button>
+              <button class="btn-text" id="btn-run-audit" onclick="triggerWebsiteAudit()">🔄 Run Technical Audit</button>
             </div>
             <div class="audit-chips-grid" id="detail-audit-box">
               <!-- Populated by app.js -->
@@ -371,7 +475,7 @@
               <div class="score-badge" id="detail-score">85</div>
               <div class="score-info">
                 <span class="est-value" id="detail-est-value">Est. Deal: R18,500</span>
-                <p class="score-desc" id="detail-score-desc">High priority lead. Missing website optimization and social booking link.</p>
+                <p class="score-desc" id="detail-score-desc">High priority lead. Target for AI outreach script generation.</p>
               </div>
             </div>
           </div>
@@ -419,7 +523,64 @@
     </div>
   </div>
 
-  <!-- Toast Notification -->
+  <!-- MODAL 3: ADD MANUAL LEAD -->
+  <div class="modal-overlay" id="add-lead-modal">
+    <div class="modal-card glass-panel">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span class="modal-icon">➕</span>
+          <div>
+            <h3>Add New Prospect</h3>
+            <p>Manually insert lead entry into sales pipeline</p>
+          </div>
+        </div>
+        <button class="close-btn" onclick="closeAddLeadModal()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <form id="add-lead-form" onsubmit="handleAddLeadSubmit(event)">
+          <div class="form-group">
+            <label>Business Name *</label>
+            <input type="text" id="add-name" class="form-control" placeholder="e.g. Sandton Fitness Club" required>
+          </div>
+          <div class="form-group">
+            <label>Category *</label>
+            <select id="add-category" class="form-control" required>
+              <option value="Fitness">Fitness & Gyms</option>
+              <option value="Beauty and Hair">Beauty & Salons</option>
+              <option value="Restaurant">Restaurants & Dining</option>
+              <option value="Healthcare & Wellness">Healthcare & Wellness</option>
+              <option value="Real Estate">Real Estate</option>
+              <option value="Professional Services">Professional Services</option>
+              <option value="Automotive & Trades">Automotive & Trades</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Area / Location (South Africa)</label>
+            <input type="text" id="add-area" class="form-control" placeholder="e.g. Sandton, JHB" value="Umhlanga">
+          </div>
+          <div class="form-group">
+            <label>Website</label>
+            <input type="url" id="add-website" class="form-control" placeholder="https://example.co.za">
+          </div>
+          <div class="form-group">
+            <label>Phone Number</label>
+            <input type="tel" id="add-phone" class="form-control" placeholder="+27 11 123 4567">
+          </div>
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" id="add-email" class="form-control" placeholder="info@example.co.za">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeAddLeadModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Lead</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification System -->
   <div id="toast-notification" class="toast"></div>
 
   <script src="app.js"></script>

@@ -17,20 +17,25 @@ let activeProvinceTab = 'KZN';
 const SOUTH_AFRICA_REGIONS = [
   {
     code: 'KZN',
-    name: 'KwaZulu-Natal Coast',
+    name: 'KwaZulu-Natal (Coast & Midlands)',
     suburbs: [
       { id: 'umhlanga', name: 'Umhlanga (Rocks & Ridge)', checked: true },
       { id: 'ballito', name: 'Ballito & Salt Rock', checked: true },
       { id: 'durban_north', name: 'Durban North & Broadway', checked: true },
       { id: 'morningside_kzn', name: 'Morningside & Berea', checked: false },
       { id: 'hillcrest', name: 'Hillcrest & Kloof', checked: false },
-      { id: 'amanzimtoti', name: 'Amanzimtoti & South Coast', checked: false },
       { id: 'westville', name: 'Westville & Pinetown', checked: false },
+      { id: 'amanzimtoti', name: 'Amanzimtoti & South Coast', checked: false },
+      { id: 'pietermaritzburg', name: 'Pietermaritzburg & Hilton', checked: false },
+      { id: 'richards_bay', name: 'Richards Bay & Empangeni', checked: false },
+      { id: 'margate', name: 'Margate & Port Shepstone', checked: false },
+      { id: 'newcastle_kzn', name: 'Newcastle & Ladysmith', checked: false },
+      { id: 'st_lucia', name: 'St Lucia & Zululand', checked: false },
     ],
   },
   {
     code: 'GP',
-    name: 'Gauteng (JHB & PTA)',
+    name: 'Gauteng (JHB & Pretoria)',
     suburbs: [
       { id: 'sandton', name: 'Sandton & Bryanston', checked: true },
       { id: 'rosebank', name: 'Rosebank & Parkhurst', checked: true },
@@ -38,27 +43,104 @@ const SOUTH_AFRICA_REGIONS = [
       { id: 'midrand', name: 'Midrand & Waterfall', checked: false },
       { id: 'centurion', name: 'Centurion & Irene', checked: false },
       { id: 'pretoria_east', name: 'Pretoria East & Menlyn', checked: false },
+      { id: 'pretoria_central', name: 'Pretoria Central & Hatfield', checked: false },
+      { id: 'bedfordview', name: 'Bedfordview & Edenvale', checked: false },
+      { id: 'roodepoort', name: 'Roodepoort & Krugersdorp', checked: false },
+      { id: 'soweto', name: 'Soweto & Glenvista', checked: false },
+      { id: 'benoni', name: 'Benoni & Boksburg', checked: false },
+      { id: 'kempton_park', name: 'Kempton Park & Midvaal', checked: false },
     ],
   },
   {
     code: 'WC',
-    name: 'Western Cape (Cape Town)',
+    name: 'Western Cape (Cape Town & Winelands)',
     suburbs: [
       { id: 'sea_point', name: 'Sea Point & Waterfront', checked: true },
       { id: 'camps_bay', name: 'Camps Bay & Clifton', checked: false },
       { id: 'century_city', name: 'Century City & Milnerton', checked: false },
       { id: 'constantia', name: 'Constantia & Southern Suburbs', checked: false },
+      { id: 'durbanville', name: 'Durbanville & Northern Suburbs', checked: false },
       { id: 'stellenbosch', name: 'Stellenbosch & Winelands', checked: false },
+      { id: 'paarl', name: 'Paarl & Wellington', checked: false },
+      { id: 'somerset_west', name: "Somerset West & Gordon's Bay", checked: false },
+      { id: 'hermanus', name: 'Hermanus & Walker Bay', checked: false },
+      { id: 'george', name: 'George & Garden Route', checked: false },
+      { id: 'knysna', name: 'Knysna & Plettenberg Bay', checked: false },
+      { id: 'saldanha', name: 'Saldanha & West Coast (Langebaan)', checked: false },
     ],
   },
   {
-    code: 'OTH',
-    name: 'Other Major SA Hubs',
+    code: 'EC',
+    name: 'Eastern Cape (NMB & Buffalo City)',
     suburbs: [
-      { id: 'gqeberha', name: 'Gqeberha (Port Elizabeth)', checked: false },
-      { id: 'east_london', name: 'East London & Beacon Bay', checked: false },
-      { id: 'bloemfontein', name: 'Bloemfontein', checked: false },
-      { id: 'nelspruit', name: 'Nelspruit (Mbombela)', checked: false },
+      { id: 'gqeberha', name: 'Gqeberha (Port Elizabeth - Walmer & Summerstrand)', checked: true },
+      { id: 'east_london', name: 'East London & Beacon Bay', checked: true },
+      { id: 'kariega', name: 'Kariega (Uitenhage)', checked: false },
+      { id: 'makhanda', name: 'Makhanda (Grahamstown)', checked: false },
+      { id: 'mthatha', name: 'Mthatha & Wild Coast', checked: false },
+      { id: 'jeffreys_bay', name: 'Jeffreys Bay & Cape St Francis', checked: false },
+      { id: 'port_alfred', name: 'Port Alfred & Sunshine Coast', checked: false },
+      { id: 'queenstown', name: 'Queenstown (Komani)', checked: false },
+    ],
+  },
+  {
+    code: 'FS',
+    name: 'Free State (Bloemfontein & Goldfields)',
+    suburbs: [
+      { id: 'bloemfontein', name: 'Bloemfontein (Dan Pienaar & Langenhovenpark)', checked: true },
+      { id: 'welkom', name: 'Welkom & Goldfields', checked: false },
+      { id: 'bethlehem', name: 'Bethlehem & Clarens', checked: false },
+      { id: 'sasolburg', name: 'Sasolburg & Vaal Park', checked: false },
+      { id: 'kroonstad', name: 'Kroonstad', checked: false },
+      { id: 'parys', name: 'Parys & Vaal River', checked: false },
+    ],
+  },
+  {
+    code: 'MP',
+    name: 'Mpumalanga (Lowveld & Energy Belt)',
+    suburbs: [
+      { id: 'nelspruit', name: 'Nelspruit (Mbombela & Riverside)', checked: true },
+      { id: 'white_river', name: 'White River & Hazyview', checked: false },
+      { id: 'witbank', name: 'Witbank (eMalahleni)', checked: false },
+      { id: 'middelburg_mp', name: 'Middelburg Mpumalanga', checked: false },
+      { id: 'secunda', name: 'Secunda & Trichardt', checked: false },
+      { id: 'dullstroom', name: 'Dullstroom & Sabie', checked: false },
+    ],
+  },
+  {
+    code: 'LP',
+    name: 'Limpopo (Polokwane & Waterberg)',
+    suburbs: [
+      { id: 'polokwane', name: 'Polokwane & Bendor', checked: true },
+      { id: 'tzaneen', name: 'Tzaneen & Letaba', checked: false },
+      { id: 'mokopane', name: 'Mokopane (Potgietersrus)', checked: false },
+      { id: 'bela_bela', name: 'Bela-Bela (Warmbaths)', checked: false },
+      { id: 'lephalale', name: 'Lephalale (Ellisras)', checked: false },
+      { id: 'thohoyandou', name: 'Thohoyandou & Makhado', checked: false },
+      { id: 'phalaborwa', name: 'Phalaborwa & Kruger Border', checked: false },
+    ],
+  },
+  {
+    code: 'NW',
+    name: 'North West (Rustenburg & Bojanala)',
+    suburbs: [
+      { id: 'rustenburg', name: 'Rustenburg & Waterfall East', checked: true },
+      { id: 'potchefstroom', name: 'Potchefstroom & Baillie Park', checked: true },
+      { id: 'klerksdorp', name: 'Klerksdorp & Stilfontein', checked: false },
+      { id: 'hartbeespoort', name: 'Hartbeespoort & Brits', checked: false },
+      { id: 'mahikeng', name: 'Mahikeng (Mafikeng)', checked: false },
+      { id: 'sun_city', name: 'Sun City & Ledig', checked: false },
+    ],
+  },
+  {
+    code: 'NC',
+    name: 'Northern Cape (Kimberley & Kalahari)',
+    suburbs: [
+      { id: 'kimberley', name: 'Kimberley & Monument Heights', checked: true },
+      { id: 'upington', name: 'Upington & Orange River', checked: false },
+      { id: 'kathu', name: 'Kathu & Kuruman', checked: false },
+      { id: 'springbok', name: 'Springbok & Namakwa', checked: false },
+      { id: 'de_aar', name: 'De Aar & Karoo Hubs', checked: false },
     ],
   },
 ];
@@ -591,16 +673,42 @@ function handleSidebarRegionChange(val) {
   const activeText = document.getElementById('active-region-text');
   const labels = {
     ALL: 'All South Africa',
-    KZN: 'KZN Coast Metro',
+    KZN: 'KwaZulu-Natal',
     GP: 'Gauteng Metro',
-    WC: 'Western Cape Metro',
+    WC: 'Western Cape',
+    EC: 'Eastern Cape',
+    FS: 'Free State',
+    MP: 'Mpumalanga',
+    LP: 'Limpopo',
+    NW: 'North West',
+    NC: 'Northern Cape',
     OTH: 'Other SA Hubs',
   };
   if (activeText) activeText.innerText = labels[val] || 'South Africa';
 
+  const defaultAreaForProvince = {
+    ALL: 'ALL',
+    KZN: 'Umhlanga',
+    GP: 'Sandton',
+    WC: 'Sea Point',
+    EC: 'Gqeberha',
+    FS: 'Bloemfontein',
+    MP: 'Nelspruit',
+    LP: 'Polokwane',
+    NW: 'Rustenburg',
+    NC: 'Kimberley',
+    OTH: 'Gqeberha',
+  };
+
   const filterSelect = document.getElementById('filter-area-select');
   if (filterSelect) {
-    filterSelect.value = val === 'ALL' ? 'ALL' : val === 'KZN' ? 'Umhlanga' : val === 'GP' ? 'Sandton' : 'Sea Point';
+    const targetArea = defaultAreaForProvince[val] || 'ALL';
+    if (targetArea === 'ALL') {
+      filterSelect.value = 'ALL';
+    } else {
+      const match = Array.from(filterSelect.options).find(opt => opt.value.toLowerCase().includes(targetArea.toLowerCase()));
+      filterSelect.value = match ? match.value : 'ALL';
+    }
     applyFilters();
   }
 }

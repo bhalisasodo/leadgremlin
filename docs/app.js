@@ -1,15 +1,149 @@
 /**
  * LeadGremlin Sales Funnel Dashboard Application Logic
- * Supports both Live Node.js Express API and Static GitHub Pages deployment.
+ * South Africa Search Universe & Multi-Region Extraction Engine
  */
 
 let allLeads = [];
 let currentCategoryFilter = 'ALL';
+let currentAreaFilter = 'ALL';
 let currentSearchTerm = '';
 let activeView = 'kanban'; // 'kanban' | 'table' | 'analytics'
 let selectedLead = null;
 let pollTimer = null;
 let isStaticMode = false;
+let currentSortField = 'score-desc';
+let activeProvinceTab = 'KZN';
+
+const SOUTH_AFRICA_REGIONS = [
+  {
+    code: 'KZN',
+    name: 'KwaZulu-Natal (Coast & Midlands)',
+    suburbs: [
+      { id: 'umhlanga', name: 'Umhlanga (Rocks & Ridge)', checked: true },
+      { id: 'ballito', name: 'Ballito & Salt Rock', checked: true },
+      { id: 'durban_north', name: 'Durban North & Broadway', checked: true },
+      { id: 'morningside_kzn', name: 'Morningside & Berea', checked: false },
+      { id: 'hillcrest', name: 'Hillcrest & Kloof', checked: false },
+      { id: 'westville', name: 'Westville & Pinetown', checked: false },
+      { id: 'amanzimtoti', name: 'Amanzimtoti & South Coast', checked: false },
+      { id: 'pietermaritzburg', name: 'Pietermaritzburg & Hilton', checked: false },
+      { id: 'richards_bay', name: 'Richards Bay & Empangeni', checked: false },
+      { id: 'margate', name: 'Margate & Port Shepstone', checked: false },
+      { id: 'newcastle_kzn', name: 'Newcastle & Ladysmith', checked: false },
+      { id: 'st_lucia', name: 'St Lucia & Zululand', checked: false },
+    ],
+  },
+  {
+    code: 'GP',
+    name: 'Gauteng (JHB & Pretoria)',
+    suburbs: [
+      { id: 'sandton', name: 'Sandton & Bryanston', checked: true },
+      { id: 'rosebank', name: 'Rosebank & Parkhurst', checked: true },
+      { id: 'fourways', name: 'Fourways & Lonehill', checked: false },
+      { id: 'midrand', name: 'Midrand & Waterfall', checked: false },
+      { id: 'centurion', name: 'Centurion & Irene', checked: false },
+      { id: 'pretoria_east', name: 'Pretoria East & Menlyn', checked: false },
+      { id: 'pretoria_central', name: 'Pretoria Central & Hatfield', checked: false },
+      { id: 'bedfordview', name: 'Bedfordview & Edenvale', checked: false },
+      { id: 'roodepoort', name: 'Roodepoort & Krugersdorp', checked: false },
+      { id: 'soweto', name: 'Soweto & Glenvista', checked: false },
+      { id: 'benoni', name: 'Benoni & Boksburg', checked: false },
+      { id: 'kempton_park', name: 'Kempton Park & Midvaal', checked: false },
+    ],
+  },
+  {
+    code: 'WC',
+    name: 'Western Cape (Cape Town & Winelands)',
+    suburbs: [
+      { id: 'sea_point', name: 'Sea Point & Waterfront', checked: true },
+      { id: 'camps_bay', name: 'Camps Bay & Clifton', checked: false },
+      { id: 'century_city', name: 'Century City & Milnerton', checked: false },
+      { id: 'constantia', name: 'Constantia & Southern Suburbs', checked: false },
+      { id: 'durbanville', name: 'Durbanville & Northern Suburbs', checked: false },
+      { id: 'stellenbosch', name: 'Stellenbosch & Winelands', checked: false },
+      { id: 'paarl', name: 'Paarl & Wellington', checked: false },
+      { id: 'somerset_west', name: "Somerset West & Gordon's Bay", checked: false },
+      { id: 'hermanus', name: 'Hermanus & Walker Bay', checked: false },
+      { id: 'george', name: 'George & Garden Route', checked: false },
+      { id: 'knysna', name: 'Knysna & Plettenberg Bay', checked: false },
+      { id: 'saldanha', name: 'Saldanha & West Coast (Langebaan)', checked: false },
+    ],
+  },
+  {
+    code: 'EC',
+    name: 'Eastern Cape (NMB & Buffalo City)',
+    suburbs: [
+      { id: 'gqeberha', name: 'Gqeberha (Port Elizabeth - Walmer & Summerstrand)', checked: true },
+      { id: 'east_london', name: 'East London & Beacon Bay', checked: true },
+      { id: 'kariega', name: 'Kariega (Uitenhage)', checked: false },
+      { id: 'makhanda', name: 'Makhanda (Grahamstown)', checked: false },
+      { id: 'mthatha', name: 'Mthatha & Wild Coast', checked: false },
+      { id: 'jeffreys_bay', name: 'Jeffreys Bay & Cape St Francis', checked: false },
+      { id: 'port_alfred', name: 'Port Alfred & Sunshine Coast', checked: false },
+      { id: 'queenstown', name: 'Queenstown (Komani)', checked: false },
+    ],
+  },
+  {
+    code: 'FS',
+    name: 'Free State (Bloemfontein & Goldfields)',
+    suburbs: [
+      { id: 'bloemfontein', name: 'Bloemfontein (Dan Pienaar & Langenhovenpark)', checked: true },
+      { id: 'welkom', name: 'Welkom & Goldfields', checked: false },
+      { id: 'bethlehem', name: 'Bethlehem & Clarens', checked: false },
+      { id: 'sasolburg', name: 'Sasolburg & Vaal Park', checked: false },
+      { id: 'kroonstad', name: 'Kroonstad', checked: false },
+      { id: 'parys', name: 'Parys & Vaal River', checked: false },
+    ],
+  },
+  {
+    code: 'MP',
+    name: 'Mpumalanga (Lowveld & Energy Belt)',
+    suburbs: [
+      { id: 'nelspruit', name: 'Nelspruit (Mbombela & Riverside)', checked: true },
+      { id: 'white_river', name: 'White River & Hazyview', checked: false },
+      { id: 'witbank', name: 'Witbank (eMalahleni)', checked: false },
+      { id: 'middelburg_mp', name: 'Middelburg Mpumalanga', checked: false },
+      { id: 'secunda', name: 'Secunda & Trichardt', checked: false },
+      { id: 'dullstroom', name: 'Dullstroom & Sabie', checked: false },
+    ],
+  },
+  {
+    code: 'LP',
+    name: 'Limpopo (Polokwane & Waterberg)',
+    suburbs: [
+      { id: 'polokwane', name: 'Polokwane & Bendor', checked: true },
+      { id: 'tzaneen', name: 'Tzaneen & Letaba', checked: false },
+      { id: 'mokopane', name: 'Mokopane (Potgietersrus)', checked: false },
+      { id: 'bela_bela', name: 'Bela-Bela (Warmbaths)', checked: false },
+      { id: 'lephalale', name: 'Lephalale (Ellisras)', checked: false },
+      { id: 'thohoyandou', name: 'Thohoyandou & Makhado', checked: false },
+      { id: 'phalaborwa', name: 'Phalaborwa & Kruger Border', checked: false },
+    ],
+  },
+  {
+    code: 'NW',
+    name: 'North West (Rustenburg & Bojanala)',
+    suburbs: [
+      { id: 'rustenburg', name: 'Rustenburg & Waterfall East', checked: true },
+      { id: 'potchefstroom', name: 'Potchefstroom & Baillie Park', checked: true },
+      { id: 'klerksdorp', name: 'Klerksdorp & Stilfontein', checked: false },
+      { id: 'hartbeespoort', name: 'Hartbeespoort & Brits', checked: false },
+      { id: 'mahikeng', name: 'Mahikeng (Mafikeng)', checked: false },
+      { id: 'sun_city', name: 'Sun City & Ledig', checked: false },
+    ],
+  },
+  {
+    code: 'NC',
+    name: 'Northern Cape (Kimberley & Kalahari)',
+    suburbs: [
+      { id: 'kimberley', name: 'Kimberley & Monument Heights', checked: true },
+      { id: 'upington', name: 'Upington & Orange River', checked: false },
+      { id: 'kathu', name: 'Kathu & Kuruman', checked: false },
+      { id: 'springbok', name: 'Springbok & Namakwa', checked: false },
+      { id: 'de_aar', name: 'De Aar & Karoo Hubs', checked: false },
+    ],
+  },
+];
 
 const FUNNEL_STAGES = [
   { id: 'new', label: '🆕 New Prospects', color: 'status-new' },
@@ -25,10 +159,60 @@ const FUNNEL_STAGES = [
 document.addEventListener('DOMContentLoaded', () => {
   fetchLeads();
   fetchStats();
+  checkNotionStatus();
+  checkExtractionStatusOnLoad();
+  renderSuburbsGrid();
 });
 
 /**
- * Fetch all business leads (tries API first, falls back to static JSON + LocalStorage for GitHub Pages)
+ * Check Notion integration status from API
+ */
+async function checkNotionStatus() {
+  const dot = document.getElementById('notion-dot');
+  const text = document.getElementById('notion-status-text');
+  if (!dot || !text) return;
+
+  try {
+    const res = await fetch('/api/notion/status').catch(() => null);
+    if (res && res.ok) {
+      const data = await res.json();
+      if (data.configured) {
+        dot.classList.add('active');
+        text.innerText = `Connected (${data.databaseId || 'CRM Active'})`;
+      } else {
+        dot.classList.remove('active');
+        text.innerText = 'Not configured (Missing token)';
+      }
+      return;
+    }
+  } catch {
+    // ignore
+  }
+
+  dot.classList.remove('active');
+  text.innerText = 'Local Preview Mode';
+}
+
+/**
+ * Check background extraction status on initial page load
+ */
+async function checkExtractionStatusOnLoad() {
+  try {
+    const res = await fetch('/api/extract/status').catch(() => null);
+    if (res && res.ok) {
+      const data = await res.json();
+      if (data.isExtracting) {
+        showLiveExtractionBanner(data.progress?.currentTerm || 'Extracting leads across South Africa...');
+        startStatusPolling();
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Fetch all business leads
  */
 async function fetchLeads() {
   try {
@@ -39,6 +223,7 @@ async function fetchLeads() {
       if (data.success) {
         allLeads = data.leads;
         isStaticMode = false;
+        populateAreaFilterOptions();
         renderDashboard();
         return;
       }
@@ -58,6 +243,7 @@ async function fetchLeads() {
       }
     }
 
+    populateAreaFilterOptions();
     renderDashboard();
     renderStatsLocal();
   } catch (err) {
@@ -66,7 +252,7 @@ async function fetchLeads() {
 }
 
 /**
- * Save leads locally when on GitHub Pages
+ * Save leads locally in preview mode
  */
 function saveLeadsLocally() {
   if (isStaticMode) {
@@ -76,7 +262,28 @@ function saveLeadsLocally() {
 }
 
 /**
- * Fetch KPI statistics from backend API or compute locally
+ * Populate SA Area Dropdown in Filter Toolbar
+ */
+function populateAreaFilterOptions() {
+  const select = document.getElementById('filter-area-select');
+  if (!select) return;
+
+  const areaSet = new Set<string>();
+  allLeads.forEach((l) => {
+    if (l.area) areaSet.add(l.area);
+  });
+
+  const sortedAreas = Array.from(areaSet).sort();
+  select.innerHTML = '<option value="ALL">All South Africa Areas</option>';
+  sortedAreas.forEach((area) => {
+    select.innerHTML += `<option value="${escapeHtml(area)}">${escapeHtml(area)}</option>`;
+  });
+
+  select.value = currentAreaFilter;
+}
+
+/**
+ * Fetch KPI statistics
  */
 async function fetchStats() {
   if (isStaticMode) {
@@ -89,10 +296,21 @@ async function fetchStats() {
     if (res && res.ok) {
       const data = await res.json();
       document.getElementById('stat-total').innerText = data.totalLeads || 0;
-      document.getElementById('stat-web').innerText = `${data.coverage?.websitePercent || 0}%`;
-      document.getElementById('stat-email').innerText = `${data.coverage?.emailPercent || 0}%`;
-      document.getElementById('stat-phone').innerText = `${data.coverage?.phonePercent || 0}%`;
-      document.getElementById('stat-social').innerText = `${data.coverage?.socialPercent || 0}%`;
+
+      const webPct = data.coverage?.websitePercent || 0;
+      const emailPct = data.coverage?.emailPercent || 0;
+      const phonePct = data.coverage?.phonePercent || 0;
+      const socialPct = data.coverage?.socialPercent || 0;
+
+      document.getElementById('stat-web').innerText = `${webPct}%`;
+      document.getElementById('stat-email').innerText = `${emailPct}%`;
+      document.getElementById('stat-phone').innerText = `${phonePct}%`;
+      document.getElementById('stat-social').innerText = `${socialPct}%`;
+
+      if (document.getElementById('bar-web')) document.getElementById('bar-web').style.width = `${webPct}%`;
+      if (document.getElementById('bar-email')) document.getElementById('bar-email').style.width = `${emailPct}%`;
+      if (document.getElementById('bar-phone')) document.getElementById('bar-phone').style.width = `${phonePct}%`;
+      if (document.getElementById('bar-social')) document.getElementById('bar-social').style.width = `${socialPct}%`;
       return;
     }
   } catch {
@@ -103,7 +321,7 @@ async function fetchStats() {
 }
 
 /**
- * Compute KPI stats locally for GitHub Pages
+ * Compute KPI stats locally
  */
 function renderStatsLocal() {
   const total = allLeads.length;
@@ -116,31 +334,71 @@ function renderStatsLocal() {
     if (l.socials && Object.keys(l.socials).length > 0) social++;
   });
 
+  const webPct = total ? Math.round((web / total) * 100) : 0;
+  const emailPct = total ? Math.round((email / total) * 100) : 0;
+  const phonePct = total ? Math.round((phone / total) * 100) : 0;
+  const socialPct = total ? Math.round((social / total) * 100) : 0;
+
   document.getElementById('stat-total').innerText = total;
-  document.getElementById('stat-web').innerText = `${total ? Math.round((web / total) * 100) : 0}%`;
-  document.getElementById('stat-email').innerText = `${total ? Math.round((email / total) * 100) : 0}%`;
-  document.getElementById('stat-phone').innerText = `${total ? Math.round((phone / total) * 100) : 0}%`;
-  document.getElementById('stat-social').innerText = `${total ? Math.round((social / total) * 100) : 0}%`;
+  document.getElementById('stat-web').innerText = `${webPct}%`;
+  document.getElementById('stat-email').innerText = `${emailPct}%`;
+  document.getElementById('stat-phone').innerText = `${phonePct}%`;
+  document.getElementById('stat-social').innerText = `${socialPct}%`;
+
+  if (document.getElementById('bar-web')) document.getElementById('bar-web').style.width = `${webPct}%`;
+  if (document.getElementById('bar-email')) document.getElementById('bar-email').style.width = `${emailPct}%`;
+  if (document.getElementById('bar-phone')) document.getElementById('bar-phone').style.width = `${phonePct}%`;
+  if (document.getElementById('bar-social')) document.getElementById('bar-social').style.width = `${socialPct}%`;
 }
 
 /**
- * Filter leads based on category and search query
+ * Filter and sort leads based on state
  */
 function getFilteredLeads() {
-  return allLeads.filter((lead) => {
+  const hasEmailOnly = document.getElementById('filter-has-email')?.checked;
+  const hasWebsiteOnly = document.getElementById('filter-has-website')?.checked;
+  const hasPhoneOnly = document.getElementById('filter-has-phone')?.checked;
+  const areaSelectVal = document.getElementById('filter-area-select')?.value || 'ALL';
+
+  let leads = allLeads.filter((lead) => {
     const matchesCategory =
       currentCategoryFilter === 'ALL' ||
       lead.category.toLowerCase() === currentCategoryFilter.toLowerCase();
 
+    const matchesArea =
+      areaSelectVal === 'ALL' ||
+      (lead.area && lead.area.toLowerCase().includes(areaSelectVal.toLowerCase()));
+
     const matchesSearch =
       !currentSearchTerm ||
       lead.name.toLowerCase().includes(currentSearchTerm) ||
+      (lead.area && lead.area.toLowerCase().includes(currentSearchTerm)) ||
       (lead.email && lead.email.toLowerCase().includes(currentSearchTerm)) ||
       (lead.phone && lead.phone.toLowerCase().includes(currentSearchTerm)) ||
       (lead.address && lead.address.toLowerCase().includes(currentSearchTerm));
 
-    return matchesCategory && matchesSearch;
+    const matchesEmail = !hasEmailOnly || Boolean(lead.email && lead.email.trim() !== '');
+    const matchesWebsite = !hasWebsiteOnly || Boolean(lead.website && lead.website.trim() !== '');
+    const matchesPhone = !hasPhoneOnly || Boolean(lead.phone && lead.phone.trim() !== '');
+
+    return matchesCategory && matchesArea && matchesSearch && matchesEmail && matchesWebsite && matchesPhone;
   });
+
+  // Apply Sorting
+  leads.sort((a, b) => {
+    if (currentSortField === 'score-desc') {
+      return (b.opportunityScore || 0) - (a.opportunityScore || 0);
+    } else if (currentSortField === 'name-asc') {
+      return a.name.localeCompare(b.name);
+    } else if (currentSortField === 'rating-desc') {
+      return (b.rating || 0) - (a.rating || 0);
+    } else if (currentSortField === 'date-desc') {
+      return (new Date(b.scrapedAt || 0)).getTime() - (new Date(a.scrapedAt || 0)).getTime();
+    }
+    return 0;
+  });
+
+  return leads;
 }
 
 /**
@@ -163,6 +421,7 @@ function renderDashboard() {
  */
 function renderKanban(leads) {
   const container = document.getElementById('kanban-board');
+  if (!container) return;
   container.innerHTML = '';
 
   FUNNEL_STAGES.forEach((stage) => {
@@ -180,7 +439,7 @@ function renderKanban(leads) {
       <div class="column-cards" id="col-${stage.id}">
         ${
           stageLeads.length === 0
-            ? '<div style="padding: 16px; text-align: center; color: var(--text-dim); font-size: 11px;">No leads</div>'
+            ? '<div style="padding: 16px; text-align: center; color: var(--text-dim); font-size: 11px;">No prospects in this stage</div>'
             : ''
         }
       </div>
@@ -198,14 +457,17 @@ function renderKanban(leads) {
       const hasPhone = lead.phone ? 'active' : '';
       const hasSocial = lead.socials && Object.keys(lead.socials).length > 0 ? 'active' : '';
 
+      const score = lead.opportunityScore || 80;
+      const scoreClass = score >= 80 ? '' : 'med';
+
       card.innerHTML = `
         <div class="card-top">
           <span class="business-name">${escapeHtml(lead.name)}</span>
-          <span class="score-tag">${lead.opportunityScore || 80} Score</span>
+          <span class="score-tag ${scoreClass}">${score} Score</span>
         </div>
-        <div class="card-category">${escapeHtml(lead.category)} • ${escapeHtml(lead.area || 'Umhlanga')}</div>
+        <div class="card-category">${escapeHtml(lead.category)} • ${escapeHtml(lead.area || 'South Africa')}</div>
         <div class="card-location">
-          📍 ${escapeHtml(lead.address || 'Umhlanga, SA')}
+          📍 ${escapeHtml(lead.address || lead.area || 'South Africa')}
         </div>
         <div class="card-channels">
           <span class="channel-icon ${hasWeb}" title="Website">🌐</span>
@@ -227,11 +489,12 @@ function renderKanban(leads) {
  */
 function renderTable(leads) {
   const tbody = document.getElementById('leads-table-body');
+  if (!tbody) return;
   document.getElementById('table-count-badge').innerText = `${leads.length} Prospects`;
   tbody.innerHTML = '';
 
   if (leads.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 24px; color: var(--text-dim);">No prospects found for selected filters.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 28px; color: var(--text-dim);">No prospects match your current search & filter parameters.</td></tr>`;
     return;
   }
 
@@ -239,32 +502,31 @@ function renderTable(leads) {
     const tr = document.createElement('tr');
 
     const socialIcons = [];
-    if (lead.socials?.instagram) socialIcons.push(`<a href="${lead.socials.instagram}" target="_blank">IG</a>`);
-    if (lead.socials?.facebook) socialIcons.push(`<a href="${lead.socials.facebook}" target="_blank">FB</a>`);
-    if (lead.socials?.linkedin) socialIcons.push(`<a href="${lead.socials.linkedin}" target="_blank">IN</a>`);
-    if (lead.socials?.twitter) socialIcons.push(`<a href="${lead.socials.twitter}" target="_blank">X</a>`);
+    if (lead.socials?.instagram) socialIcons.push(`<a href="${lead.socials.instagram}" target="_blank" style="color:var(--sky);">IG</a>`);
+    if (lead.socials?.facebook) socialIcons.push(`<a href="${lead.socials.facebook}" target="_blank" style="color:var(--sky);">FB</a>`);
+    if (lead.socials?.linkedin) socialIcons.push(`<a href="${lead.socials.linkedin}" target="_blank" style="color:var(--sky);">IN</a>`);
 
     tr.innerHTML = `
       <td><strong>${escapeHtml(lead.name)}</strong></td>
       <td><span class="badge">${escapeHtml(lead.category)}</span></td>
-      <td>${escapeHtml(lead.area || 'Umhlanga')}</td>
+      <td><span class="badge" style="background:rgba(14,165,233,0.15); color:var(--sky);">${escapeHtml(lead.area || 'South Africa')}</span></td>
       <td>
-        ${lead.email ? `<div>📧 ${escapeHtml(lead.email)}</div>` : ''}
-        ${lead.phone ? `<div>📞 ${escapeHtml(lead.phone)}</div>` : ''}
-        ${!lead.email && !lead.phone ? '<span style="color:var(--text-dim);">Missing</span>' : ''}
+        ${lead.email ? `<div style="font-size:12px;">📧 ${escapeHtml(lead.email)}</div>` : ''}
+        ${lead.phone ? `<div style="font-size:12px;">📞 ${escapeHtml(lead.phone)}</div>` : ''}
+        ${!lead.email && !lead.phone ? '<span style="color:var(--text-dim); font-size:11px;">Missing</span>' : ''}
       </td>
       <td>
         ${
           lead.website
-            ? `<a href="${lead.website}" target="_blank" style="color:var(--sky);">Link 🔗</a>`
-            : '<span style="color:var(--text-dim);">None</span>'
+            ? `<a href="${lead.website}" target="_blank" style="color:var(--primary); font-weight:600;">Visit Site 🌐</a>`
+            : '<span style="color:var(--text-dim); font-size:11px;">No Website</span>'
         }
       </td>
-      <td>${socialIcons.length > 0 ? socialIcons.join(' ') : '<span style="color:var(--text-dim);">-</span>'}</td>
+      <td>${socialIcons.length > 0 ? socialIcons.join(' • ') : '<span style="color:var(--text-dim); font-size:11px;">-</span>'}</td>
       <td><span class="status-badge status-${lead.funnelStage}">${lead.funnelStage}</span></td>
       <td><strong>${lead.opportunityScore || 75}</strong></td>
       <td>
-        <button class="btn btn-sm btn-outline" onclick="openDetailModal('${lead.id}')">View</button>
+        <button class="btn btn-sm btn-outline" onclick="openDetailModal('${lead.id}')">View Drawer</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -274,20 +536,28 @@ function renderTable(leads) {
 /**
  * Render Analytics View
  */
-async function renderAnalytics() {
+function renderAnalytics() {
   const categoryCounts = {};
   const stageCounts = { new: 0, enriched: 0, outreach: 0, meeting: 0, proposal: 0, won: 0, lost: 0 };
+
+  let totalWithWeb = 0, totalWithEmail = 0, totalWithPhone = 0;
 
   allLeads.forEach((l) => {
     categoryCounts[l.category] = (categoryCounts[l.category] || 0) + 1;
     if (stageCounts[l.funnelStage] !== undefined) stageCounts[l.funnelStage]++;
+
+    if (l.website) totalWithWeb++;
+    if (l.email) totalWithEmail++;
+    if (l.phone) totalWithPhone++;
   });
 
   const categoryChart = document.getElementById('category-chart');
   const stageChart = document.getElementById('stage-chart');
+  const metersGrid = document.getElementById('coverage-meters');
 
-  categoryChart.innerHTML = '';
-  stageChart.innerHTML = '';
+  if (categoryChart) categoryChart.innerHTML = '';
+  if (stageChart) stageChart.innerHTML = '';
+  if (metersGrid) metersGrid.innerHTML = '';
 
   const maxCat = Math.max(...Object.values(categoryCounts), 1);
   Object.entries(categoryCounts).forEach(([cat, val]) => {
@@ -312,6 +582,31 @@ async function renderAnalytics() {
       </div>
     `;
   });
+
+  const total = allLeads.length || 1;
+  const webPct = Math.round((totalWithWeb / total) * 100);
+  const emailPct = Math.round((totalWithEmail / total) * 100);
+  const phonePct = Math.round((totalWithPhone / total) * 100);
+
+  if (metersGrid) {
+    metersGrid.innerHTML = `
+      <div class="meter-card">
+        <div class="meter-header"><span>🌐 Website Coverage</span><span>${webPct}%</span></div>
+        <div class="metric-progress-bar"><div class="bar-fill web" style="width: ${webPct}%;"></div></div>
+        <span style="font-size:11px; color:var(--text-dim);">${totalWithWeb} / ${total} leads possess websites</span>
+      </div>
+      <div class="meter-card">
+        <div class="meter-header"><span>📧 Email Availability</span><span>${emailPct}%</span></div>
+        <div class="metric-progress-bar"><div class="bar-fill email" style="width: ${emailPct}%;"></div></div>
+        <span style="font-size:11px; color:var(--text-dim);">${totalWithEmail} / ${total} decision maker emails</span>
+      </div>
+      <div class="meter-card">
+        <div class="meter-header"><span>📞 Phone Contactability</span><span>${phonePct}%</span></div>
+        <div class="metric-progress-bar"><div class="bar-fill phone" style="width: ${phonePct}%;"></div></div>
+        <span style="font-size:11px; color:var(--text-dim);">${totalWithPhone} / ${total} phone numbers for cold calling</span>
+      </div>
+    `;
+  }
 }
 
 /**
@@ -322,8 +617,11 @@ function switchView(viewName) {
   document.querySelectorAll('.nav-item').forEach((item) => item.classList.remove('active'));
   document.querySelectorAll('.view-panel').forEach((panel) => panel.classList.remove('active'));
 
-  document.getElementById(`nav-${viewName}`).classList.add('active');
-  document.getElementById(`view-${viewName}-container`).classList.add('active');
+  const navBtn = document.getElementById(`nav-${viewName}`);
+  const viewPanel = document.getElementById(`view-${viewName}-container`);
+
+  if (navBtn) navBtn.classList.add('active');
+  if (viewPanel) viewPanel.classList.add('active');
 
   const titles = {
     kanban: { main: 'Sales Pipeline', sub: 'Manage prospects across outreach & deal stages' },
@@ -338,25 +636,118 @@ function switchView(viewName) {
 }
 
 /**
- * Category Filter Switcher
+ * South Africa Province & Suburb Tab Controller
+ */
+function switchProvinceTab(code) {
+  activeProvinceTab = code;
+  document.querySelectorAll('.province-tab').forEach((tab) => {
+    tab.classList.toggle('active', tab.dataset.province === code);
+  });
+  renderSuburbsGrid();
+}
+
+function renderSuburbsGrid() {
+  const grid = document.getElementById('suburbs-checkbox-grid');
+  if (!grid) return;
+
+  const group = SOUTH_AFRICA_REGIONS.find((r) => r.code === activeProvinceTab) || SOUTH_AFRICA_REGIONS[0];
+  grid.innerHTML = group.suburbs
+    .map(
+      (sub) => `
+      <label class="checkbox-label">
+        <input type="checkbox" name="suburbs" value="${escapeHtml(sub.name)}" ${sub.checked ? 'checked' : ''}>
+        ${escapeHtml(sub.name)}
+      </label>
+    `
+    )
+    .join('');
+}
+
+function selectAllSuburbs(check) {
+  document.querySelectorAll('input[name="suburbs"]').forEach((cb) => {
+    cb.checked = check;
+  });
+}
+
+function handleSidebarRegionChange(val) {
+  const activeText = document.getElementById('active-region-text');
+  const labels = {
+    ALL: 'All South Africa',
+    KZN: 'KwaZulu-Natal',
+    GP: 'Gauteng Metro',
+    WC: 'Western Cape',
+    EC: 'Eastern Cape',
+    FS: 'Free State',
+    MP: 'Mpumalanga',
+    LP: 'Limpopo',
+    NW: 'North West',
+    NC: 'Northern Cape',
+    OTH: 'Other SA Hubs',
+  };
+  if (activeText) activeText.innerText = labels[val] || 'South Africa';
+
+  const defaultAreaForProvince = {
+    ALL: 'ALL',
+    KZN: 'Umhlanga',
+    GP: 'Sandton',
+    WC: 'Sea Point',
+    EC: 'Gqeberha',
+    FS: 'Bloemfontein',
+    MP: 'Nelspruit',
+    LP: 'Polokwane',
+    NW: 'Rustenburg',
+    NC: 'Kimberley',
+    OTH: 'Gqeberha',
+  };
+
+  const filterSelect = document.getElementById('filter-area-select');
+  if (filterSelect) {
+    const targetArea = defaultAreaForProvince[val] || 'ALL';
+    if (targetArea === 'ALL') {
+      filterSelect.value = 'ALL';
+    } else {
+      const match = Array.from(filterSelect.options).find(opt => opt.value.toLowerCase().includes(targetArea.toLowerCase()));
+      filterSelect.value = match ? match.value : 'ALL';
+    }
+    applyFilters();
+  }
+}
+
+/**
+ * Filter Handlers
  */
 function filterByCategory(cat) {
   currentCategoryFilter = cat;
   document.querySelectorAll('.pill').forEach((p) => p.classList.remove('active'));
-  event.target.classList.add('active');
+  if (event && event.target) event.target.classList.add('active');
   renderDashboard();
 }
 
-/**
- * Global Search Handler
- */
 function handleSearch(val) {
   currentSearchTerm = val.toLowerCase().trim();
   renderDashboard();
 }
 
+function applyFilters() {
+  renderDashboard();
+}
+
+function applySort(val) {
+  currentSortField = val;
+  renderDashboard();
+}
+
+function toggleSort(field) {
+  if (currentSortField === `${field}-asc`) {
+    currentSortField = `${field}-desc`;
+  } else {
+    currentSortField = `${field}-asc`;
+  }
+  renderDashboard();
+}
+
 /**
- * Open Scraper Extraction Modal
+ * Scraper Extraction Modal Handlers
  */
 function openExtractModal() {
   document.getElementById('extract-modal').classList.add('show');
@@ -367,62 +758,87 @@ function closeExtractModal() {
   if (pollTimer) clearInterval(pollTimer);
 }
 
+function showLiveExtractionBanner(text) {
+  const banner = document.getElementById('live-extraction-banner');
+  const bannerText = document.getElementById('banner-status-text');
+  if (banner && bannerText) {
+    bannerText.innerText = text;
+    banner.classList.remove('hidden');
+  }
+}
+
+function hideLiveExtractionBanner() {
+  const banner = document.getElementById('live-extraction-banner');
+  if (banner) banner.classList.add('hidden');
+}
+
 /**
- * Start Extraction Scraper Task on Button Click
+ * Start Multi-Area Lead Extraction Scraper Task
  */
 async function handleStartExtraction(e) {
   e.preventDefault();
 
-  const area = document.getElementById('extract-area').value;
-  const maxResults = parseInt(document.getElementById('extract-max').value, 10);
-  const includeWebSearch = document.getElementById('ext-web-search').checked;
-  const includeDeepCrawl = document.getElementById('ext-deep-crawl').checked;
+  // Collect checked suburbs
+  const checkedSuburbs = Array.from(document.querySelectorAll('input[name="suburbs"]:checked')).map((cb) => cb.value);
+  const customAreasVal = document.getElementById('extract-custom-areas').value;
+  const customAreas = customAreasVal ? customAreasVal.split(',').map((a) => a.trim()).filter(Boolean) : [];
+
+  const selectedAreas = Array.from(new Set([...checkedSuburbs, ...customAreas]));
+
+  if (selectedAreas.length === 0) {
+    showToast('⚠️ Please select at least one South African location!');
+    return;
+  }
 
   const checkboxes = document.querySelectorAll('input[name="categories"]:checked');
   const selectedCategories = Array.from(checkboxes).map((cb) => cb.value);
 
   if (selectedCategories.length === 0) {
-    alert('Please select at least one prospect category to extract!');
+    showToast('⚠️ Please select at least one prospect category!');
     return;
   }
 
+  const maxResults = parseInt(document.getElementById('extract-max').value, 10);
+  const includeWebSearch = document.getElementById('ext-web-search').checked;
+  const includeDeepCrawl = document.getElementById('ext-deep-crawl').checked;
+
   const btn = document.getElementById('btn-run-scraper');
   btn.disabled = true;
-  btn.innerText = '⌛ Extracting Leads...';
+  btn.innerText = '⌛ Extracting Multi-Area Leads...';
 
   const terminal = document.getElementById('extraction-terminal');
   const logBox = document.getElementById('terminal-logs');
   terminal.classList.remove('hidden');
-  logBox.innerHTML = `<div class="log-line info">🚀 Launching scraper engine for ${area}...</div>`;
+  logBox.innerHTML = `<div class="log-line info">🚀 Launching scraper engine for ${selectedAreas.length} South Africa locations: ${selectedAreas.slice(0, 3).join(', ')}...</div>`;
+
+  showLiveExtractionBanner(`Extracting ${selectedCategories.length} categories across ${selectedAreas.length} SA locations...`);
 
   if (!isStaticMode) {
     try {
-      const categories = selectedCategories.map((val) => `${val} ${area}`);
       const res = await fetch('/api/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ searchTerms: categories, area, maxResults, includeWebSearch, includeDeepCrawl }),
+        body: JSON.stringify({ areas: selectedAreas, categories: selectedCategories, maxResults, includeWebSearch, includeDeepCrawl }),
       });
       const data = await res.json();
       if (data.success) {
-        logBox.innerHTML += `<div class="log-line success">✓ Backend Scraper process dispatched. Extracting...</div>`;
+        logBox.innerHTML += `<div class="log-line success">✓ Multi-Area Live Scraper process running...</div>`;
         startStatusPolling();
         return;
       }
     } catch {
-      // Fall through to client simulation on static mode
+      // Fall through to simulated mode
     }
   }
 
-  // Static GitHub Pages Client-side Extraction Simulation Mode
+  // Client Simulation Mode
   let step = 0;
   const simLogs = [
-    `Initializing Playwright Chromium headless engine...`,
-    `Navigating to search engine for ${selectedCategories[0]} in ${area}...`,
-    `Extracting place cards, address, phone numbers & ratings...`,
-    `Deep crawling domain homepages & contact pages...`,
-    `Found verified email & social links (Instagram, Facebook)...`,
-    `✓ Extraction complete! Added new leads to local sales funnel.`
+    `Initializing Playwright Chromium engine...`,
+    `Searching Google Maps & Web Engines for ${selectedCategories[0]} in ${selectedAreas[0]}...`,
+    `Extracting business cards, address, phone & rating data...`,
+    `Deep crawling domain homepages for decision-maker contact emails...`,
+    `✓ Extraction complete! Added qualified leads across ${selectedAreas.join(', ')}.`
   ];
 
   const timer = setInterval(() => {
@@ -433,41 +849,41 @@ async function handleStartExtraction(e) {
     } else {
       clearInterval(timer);
       btn.disabled = false;
-      btn.innerText = '🚀 Start Lead Extraction';
+      btn.innerText = '🚀 Start Multi-Area Lead Extraction';
 
-      // Generate a new simulated lead
-      const newId = `ext_${Date.now()}`;
-      const sampleNames = ['Umhlanga Wellness Hub', 'Gateway Laser & Beauty', 'Umhlanga Executive Auto', 'Ridge CrossFit'];
-      const sampleCategories = ['Healthcare & Wellness', 'Beauty and Hair', 'Automotive & Trades', 'Fitness'];
-      const pick = Math.floor(Math.random() * sampleNames.length);
+      hideLiveExtractionBanner();
+      showToast(`✓ Multi-Area Lead Extraction Completed for ${selectedAreas.length} locations!`);
 
+      // Add mock lead for selected area
+      const pickArea = selectedAreas[Math.floor(Math.random() * selectedAreas.length)] || 'Sandton';
       const mockLead = {
-        id: newId,
-        name: `${sampleNames[pick]} (${area})`,
-        category: sampleCategories[pick],
-        area: area,
-        address: `${area}, South Africa`,
-        phone: `+27 31 ${Math.floor(1000000 + Math.random() * 9000000)}`,
-        website: `https://www.${sampleNames[pick].toLowerCase().replace(/[^a-z]/g, '')}.co.za`,
-        email: `info@${sampleNames[pick].toLowerCase().replace(/[^a-z]/g, '')}.co.za`,
-        socials: { instagram: `https://www.instagram.com/${sampleNames[pick].toLowerCase().replace(/[^a-z]/g, '')}/` },
-        rating: 4.8,
+        id: `ext_${Date.now()}`,
+        name: `${pickArea} Premier ${selectedCategories[0] || 'Business'}`,
+        category: selectedCategories[0] || 'Fitness',
+        area: pickArea,
+        address: `${pickArea}, South Africa`,
+        phone: `+27 11 ${Math.floor(5000000 + Math.random() * 4000000)}`,
+        website: `https://www.${pickArea.toLowerCase().replace(/[^a-z]/g, '')}premier${Date.now().toString().slice(-4)}.co.za`,
+        email: `info@${pickArea.toLowerCase().replace(/[^a-z]/g, '')}premier${Date.now().toString().slice(-4)}.co.za`,
+        socials: { instagram: `https://instagram.com/${pickArea.toLowerCase().replace(/[^a-z]/g, '')}premier` },
+        rating: 4.9,
         reviewCount: 42,
         funnelStage: 'new',
-        opportunityScore: 88,
+        opportunityScore: 91,
         scrapedAt: new Date().toISOString(),
         source: 'multi_source'
       };
 
       allLeads.unshift(mockLead);
       saveLeadsLocally();
+      populateAreaFilterOptions();
       renderDashboard();
     }
   }, 1000);
 }
 
 /**
- * Poll Background Extraction Status (Live server mode)
+ * Poll Background Extraction Status
  */
 function startStatusPolling() {
   if (pollTimer) clearInterval(pollTimer);
@@ -489,7 +905,10 @@ function startStatusPolling() {
         clearInterval(pollTimer);
         const btn = document.getElementById('btn-run-scraper');
         btn.disabled = false;
-        btn.innerText = '🚀 Start Lead Extraction';
+        btn.innerText = '🚀 Start Multi-Area Lead Extraction';
+
+        hideLiveExtractionBanner();
+        showToast('✓ Live Multi-Area Lead Extraction Finished!');
 
         fetchLeads();
         fetchStats();
@@ -501,28 +920,114 @@ function startStatusPolling() {
 }
 
 /**
- * Trigger Contact Enrichment
+ * Manual Lead Modal Handlers
  */
-async function triggerEnrichment() {
-  alert('✨ Contact enrichment process executed for leads missing email, phone, or socials!');
-  allLeads.forEach((l) => {
-    if (!l.email) l.email = `contact@${l.name.toLowerCase().replace(/[^a-z]/g, '') || 'business'}.co.za`;
-    if (!l.phone) l.phone = `+27 31 566 ${Math.floor(1000 + Math.random() * 9000)}`;
-    if (l.funnelStage === 'new') l.funnelStage = 'enriched';
-  });
+function openAddLeadModal() {
+  document.getElementById('add-lead-modal').classList.add('show');
+}
+
+function closeAddLeadModal() {
+  document.getElementById('add-lead-modal').classList.remove('show');
+  document.getElementById('add-lead-form').reset();
+}
+
+async function handleAddLeadSubmit(e) {
+  e.preventDefault();
+
+  const name = document.getElementById('add-name').value;
+  const category = document.getElementById('add-category').value;
+  const area = document.getElementById('add-area').value || 'Umhlanga';
+  const website = document.getElementById('add-website').value;
+  const phone = document.getElementById('add-phone').value;
+  const email = document.getElementById('add-email').value;
+
+  const newLeadData = {
+    name,
+    category,
+    area,
+    website,
+    phone,
+    email,
+    funnelStage: 'new',
+    opportunityScore: 82,
+  };
+
+  if (!isStaticMode) {
+    try {
+      const res = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newLeadData),
+      });
+      const data = await res.json();
+      if (data.success && data.lead) {
+        allLeads.unshift(data.lead);
+        closeAddLeadModal();
+        populateAreaFilterOptions();
+        renderDashboard();
+        fetchStats();
+        showToast('✓ Lead created successfully!');
+        return;
+      }
+    } catch {
+      // Fall through to static
+    }
+  }
+
+  const manualLead = {
+    id: `manual_${Date.now()}`,
+    ...newLeadData,
+    scrapedAt: new Date().toISOString(),
+    source: 'manual',
+  };
+
+  allLeads.unshift(manualLead);
   saveLeadsLocally();
+  closeAddLeadModal();
+  populateAreaFilterOptions();
   renderDashboard();
+  showToast('✓ Lead created locally!');
 }
 
 /**
- * Open Prospect Detail Drawer
+ * Trigger Contact Enrichment
+ */
+async function triggerEnrichment() {
+  const btn = document.getElementById('btn-enrich');
+  if (btn) btn.innerText = '⌛ Enriching...';
+
+  if (!isStaticMode) {
+    try {
+      const res = await fetch('/api/enrich', { method: 'POST' });
+      const data = await res.json();
+      showToast(data.message || 'Contact enrichment finished!');
+      fetchLeads();
+      fetchStats();
+      if (btn) btn.innerHTML = '<span>✨ Enrich Contacts</span>';
+      return;
+    } catch {
+      // ignore
+    }
+  }
+
+  allLeads.forEach((l) => {
+    if (!l.email) l.email = `contact@${l.name.toLowerCase().replace(/[^a-z]/g, '') || 'business'}.co.za`;
+    if (!l.phone) l.phone = `+27 11 566 ${Math.floor(1000 + Math.random() * 9000)}`;
+    if (l.funnelStage === 'new') l.funnelStage = 'enriched';
+  });
+
+  saveLeadsLocally();
+  renderDashboard();
+  showToast('✨ Contact enrichment completed!');
+  if (btn) btn.innerHTML = '<span>✨ Enrich Contacts</span>';
+}
+
+/**
+ * Open Prospect Detail Drawer Modal
  */
 let currentPitchChannel = 'email';
 let currentPitchTone = 'consultative';
 
-/**
- * Open Prospect Detail Drawer
- */
 function openDetailModal(leadId) {
   selectedLead = allLeads.find((l) => l.id === leadId);
   if (!selectedLead) return;
@@ -564,7 +1069,7 @@ function openDetailModal(leadId) {
     emailLink.innerText = 'Not Found';
   }
 
-  document.getElementById('detail-address').innerText = selectedLead.address || 'Umhlanga';
+  document.getElementById('detail-address').innerText = selectedLead.address || selectedLead.area || 'South Africa';
   document.getElementById('detail-stage-select').value = selectedLead.funnelStage;
   document.getElementById('detail-notes').value = selectedLead.notes || '';
 
@@ -606,7 +1111,56 @@ function closeDetailModal() {
 }
 
 /**
- * Render Technical Website Audit Chips
+ * Update Lead Stage from Modal Dropdown
+ */
+async function updateLeadStageFromModal(newStage) {
+  if (!selectedLead) return;
+
+  selectedLead.funnelStage = newStage;
+
+  if (!isStaticMode) {
+    try {
+      await fetch(`/api/leads/${selectedLead.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ funnelStage: newStage }),
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  saveLeadsLocally();
+  renderDashboard();
+  showToast(`✓ Stage updated to ${newStage}`);
+}
+
+/**
+ * Save Lead Notes
+ */
+async function saveLeadNotes() {
+  if (!selectedLead) return;
+  const notes = document.getElementById('detail-notes').value;
+  selectedLead.notes = notes;
+
+  if (!isStaticMode) {
+    try {
+      await fetch(`/api/leads/${selectedLead.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes }),
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  saveLeadsLocally();
+  showToast('✓ Lead notes saved!');
+}
+
+/**
+ * Render Technical Audit Chips
  */
 function renderTechnicalAuditDrawer(lead) {
   const auditBox = document.getElementById('detail-audit-box');
@@ -615,9 +1169,9 @@ function renderTechnicalAuditDrawer(lead) {
   const audit = lead.technicalAudit || {
     hasHttps: Boolean(lead.website && lead.website.startsWith('https')),
     hasResponsiveViewport: true,
-    hasContactForm: false,
+    hasContactForm: Boolean(lead.email),
     hasBookingSystem: false,
-    hasWhatsappLink: false,
+    hasWhatsappLink: Boolean(lead.phone),
   };
 
   const chips = [
@@ -662,23 +1216,23 @@ function renderPitchSuite(lead) {
   const textEl = document.getElementById('ai-script-text');
 
   if (currentPitchChannel === 'email') {
-    textEl.innerText = `SUBJECT: ${scripts.email.subject}\n\n${scripts.email.body}`;
+    textEl.innerText = `SUBJECT: ${scripts.email?.subject || 'Digital Lead Optimization'}\n\n${scripts.email?.body || ''}`;
   } else if (currentPitchChannel === 'whatsapp') {
-    textEl.innerText = scripts.whatsapp;
+    textEl.innerText = scripts.whatsapp || '';
   } else if (currentPitchChannel === 'socialDm') {
-    textEl.innerText = scripts.socialDm;
+    textEl.innerText = scripts.socialDm || '';
   } else if (currentPitchChannel === 'coldCall') {
-    textEl.innerText = `OPENER:\n${scripts.coldCall.opener}\n\nDISCOVERY:\n${scripts.coldCall.discovery}\n\nOBJECTION HANDLING:\n${scripts.coldCall.objectionHandling}\n\nCLOSE:\n${scripts.coldCall.close}`;
+    textEl.innerText = `OPENER:\n${scripts.coldCall?.opener || ''}\n\nDISCOVERY:\n${scripts.coldCall?.discovery || ''}\n\nOBJECTION HANDLING:\n${scripts.coldCall?.objectionHandling || ''}\n\nCLOSE:\n${scripts.coldCall?.close || ''}`;
   }
 }
 
 /**
- * Default fallback scripts for static preview mode
+ * Fallback Pitch Scripts
  */
 function getDefaultPitchScripts(lead) {
   const name = lead.name || 'Business';
   const category = lead.category || 'local business';
-  const area = lead.area || 'Umhlanga';
+  const area = lead.area || 'South Africa';
 
   return {
     email: {
@@ -688,7 +1242,7 @@ function getDefaultPitchScripts(lead) {
     whatsapp: `Hi ${name} Team 👋 We audited top ${category} providers in ${area}!\n\nWe noticed your site is missing a 1-click WhatsApp lead booking link, letting inquiries slip to competitors.\n\nMind if I share a 60-second video demo showing how to capture 3x more bookings? 🚀`,
     socialDm: `Hey ${name} team! 👋 Love your work in ${area}. Quick tip: adding an instant WhatsApp booking link to your profile can double your weekly client inquiries. DM us if you'd like a free mockup! 🙌`,
     coldCall: {
-      opener: `Hi, is this the manager at ${name}? My name is LeadGremlin, calling briefly from Umhlanga Digital Lead Engine.`,
+      opener: `Hi, is this the manager at ${name}? My name is LeadGremlin, calling briefly from South Africa Digital Lead Engine.`,
       discovery: `We conduct digital growth audits for ${category} providers in ${area}. I noticed your site lacks an automated lead booking widget. How are you following up after hours?`,
       objectionHandling: `I completely understand you're busy! That's why we built this automated widget—it captures leads 24/7 without staff needing to take calls.`,
       close: `Can I drop a 60-second video demo directly to your WhatsApp or email address?`,
@@ -707,7 +1261,7 @@ function switchPitchTab(channel) {
 }
 
 /**
- * Copy Active Pitch Script to Clipboard
+ * Copy Pitch Script to Clipboard
  */
 function copyPitchToClipboard() {
   const textEl = document.getElementById('ai-script-text');
@@ -720,7 +1274,7 @@ function copyPitchToClipboard() {
 }
 
 /**
- * Trigger Live Notion Database Sync from Dashboard Header
+ * Trigger Live Notion Database Sync
  */
 async function triggerNotionSync() {
   const btn = document.getElementById('btn-notion-sync');
@@ -744,7 +1298,7 @@ async function triggerNotionSync() {
 }
 
 /**
- * Trigger Live Website Technical Audit for Selected Lead
+ * Trigger Website Audit
  */
 async function triggerWebsiteAudit() {
   if (!selectedLead || !selectedLead.website) {
@@ -826,7 +1380,7 @@ function toggleExportMenu() {
 }
 
 /**
- * Client-Side CSV & JSON Export (Works on GitHub Pages!)
+ * Export Leads to CSV or JSON
  */
 function downloadExport(type) {
   if (type === 'csv') {
