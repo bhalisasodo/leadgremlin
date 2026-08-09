@@ -20,18 +20,51 @@ export class AIAuditor {
 
     const multiChannelScripts: MultiChannelScripts = this.buildScripts(name, category, area, rating, reviews, tone);
 
+    const issues: string[] = [];
+    const recommendations: string[] = [];
+
+    if (input.technicalAudit) {
+      const audit = input.technicalAudit;
+      if (!audit.hasHttps) {
+        issues.push('Website lacks secure SSL (HTTPS) encryption');
+        recommendations.push('Install SSL certificate & enforce HTTPS protocol');
+      }
+      if (!audit.hasBookingSystem) {
+        issues.push('Missing automated online booking integration');
+        recommendations.push('Deploy custom responsive online booking engine');
+      }
+      if (!audit.hasWhatsappLink) {
+        issues.push('No WhatsApp instant lead capture widget detected');
+        recommendations.push('Add high-converting 1-click WhatsApp lead CTA');
+      }
+      if (!audit.hasResponsiveViewport) {
+        issues.push('Mobile viewport optimization required');
+        recommendations.push('Implement mobile-first responsive viewport design');
+      }
+      if (!audit.hasContactForm) {
+        issues.push('No direct contact inquiry form found on landing page');
+        recommendations.push('Integrate automated lead capture form');
+      }
+    }
+
+    if (issues.length === 0) {
+      issues.push('Missing automated online booking integration');
+      issues.push('Website mobile speed performance optimization required');
+      issues.push('No WhatsApp instant lead capture widget detected');
+    }
+
+    if (recommendations.length === 0) {
+      recommendations.push('Deploy custom responsive booking portal');
+      recommendations.push('Add AI chatbot lead capture widget');
+      recommendations.push('Implement conversion-focused landing page redesign');
+    }
+
+    const estimatedProjectValueZAR = input.technicalAudit ? 15000 + issues.length * 3500 : 18500;
+
     return {
-      issues: [
-        'Missing automated online booking integration',
-        'Website mobile speed performance optimization required',
-        'No WhatsApp instant lead capture widget detected',
-      ],
-      recommendations: [
-        'Deploy custom responsive booking portal',
-        'Add AI chatbot lead capture',
-        'Implement conversion-focused landing page redesign',
-      ],
-      estimatedProjectValueZAR: 18500,
+      issues,
+      recommendations,
+      estimatedProjectValueZAR,
       personalizedOutreachScript: multiChannelScripts.email.body,
       multiChannelScripts,
       auditTimestamp: new Date().toISOString(),

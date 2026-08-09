@@ -8,7 +8,7 @@ export class WebsiteAnalyzer {
   /**
    * Analyzes target website technical features and computes 0-100 Lead Opportunity Score
    */
-  public async analyzeWebsite(url: string): Promise<WebsiteScoreResult> {
+  public async analyzeWebsite(url: string, existingHtml?: string): Promise<WebsiteScoreResult> {
     logger.info(`Analyzing website technical features for: ${url}`);
 
     if (!url || typeof url !== 'string') {
@@ -18,27 +18,32 @@ export class WebsiteAnalyzer {
     const targetUrl = url.startsWith('http') ? url : `https://${url}`;
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      let html = existingHtml || '';
+      let loadSpeedSeconds = 1.0;
 
-      const startTime = Date.now();
-      const response = await fetch(targetUrl, {
-        signal: controller.signal,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        },
-      }).catch(() => null);
+      if (!html) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-      clearTimeout(timeoutId);
+        const startTime = Date.now();
+        const response = await fetch(targetUrl, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          },
+        }).catch(() => null);
 
-      const loadSpeedSeconds = parseFloat(((Date.now() - startTime) / 1000).toFixed(2));
+        clearTimeout(timeoutId);
+        loadSpeedSeconds = parseFloat(((Date.now() - startTime) / 1000).toFixed(2));
 
-      if (!response || !response.ok) {
-        // Site unreachable or failed - high opportunity score (needs web revamp/fix)
-        return this.createFallbackResult(targetUrl, 85);
+        if (!response || !response.ok) {
+          // Site unreachable or failed - high opportunity score (needs web revamp/fix)
+          return this.createFallbackResult(targetUrl, 85);
+        }
+
+        html = await response.text();
       }
-
-      const html = await response.text();
       const hasHttps = targetUrl.startsWith('https://');
 
       // Contact Form Detection

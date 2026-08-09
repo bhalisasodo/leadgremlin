@@ -2,6 +2,7 @@ import { chromium, Browser, Page } from 'playwright';
 import { Business, SocialLinks } from '../types/business.js';
 import { logger } from '../utils/logger.js';
 import { googleMapsParser } from '../parser/googleMapsParser.js';
+import { websiteAnalyzer } from '../scoring/websiteAnalyzer.js';
 
 export interface EnrichmentSummary {
   processed: number;
@@ -305,14 +306,28 @@ export class ContactEnricher {
         business.funnelStage = 'enriched';
       }
 
-      // Calculate opportunity score (1 to 100) based on digital footprint gaps
-      let score = 50;
-      if (!business.website) score += 25; // High value lead for web design agency
-      if (!business.email) score += 10;
-      if (!business.socials.instagram) score += 10;
-      if (business.rating && business.rating < 4.2) score += 10;
-      if (business.reviewCount && business.reviewCount > 20) score += 10;
-      business.opportunityScore = Math.min(Math.max(score, 10), 99);
+      // Technical website audit & scoring
+      if (business.website) {
+        try {
+          const auditRes = await websiteAnalyzer.analyzeWebsite(business.website);
+          business.technicalAudit = auditRes.audit;
+          business.opportunityScore = auditRes.score;
+          business.websiteScore = Math.max(10, 100 - auditRes.score);
+        } catch {
+          // Fallback scoring if website fetch fails
+          business.opportunityScore = 80;
+          business.websiteScore = 20;
+        }
+      } else {
+        // High opportunity lead if missing a website entirely
+        business.opportunityScore = 95;
+        business.websiteScore = 0;
+      }
+
+      // Adjust opportunity score based on missing contact channels & ratings
+      if (!business.email) business.opportunityScore = Math.min(99, business.opportunityScore + 5);
+      if (!business.socials?.instagram) business.opportunityScore = Math.min(99, business.opportunityScore + 5);
+      if (business.rating && business.rating < 4.2) business.opportunityScore = Math.min(99, business.opportunityScore + 5);
 
       logger.info(
         `✓ Enriched ${business.name} | Web: ${business.website || 'N/A'} | Email: ${business.email || 'N/A'} | Phone: ${business.phone || 'N/A'} | Insta: ${business.socials.instagram || 'N/A'}`

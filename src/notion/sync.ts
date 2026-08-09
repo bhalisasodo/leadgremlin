@@ -222,26 +222,26 @@ export class NotionSyncer {
               url: validInsta,
             },
             'Website Score': {
-              number: typeof (lead as any).websiteScore === 'number' ? (lead as any).websiteScore : 0,
+              number: typeof lead.websiteScore === 'number' ? lead.websiteScore : 0,
             },
             Opportunity: {
               select: {
-                name: (lead as any).opportunity || 'High',
+                name: lead.opportunityScore >= 70 ? 'High' : lead.opportunityScore >= 40 ? 'Medium' : 'Low',
               },
             },
             'Estimated Deal Value': {
-              number: typeof (lead as any).estimatedDealValue === 'number' ? (lead as any).estimatedDealValue : 0,
+              number: typeof lead.estimatedDealValue === 'number' ? lead.estimatedDealValue : 18500,
             },
             Status: {
               status: {
-                name: (lead as any).status || 'Not Started',
+                name: 'Not Started',
               },
             },
             Notes: {
               rich_text: [
                 {
                   text: {
-                    content: (lead as any).notes || 'Imported by LeadGremlin',
+                    content: lead.notes || (lead.aiPitchScripts?.email?.body ? `Pitch: ${lead.aiPitchScripts.email.subject}` : 'Imported by LeadGremlin'),
                   },
                 },
               ],

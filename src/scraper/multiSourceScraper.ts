@@ -1,5 +1,6 @@
 import { GoogleMapsScraper } from './googleMapsScraper.js';
 import { contactEnricher } from '../enrichment/contactEnricher.js';
+import { aiAuditor } from '../scoring/aiAuditor.js';
 import { Business, ScraperOptions } from '../types/business.js';
 import { Deduplicator } from '../utils/deduplication.js';
 import { logger } from '../utils/logger.js';
@@ -164,6 +165,33 @@ export class MultiSourceScraper {
         logger.info(`🔎 Deep Crawling & Enriching ${combinedForTerm.length} leads for "${term}"...`);
         const enriched = await contactEnricher.enrichBatch(combinedForTerm);
         combinedForTerm = enriched.enriched;
+      }
+
+      // 4. AI Audit & Pitch Script Generation
+      if (combinedForTerm.length > 0) {
+        logger.info(`🤖 Generating AI Multi-Channel Pitch Scripts for ${combinedForTerm.length} leads...`);
+        for (const lead of combinedForTerm) {
+          try {
+            const auditOutput = await aiAuditor.generateAudit({
+              businessName: lead.name,
+              websiteUrl: lead.website || '',
+              category: lead.category,
+              area: lead.area,
+              rating: lead.rating,
+              reviewCount: lead.reviewCount,
+              technicalAudit: lead.technicalAudit,
+              tone: 'consultative',
+            });
+
+            lead.aiPitchScripts = auditOutput.multiChannelScripts;
+            lead.estimatedDealValue = auditOutput.estimatedProjectValueZAR;
+            if (auditOutput.issues && auditOutput.issues.length > 0) {
+              lead.notes = `Audit: ${auditOutput.issues.join(' | ')}`;
+            }
+          } catch (auditErr) {
+            logger.warn(`AI Pitch generation skipped for ${lead.name}: ${String(auditErr)}`);
+          }
+        }
       }
 
       allLeads.push(...combinedForTerm);

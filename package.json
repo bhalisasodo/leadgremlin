@@ -4,6 +4,7 @@
   "description": "LeadGremlin - AI Outbound Lead Engine (MVP)",
   "main": "dist/index.js",
   "scripts": {
+    "pipeline": "tsx src/pipeline.ts",
     "dashboard": "tsx src/server.ts",
     "start": "tsx src/server.ts",
     "deploy": "gh-pages -d docs",

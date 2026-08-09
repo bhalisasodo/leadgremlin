@@ -1,4 +1,5 @@
 import { ProspectCategory } from '../utils/categoryClassifier.js';
+import { TechnicalAudit, MultiChannelScripts } from './scorer.js';
 
 export type FunnelStage =
   | 'new'
@@ -40,11 +41,15 @@ export interface Business {
   plusCode?: string;
   funnelStage: FunnelStage;
   opportunityScore: number; // 1 - 100
+  websiteScore?: number;
+  estimatedDealValue?: number;
+  technicalAudit?: TechnicalAudit;
+  aiPitchScripts?: MultiChannelScripts;
   notes?: string;
   lastContactedAt?: string;
   scrapedAt: string;
   searchTerm?: string;
-  source: 'google_maps' | 'web_search' | 'directory' | 'manual' | 'multi_source';
+  source: 'google_maps' | 'web_search' | 'directory' | 'manual' | 'multi_source' | 'pipeline';
 }
 
 /**
