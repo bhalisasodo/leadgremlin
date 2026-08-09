@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LeadGremlin | AI Outbound Lead Engine & Sales Funnel</title>
-  <meta name="description" content="AI Outbound Lead Engine & Sales Funnel Dashboard for local business discovery and contact extraction.">
+  <title>LeadGremlin | AI Outbound Lead Engine & South Africa Search Universe</title>
+  <meta name="description" content="AI Outbound Lead Engine & Sales Funnel Dashboard for South African business discovery across Durban, Sandton, Cape Town, and national metro hubs.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -18,7 +18,7 @@
         <div class="logo-icon">⚡</div>
         <div class="brand-text">
           <h2>LeadGremlin</h2>
-          <span class="version-badge">v2.0 Funnel</span>
+          <span class="version-badge">v2.5 SA Engine</span>
         </div>
       </div>
 
@@ -38,12 +38,18 @@
       </nav>
 
       <div class="sidebar-preset">
-        <div class="preset-label">TARGET REGION</div>
-        <div class="region-badge">
+        <div class="preset-label">TARGET SA REGION</div>
+        <div class="region-badge" id="active-region-badge">
           <span class="pulse-dot"></span>
-          <strong>Umhlanga & Coast</strong>
+          <strong id="active-region-text">KZN Coast Metro</strong>
         </div>
-        <p class="preset-desc">Umhlanga Rocks, Ridge, Gateway, La Lucia & Cornubia</p>
+        <select id="sidebar-region-select" class="form-control-sm mt-2" onchange="handleSidebarRegionChange(this.value)">
+          <option value="ALL">🇿🇦 All South Africa</option>
+          <option value="KZN" selected>🌊 KZN (Durban, Umhlanga, Ballito)</option>
+          <option value="GP">🏙️ Gauteng (Sandton, JHB, Pretoria)</option>
+          <option value="WC">⛰️ Western Cape (Cape Town, Sea Point)</option>
+          <option value="OTH">🇿🇦 Other Major SA Hubs</option>
+        </select>
       </div>
 
       <div class="notion-status-card" id="notion-status-box">
@@ -70,7 +76,7 @@
           <div class="pulse-loader"></div>
           <div class="banner-text">
             <strong>Lead Extraction Active:</strong>
-            <span id="banner-status-text">Searching businesses...</span>
+            <span id="banner-status-text">Searching businesses across South Africa...</span>
           </div>
         </div>
         <button class="btn btn-sm btn-outline-light" onclick="openExtractModal()">View Execution Log</button>
@@ -86,7 +92,7 @@
         <div class="header-actions">
           <div class="search-box">
             <span class="search-icon">🔍</span>
-            <input type="text" id="global-search" placeholder="Search business, email, phone..." oninput="handleSearch(this.value)">
+            <input type="text" id="global-search" placeholder="Search business, suburb, email..." oninput="handleSearch(this.value)">
           </div>
 
           <button class="btn btn-secondary" onclick="triggerEnrichment()" id="btn-enrich">
@@ -180,14 +186,23 @@
             <label class="toggle-btn"><input type="checkbox" id="filter-has-phone" onchange="applyFilters()"> 📞 Has Phone</label>
           </div>
 
-          <div class="sort-selector">
-            <label>Sort By:</label>
-            <select id="sort-select" class="form-control-sm" onchange="applySort(this.value)">
-              <option value="score-desc">Opportunity Score (High to Low)</option>
-              <option value="name-asc">Business Name (A-Z)</option>
-              <option value="rating-desc">Rating (Highest)</option>
-              <option value="date-desc">Recently Scraped</option>
-            </select>
+          <div class="filter-controls-right">
+            <div class="area-selector">
+              <label>SA Area:</label>
+              <select id="filter-area-select" class="form-control-sm" onchange="applyFilters()">
+                <option value="ALL">All South Africa Areas</option>
+              </select>
+            </div>
+
+            <div class="sort-selector">
+              <label>Sort By:</label>
+              <select id="sort-select" class="form-control-sm" onchange="applySort(this.value)">
+                <option value="score-desc">Opportunity Score (High to Low)</option>
+                <option value="name-asc">Business Name (A-Z)</option>
+                <option value="rating-desc">Rating (Highest)</option>
+                <option value="date-desc">Recently Scraped</option>
+              </select>
+            </div>
           </div>
         </div>
       </section>
@@ -216,7 +231,7 @@
                 <tr>
                   <th onclick="toggleSort('name')" class="sortable">Business Name ↕</th>
                   <th onclick="toggleSort('category')" class="sortable">Category ↕</th>
-                  <th>Area</th>
+                  <th>Area / Suburb</th>
                   <th>Contact Info</th>
                   <th>Website</th>
                   <th>Social Handles</th>
@@ -268,13 +283,13 @@
 
   <!-- MODAL 1: EXTRACT LEADS SCRAPER TRIGGER -->
   <div class="modal-overlay" id="extract-modal">
-    <div class="modal-card glass-panel">
+    <div class="modal-card glass-panel wide">
       <div class="modal-header">
         <div class="modal-title">
-          <span class="modal-icon">⚡</span>
+          <span class="modal-icon">🇿🇦</span>
           <div>
-            <h3>Extract New Leads</h3>
-            <p>Target local businesses with Google Maps & Deep Web Search</p>
+            <h3>Extract New Leads - South Africa Universe</h3>
+            <p>Batch scrape businesses across KwaZulu-Natal, Gauteng, Western Cape & national hubs</p>
           </div>
         </div>
         <button class="close-btn" onclick="closeExtractModal()">&times;</button>
@@ -283,13 +298,29 @@
       <div class="modal-body">
         <form id="extract-form" onsubmit="handleStartExtraction(event)">
           <div class="form-group">
-            <label>Target Area / Location</label>
-            <select id="extract-area" class="form-control">
-              <option value="Umhlanga" selected>Umhlanga (Rocks, Ridge, Gateway, La Lucia)</option>
-              <option value="Durban North">Durban North & Broadway</option>
-              <option value="Ballito">Ballito & North Coast</option>
-              <option value="Durban Central">Durban Central & Morningside</option>
-            </select>
+            <div class="section-title-row">
+              <label>Target Regions & Locations across South Africa</label>
+              <button type="button" class="btn-text" onclick="selectAllSuburbs(true)">Select All</button>
+            </div>
+
+            <!-- Province Tabs -->
+            <div class="province-tabs" id="province-tabs">
+              <button type="button" class="province-tab active" data-province="KZN" onclick="switchProvinceTab('KZN')">🌊 KZN Coast</button>
+              <button type="button" class="province-tab" data-province="GP" onclick="switchProvinceTab('GP')">🏙️ Gauteng</button>
+              <button type="button" class="province-tab" data-province="WC" onclick="switchProvinceTab('WC')">⛰️ Western Cape</button>
+              <button type="button" class="province-tab" data-province="OTH" onclick="switchProvinceTab('OTH')">🇿🇦 Other SA</button>
+            </div>
+
+            <!-- Suburbs Checkbox Grid -->
+            <div class="checkbox-grid mt-2" id="suburbs-checkbox-grid">
+              <!-- Dynamically populated via app.js -->
+            </div>
+
+            <!-- Custom Location Input -->
+            <div class="mt-3">
+              <label style="font-size:11px; color:var(--text-dim);">Additional Custom SA Cities / Suburbs (comma-separated):</label>
+              <input type="text" id="extract-custom-areas" class="form-control" placeholder="e.g. Umhlanga, Sandton, Sea Point, Rosebank, Constantia">
+            </div>
           </div>
 
           <div class="form-group">
@@ -315,7 +346,7 @@
           </div>
 
           <div class="form-group">
-            <label>Max Results Per Category</label>
+            <label>Max Results Per Category & Location</label>
             <input type="number" id="extract-max" class="form-control" value="5" min="1" max="25">
           </div>
 
@@ -325,7 +356,7 @@
               <span class="terminal-dot red"></span>
               <span class="terminal-dot yellow"></span>
               <span class="terminal-dot green"></span>
-              <span class="terminal-title">Scraper Execution Engine</span>
+              <span class="terminal-title">Scraper Execution Engine - SA Universe</span>
             </div>
             <div class="terminal-body" id="terminal-logs">
               <div class="log-line info">Initialising Playwright Chromium...</div>
@@ -335,7 +366,7 @@
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" onclick="closeExtractModal()">Close</button>
             <button type="submit" class="btn btn-primary" id="btn-run-scraper">
-              <span>🚀 Start Lead Extraction</span>
+              <span>🚀 Start Multi-Area Lead Extraction</span>
             </button>
           </div>
         </form>
@@ -387,7 +418,7 @@
               <div class="contact-card">
                 <span class="icon">📍</span>
                 <div class="info">
-                  <span class="label">Address</span>
+                  <span class="label">Address / Suburb</span>
                   <span id="detail-address">Umhlanga</span>
                 </div>
               </div>
@@ -500,7 +531,7 @@
         <form id="add-lead-form" onsubmit="handleAddLeadSubmit(event)">
           <div class="form-group">
             <label>Business Name *</label>
-            <input type="text" id="add-name" class="form-control" placeholder="e.g. Umhlanga Fitness Club" required>
+            <input type="text" id="add-name" class="form-control" placeholder="e.g. Sandton Fitness Club" required>
           </div>
           <div class="form-group">
             <label>Category *</label>
@@ -515,8 +546,8 @@
             </select>
           </div>
           <div class="form-group">
-            <label>Area / Location</label>
-            <input type="text" id="add-area" class="form-control" placeholder="e.g. Umhlanga Ridge" value="Umhlanga">
+            <label>Area / Location (South Africa)</label>
+            <input type="text" id="add-area" class="form-control" placeholder="e.g. Sandton, JHB" value="Umhlanga">
           </div>
           <div class="form-group">
             <label>Website</label>
@@ -524,7 +555,7 @@
           </div>
           <div class="form-group">
             <label>Phone Number</label>
-            <input type="tel" id="add-phone" class="form-control" placeholder="+27 31 123 4567">
+            <input type="tel" id="add-phone" class="form-control" placeholder="+27 11 123 4567">
           </div>
           <div class="form-group">
             <label>Email Address</label>

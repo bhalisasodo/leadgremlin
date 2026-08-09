@@ -1,16 +1,67 @@
 /**
  * LeadGremlin Sales Funnel Dashboard Application Logic
- * Supports both Live Node.js Express API and Static GitHub Pages deployment.
+ * South Africa Search Universe & Multi-Region Extraction Engine
  */
 
 let allLeads = [];
 let currentCategoryFilter = 'ALL';
+let currentAreaFilter = 'ALL';
 let currentSearchTerm = '';
 let activeView = 'kanban'; // 'kanban' | 'table' | 'analytics'
 let selectedLead = null;
 let pollTimer = null;
 let isStaticMode = false;
 let currentSortField = 'score-desc';
+let activeProvinceTab = 'KZN';
+
+const SOUTH_AFRICA_REGIONS = [
+  {
+    code: 'KZN',
+    name: 'KwaZulu-Natal Coast',
+    suburbs: [
+      { id: 'umhlanga', name: 'Umhlanga (Rocks & Ridge)', checked: true },
+      { id: 'ballito', name: 'Ballito & Salt Rock', checked: true },
+      { id: 'durban_north', name: 'Durban North & Broadway', checked: true },
+      { id: 'morningside_kzn', name: 'Morningside & Berea', checked: false },
+      { id: 'hillcrest', name: 'Hillcrest & Kloof', checked: false },
+      { id: 'amanzimtoti', name: 'Amanzimtoti & South Coast', checked: false },
+      { id: 'westville', name: 'Westville & Pinetown', checked: false },
+    ],
+  },
+  {
+    code: 'GP',
+    name: 'Gauteng (JHB & PTA)',
+    suburbs: [
+      { id: 'sandton', name: 'Sandton & Bryanston', checked: true },
+      { id: 'rosebank', name: 'Rosebank & Parkhurst', checked: true },
+      { id: 'fourways', name: 'Fourways & Lonehill', checked: false },
+      { id: 'midrand', name: 'Midrand & Waterfall', checked: false },
+      { id: 'centurion', name: 'Centurion & Irene', checked: false },
+      { id: 'pretoria_east', name: 'Pretoria East & Menlyn', checked: false },
+    ],
+  },
+  {
+    code: 'WC',
+    name: 'Western Cape (Cape Town)',
+    suburbs: [
+      { id: 'sea_point', name: 'Sea Point & Waterfront', checked: true },
+      { id: 'camps_bay', name: 'Camps Bay & Clifton', checked: false },
+      { id: 'century_city', name: 'Century City & Milnerton', checked: false },
+      { id: 'constantia', name: 'Constantia & Southern Suburbs', checked: false },
+      { id: 'stellenbosch', name: 'Stellenbosch & Winelands', checked: false },
+    ],
+  },
+  {
+    code: 'OTH',
+    name: 'Other Major SA Hubs',
+    suburbs: [
+      { id: 'gqeberha', name: 'Gqeberha (Port Elizabeth)', checked: false },
+      { id: 'east_london', name: 'East London & Beacon Bay', checked: false },
+      { id: 'bloemfontein', name: 'Bloemfontein', checked: false },
+      { id: 'nelspruit', name: 'Nelspruit (Mbombela)', checked: false },
+    ],
+  },
+];
 
 const FUNNEL_STAGES = [
   { id: 'new', label: '🆕 New Prospects', color: 'status-new' },
@@ -28,6 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchStats();
   checkNotionStatus();
   checkExtractionStatusOnLoad();
+  renderSuburbsGrid();
 });
 
 /**
@@ -68,7 +120,7 @@ async function checkExtractionStatusOnLoad() {
     if (res && res.ok) {
       const data = await res.json();
       if (data.isExtracting) {
-        showLiveExtractionBanner(data.progress?.currentTerm || 'Extracting leads...');
+        showLiveExtractionBanner(data.progress?.currentTerm || 'Extracting leads across South Africa...');
         startStatusPolling();
       }
     }
@@ -89,6 +141,7 @@ async function fetchLeads() {
       if (data.success) {
         allLeads = data.leads;
         isStaticMode = false;
+        populateAreaFilterOptions();
         renderDashboard();
         return;
       }
@@ -108,6 +161,7 @@ async function fetchLeads() {
       }
     }
 
+    populateAreaFilterOptions();
     renderDashboard();
     renderStatsLocal();
   } catch (err) {
@@ -116,7 +170,7 @@ async function fetchLeads() {
 }
 
 /**
- * Save leads locally when in preview mode
+ * Save leads locally in preview mode
  */
 function saveLeadsLocally() {
   if (isStaticMode) {
@@ -126,7 +180,28 @@ function saveLeadsLocally() {
 }
 
 /**
- * Fetch KPI statistics from backend API
+ * Populate SA Area Dropdown in Filter Toolbar
+ */
+function populateAreaFilterOptions() {
+  const select = document.getElementById('filter-area-select');
+  if (!select) return;
+
+  const areaSet = new Set<string>();
+  allLeads.forEach((l) => {
+    if (l.area) areaSet.add(l.area);
+  });
+
+  const sortedAreas = Array.from(areaSet).sort();
+  select.innerHTML = '<option value="ALL">All South Africa Areas</option>';
+  sortedAreas.forEach((area) => {
+    select.innerHTML += `<option value="${escapeHtml(area)}">${escapeHtml(area)}</option>`;
+  });
+
+  select.value = currentAreaFilter;
+}
+
+/**
+ * Fetch KPI statistics
  */
 async function fetchStats() {
   if (isStaticMode) {
@@ -150,10 +225,10 @@ async function fetchStats() {
       document.getElementById('stat-phone').innerText = `${phonePct}%`;
       document.getElementById('stat-social').innerText = `${socialPct}%`;
 
-      document.getElementById('bar-web').style.width = `${webPct}%`;
-      document.getElementById('bar-email').style.width = `${emailPct}%`;
-      document.getElementById('bar-phone').style.width = `${phonePct}%`;
-      document.getElementById('bar-social').style.width = `${socialPct}%`;
+      if (document.getElementById('bar-web')) document.getElementById('bar-web').style.width = `${webPct}%`;
+      if (document.getElementById('bar-email')) document.getElementById('bar-email').style.width = `${emailPct}%`;
+      if (document.getElementById('bar-phone')) document.getElementById('bar-phone').style.width = `${phonePct}%`;
+      if (document.getElementById('bar-social')) document.getElementById('bar-social').style.width = `${socialPct}%`;
       return;
     }
   } catch {
@@ -201,15 +276,21 @@ function getFilteredLeads() {
   const hasEmailOnly = document.getElementById('filter-has-email')?.checked;
   const hasWebsiteOnly = document.getElementById('filter-has-website')?.checked;
   const hasPhoneOnly = document.getElementById('filter-has-phone')?.checked;
+  const areaSelectVal = document.getElementById('filter-area-select')?.value || 'ALL';
 
   let leads = allLeads.filter((lead) => {
     const matchesCategory =
       currentCategoryFilter === 'ALL' ||
       lead.category.toLowerCase() === currentCategoryFilter.toLowerCase();
 
+    const matchesArea =
+      areaSelectVal === 'ALL' ||
+      (lead.area && lead.area.toLowerCase().includes(areaSelectVal.toLowerCase()));
+
     const matchesSearch =
       !currentSearchTerm ||
       lead.name.toLowerCase().includes(currentSearchTerm) ||
+      (lead.area && lead.area.toLowerCase().includes(currentSearchTerm)) ||
       (lead.email && lead.email.toLowerCase().includes(currentSearchTerm)) ||
       (lead.phone && lead.phone.toLowerCase().includes(currentSearchTerm)) ||
       (lead.address && lead.address.toLowerCase().includes(currentSearchTerm));
@@ -218,7 +299,7 @@ function getFilteredLeads() {
     const matchesWebsite = !hasWebsiteOnly || Boolean(lead.website && lead.website.trim() !== '');
     const matchesPhone = !hasPhoneOnly || Boolean(lead.phone && lead.phone.trim() !== '');
 
-    return matchesCategory && matchesSearch && matchesEmail && matchesWebsite && matchesPhone;
+    return matchesCategory && matchesArea && matchesSearch && matchesEmail && matchesWebsite && matchesPhone;
   });
 
   // Apply Sorting
@@ -300,11 +381,11 @@ function renderKanban(leads) {
       card.innerHTML = `
         <div class="card-top">
           <span class="business-name">${escapeHtml(lead.name)}</span>
-          <span class="score-tag ${scoreClass}">${score} Opp Score</span>
+          <span class="score-tag ${scoreClass}">${score} Score</span>
         </div>
-        <div class="card-category">${escapeHtml(lead.category)} • ${escapeHtml(lead.area || 'Umhlanga')}</div>
+        <div class="card-category">${escapeHtml(lead.category)} • ${escapeHtml(lead.area || 'South Africa')}</div>
         <div class="card-location">
-          📍 ${escapeHtml(lead.address || 'Umhlanga, SA')}
+          📍 ${escapeHtml(lead.address || lead.area || 'South Africa')}
         </div>
         <div class="card-channels">
           <span class="channel-icon ${hasWeb}" title="Website">🌐</span>
@@ -346,7 +427,7 @@ function renderTable(leads) {
     tr.innerHTML = `
       <td><strong>${escapeHtml(lead.name)}</strong></td>
       <td><span class="badge">${escapeHtml(lead.category)}</span></td>
-      <td>${escapeHtml(lead.area || 'Umhlanga')}</td>
+      <td><span class="badge" style="background:rgba(14,165,233,0.15); color:var(--sky);">${escapeHtml(lead.area || 'South Africa')}</span></td>
       <td>
         ${lead.email ? `<div style="font-size:12px;">📧 ${escapeHtml(lead.email)}</div>` : ''}
         ${lead.phone ? `<div style="font-size:12px;">📞 ${escapeHtml(lead.phone)}</div>` : ''}
@@ -435,7 +516,7 @@ function renderAnalytics() {
       <div class="meter-card">
         <div class="meter-header"><span>📧 Email Availability</span><span>${emailPct}%</span></div>
         <div class="metric-progress-bar"><div class="bar-fill email" style="width: ${emailPct}%;"></div></div>
-        <span style="font-size:11px; color:var(--text-dim);">${totalWithEmail} / ${total} verified decision maker emails</span>
+        <span style="font-size:11px; color:var(--text-dim);">${totalWithEmail} / ${total} decision maker emails</span>
       </div>
       <div class="meter-card">
         <div class="meter-header"><span>📞 Phone Contactability</span><span>${phonePct}%</span></div>
@@ -470,6 +551,58 @@ function switchView(viewName) {
   document.getElementById('view-subtitle').innerText = titles[viewName].sub;
 
   renderDashboard();
+}
+
+/**
+ * South Africa Province & Suburb Tab Controller
+ */
+function switchProvinceTab(code) {
+  activeProvinceTab = code;
+  document.querySelectorAll('.province-tab').forEach((tab) => {
+    tab.classList.toggle('active', tab.dataset.province === code);
+  });
+  renderSuburbsGrid();
+}
+
+function renderSuburbsGrid() {
+  const grid = document.getElementById('suburbs-checkbox-grid');
+  if (!grid) return;
+
+  const group = SOUTH_AFRICA_REGIONS.find((r) => r.code === activeProvinceTab) || SOUTH_AFRICA_REGIONS[0];
+  grid.innerHTML = group.suburbs
+    .map(
+      (sub) => `
+      <label class="checkbox-label">
+        <input type="checkbox" name="suburbs" value="${escapeHtml(sub.name)}" ${sub.checked ? 'checked' : ''}>
+        ${escapeHtml(sub.name)}
+      </label>
+    `
+    )
+    .join('');
+}
+
+function selectAllSuburbs(check) {
+  document.querySelectorAll('input[name="suburbs"]').forEach((cb) => {
+    cb.checked = check;
+  });
+}
+
+function handleSidebarRegionChange(val) {
+  const activeText = document.getElementById('active-region-text');
+  const labels = {
+    ALL: 'All South Africa',
+    KZN: 'KZN Coast Metro',
+    GP: 'Gauteng Metro',
+    WC: 'Western Cape Metro',
+    OTH: 'Other SA Hubs',
+  };
+  if (activeText) activeText.innerText = labels[val] || 'South Africa';
+
+  const filterSelect = document.getElementById('filter-area-select');
+  if (filterSelect) {
+    filterSelect.value = val === 'ALL' ? 'ALL' : val === 'KZN' ? 'Umhlanga' : val === 'GP' ? 'Sandton' : 'Sea Point';
+    applyFilters();
+  }
 }
 
 /**
@@ -532,15 +665,22 @@ function hideLiveExtractionBanner() {
 }
 
 /**
- * Start Extraction Scraper Task
+ * Start Multi-Area Lead Extraction Scraper Task
  */
 async function handleStartExtraction(e) {
   e.preventDefault();
 
-  const area = document.getElementById('extract-area').value;
-  const maxResults = parseInt(document.getElementById('extract-max').value, 10);
-  const includeWebSearch = document.getElementById('ext-web-search').checked;
-  const includeDeepCrawl = document.getElementById('ext-deep-crawl').checked;
+  // Collect checked suburbs
+  const checkedSuburbs = Array.from(document.querySelectorAll('input[name="suburbs"]:checked')).map((cb) => cb.value);
+  const customAreasVal = document.getElementById('extract-custom-areas').value;
+  const customAreas = customAreasVal ? customAreasVal.split(',').map((a) => a.trim()).filter(Boolean) : [];
+
+  const selectedAreas = Array.from(new Set([...checkedSuburbs, ...customAreas]));
+
+  if (selectedAreas.length === 0) {
+    showToast('⚠️ Please select at least one South African location!');
+    return;
+  }
 
   const checkboxes = document.querySelectorAll('input[name="categories"]:checked');
   const selectedCategories = Array.from(checkboxes).map((cb) => cb.value);
@@ -550,28 +690,31 @@ async function handleStartExtraction(e) {
     return;
   }
 
+  const maxResults = parseInt(document.getElementById('extract-max').value, 10);
+  const includeWebSearch = document.getElementById('ext-web-search').checked;
+  const includeDeepCrawl = document.getElementById('ext-deep-crawl').checked;
+
   const btn = document.getElementById('btn-run-scraper');
   btn.disabled = true;
-  btn.innerText = '⌛ Extracting Leads...';
+  btn.innerText = '⌛ Extracting Multi-Area Leads...';
 
   const terminal = document.getElementById('extraction-terminal');
   const logBox = document.getElementById('terminal-logs');
   terminal.classList.remove('hidden');
-  logBox.innerHTML = `<div class="log-line info">🚀 Launching scraper engine for ${area}...</div>`;
+  logBox.innerHTML = `<div class="log-line info">🚀 Launching scraper engine for ${selectedAreas.length} South Africa locations: ${selectedAreas.slice(0, 3).join(', ')}...</div>`;
 
-  showLiveExtractionBanner(`Extracting ${selectedCategories.length} categories in ${area}...`);
+  showLiveExtractionBanner(`Extracting ${selectedCategories.length} categories across ${selectedAreas.length} SA locations...`);
 
   if (!isStaticMode) {
     try {
-      const categories = selectedCategories.map((val) => `${val} ${area}`);
       const res = await fetch('/api/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ searchTerms: categories, area, maxResults, includeWebSearch, includeDeepCrawl }),
+        body: JSON.stringify({ areas: selectedAreas, categories: selectedCategories, maxResults, includeWebSearch, includeDeepCrawl }),
       });
       const data = await res.json();
       if (data.success) {
-        logBox.innerHTML += `<div class="log-line success">✓ Live Scraper process running...</div>`;
+        logBox.innerHTML += `<div class="log-line success">✓ Multi-Area Live Scraper process running...</div>`;
         startStatusPolling();
         return;
       }
@@ -583,11 +726,11 @@ async function handleStartExtraction(e) {
   // Client Simulation Mode
   let step = 0;
   const simLogs = [
-    `Initializing Playwright Chromium headless engine...`,
-    `Searching Google Maps & Web Engines for ${selectedCategories[0]} in ${area}...`,
-    `Extracting business names, addresses, phones & ratings...`,
-    `Deep crawling domain homepages for contact emails & Instagram handles...`,
-    `✓ Extraction complete! Added new qualified prospects to sales funnel.`
+    `Initializing Playwright Chromium engine...`,
+    `Searching Google Maps & Web Engines for ${selectedCategories[0]} in ${selectedAreas[0]}...`,
+    `Extracting business cards, address, phone & rating data...`,
+    `Deep crawling domain homepages for decision-maker contact emails...`,
+    `✓ Extraction complete! Added qualified leads across ${selectedAreas.join(', ')}.`
   ];
 
   const timer = setInterval(() => {
@@ -598,31 +741,34 @@ async function handleStartExtraction(e) {
     } else {
       clearInterval(timer);
       btn.disabled = false;
-      btn.innerText = '🚀 Start Lead Extraction';
+      btn.innerText = '🚀 Start Multi-Area Lead Extraction';
 
       hideLiveExtractionBanner();
-      showToast('✓ Lead Extraction Completed!');
+      showToast(`✓ Multi-Area Lead Extraction Completed for ${selectedAreas.length} locations!`);
 
+      // Add mock lead for selected area
+      const pickArea = selectedAreas[Math.floor(Math.random() * selectedAreas.length)] || 'Sandton';
       const mockLead = {
         id: `ext_${Date.now()}`,
-        name: `Umhlanga Premier ${selectedCategories[0] || 'Business'}`,
+        name: `${pickArea} Premier ${selectedCategories[0] || 'Business'}`,
         category: selectedCategories[0] || 'Fitness',
-        area: area,
-        address: `${area}, South Africa`,
-        phone: `+27 31 ${Math.floor(5000000 + Math.random() * 4000000)}`,
-        website: `https://www.umhlangapremier${Date.now().toString().slice(-4)}.co.za`,
-        email: `info@umhlangapremier${Date.now().toString().slice(-4)}.co.za`,
-        socials: { instagram: `https://instagram.com/umhlangapremier` },
+        area: pickArea,
+        address: `${pickArea}, South Africa`,
+        phone: `+27 11 ${Math.floor(5000000 + Math.random() * 4000000)}`,
+        website: `https://www.${pickArea.toLowerCase().replace(/[^a-z]/g, '')}premier${Date.now().toString().slice(-4)}.co.za`,
+        email: `info@${pickArea.toLowerCase().replace(/[^a-z]/g, '')}premier${Date.now().toString().slice(-4)}.co.za`,
+        socials: { instagram: `https://instagram.com/${pickArea.toLowerCase().replace(/[^a-z]/g, '')}premier` },
         rating: 4.9,
-        reviewCount: 38,
+        reviewCount: 42,
         funnelStage: 'new',
-        opportunityScore: 89,
+        opportunityScore: 91,
         scrapedAt: new Date().toISOString(),
         source: 'multi_source'
       };
 
       allLeads.unshift(mockLead);
       saveLeadsLocally();
+      populateAreaFilterOptions();
       renderDashboard();
     }
   }, 1000);
@@ -651,10 +797,10 @@ function startStatusPolling() {
         clearInterval(pollTimer);
         const btn = document.getElementById('btn-run-scraper');
         btn.disabled = false;
-        btn.innerText = '🚀 Start Lead Extraction';
+        btn.innerText = '🚀 Start Multi-Area Lead Extraction';
 
         hideLiveExtractionBanner();
-        showToast('✓ Live Lead Extraction Finished!');
+        showToast('✓ Live Multi-Area Lead Extraction Finished!');
 
         fetchLeads();
         fetchStats();
@@ -709,6 +855,7 @@ async function handleAddLeadSubmit(e) {
       if (data.success && data.lead) {
         allLeads.unshift(data.lead);
         closeAddLeadModal();
+        populateAreaFilterOptions();
         renderDashboard();
         fetchStats();
         showToast('✓ Lead created successfully!');
@@ -729,6 +876,7 @@ async function handleAddLeadSubmit(e) {
   allLeads.unshift(manualLead);
   saveLeadsLocally();
   closeAddLeadModal();
+  populateAreaFilterOptions();
   renderDashboard();
   showToast('✓ Lead created locally!');
 }
@@ -756,7 +904,7 @@ async function triggerEnrichment() {
 
   allLeads.forEach((l) => {
     if (!l.email) l.email = `contact@${l.name.toLowerCase().replace(/[^a-z]/g, '') || 'business'}.co.za`;
-    if (!l.phone) l.phone = `+27 31 566 ${Math.floor(1000 + Math.random() * 9000)}`;
+    if (!l.phone) l.phone = `+27 11 566 ${Math.floor(1000 + Math.random() * 9000)}`;
     if (l.funnelStage === 'new') l.funnelStage = 'enriched';
   });
 
@@ -813,7 +961,7 @@ function openDetailModal(leadId) {
     emailLink.innerText = 'Not Found';
   }
 
-  document.getElementById('detail-address').innerText = selectedLead.address || 'Umhlanga';
+  document.getElementById('detail-address').innerText = selectedLead.address || selectedLead.area || 'South Africa';
   document.getElementById('detail-stage-select').value = selectedLead.funnelStage;
   document.getElementById('detail-notes').value = selectedLead.notes || '';
 
@@ -976,7 +1124,7 @@ function renderPitchSuite(lead) {
 function getDefaultPitchScripts(lead) {
   const name = lead.name || 'Business';
   const category = lead.category || 'local business';
-  const area = lead.area || 'Umhlanga';
+  const area = lead.area || 'South Africa';
 
   return {
     email: {
@@ -986,7 +1134,7 @@ function getDefaultPitchScripts(lead) {
     whatsapp: `Hi ${name} Team 👋 We audited top ${category} providers in ${area}!\n\nWe noticed your site is missing a 1-click WhatsApp lead booking link, letting inquiries slip to competitors.\n\nMind if I share a 60-second video demo showing how to capture 3x more bookings? 🚀`,
     socialDm: `Hey ${name} team! 👋 Love your work in ${area}. Quick tip: adding an instant WhatsApp booking link to your profile can double your weekly client inquiries. DM us if you'd like a free mockup! 🙌`,
     coldCall: {
-      opener: `Hi, is this the manager at ${name}? My name is LeadGremlin, calling briefly from Umhlanga Digital Lead Engine.`,
+      opener: `Hi, is this the manager at ${name}? My name is LeadGremlin, calling briefly from South Africa Digital Lead Engine.`,
       discovery: `We conduct digital growth audits for ${category} providers in ${area}. I noticed your site lacks an automated lead booking widget. How are you following up after hours?`,
       objectionHandling: `I completely understand you're busy! That's why we built this automated widget—it captures leads 24/7 without staff needing to take calls.`,
       close: `Can I drop a 60-second video demo directly to your WhatsApp or email address?`,

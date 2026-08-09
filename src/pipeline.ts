@@ -6,6 +6,7 @@ import { Exporter } from './utils/exporter.js';
 import { syncLeadsToNotion } from './notion/sync.js';
 import { logger } from './utils/logger.js';
 import { Business } from './types/business.js';
+import { buildMultiRegionQueries } from './config/regions.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -58,20 +59,11 @@ async function runPipeline() {
   const cliArgs = parseArgs();
 
   // Combine CLI flags with environment config
-  const area = cliArgs.area || 'Umhlanga';
+  const areaInput = cliArgs.area || 'Umhlanga';
+  const areasList = areaInput.split(',').map((a) => a.trim()).filter(Boolean);
   let searchTerms = cliArgs.terms;
   if (!searchTerms || searchTerms.length === 0) {
-    if (cliArgs.area) {
-      searchTerms = [
-        `gym ${area}`,
-        `beauty salon ${area}`,
-        `restaurant ${area}`,
-        `dentist ${area}`,
-        `real estate agent ${area}`,
-      ];
-    } else {
-      searchTerms = baseConfig.searchTerms.slice(0, 5);
-    }
+    searchTerms = buildMultiRegionQueries(['gym', 'beauty salon', 'restaurant', 'dentist'], areasList);
   }
 
   const maxResults = cliArgs.limit || Math.min(baseConfig.maxResults, 10);

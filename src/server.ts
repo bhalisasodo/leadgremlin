@@ -12,6 +12,7 @@ import { syncLeadsToNotion } from './notion/sync.js';
 import { getConfig } from './config/config.js';
 import { websiteAnalyzer } from './scoring/websiteAnalyzer.js';
 import { aiAuditor } from './scoring/aiAuditor.js';
+import { SOUTH_AFRICA_REGIONS, buildMultiRegionQueries } from './config/regions.js';
 import crypto from 'crypto';
 
 const INITIAL_PORT = parseInt(process.env.PORT || '3005', 10);
@@ -210,6 +211,16 @@ app.delete('/api/leads/:id', (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/regions - Get South Africa regions catalog
+ */
+app.get('/api/regions', (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    regions: SOUTH_AFRICA_REGIONS,
+  });
+});
+
+/**
  * POST /api/extract - Trigger live extraction & web scraping button action
  */
 app.post('/api/extract', async (req: Request, res: Response) => {
@@ -217,24 +228,33 @@ app.post('/api/extract', async (req: Request, res: Response) => {
     return res.status(409).json({ error: 'An extraction process is already running.' });
   }
 
-  const { searchTerms, area, maxResults, includeWebSearch, includeDeepCrawl } = req.body;
+  const { searchTerms, area, areas, categories, maxResults, includeWebSearch, includeDeepCrawl } = req.body;
 
-  let termsToScrape = searchTerms;
-  if (!termsToScrape || !Array.isArray(termsToScrape) || termsToScrape.length === 0) {
-    const loc = area || 'Umhlanga';
-    termsToScrape = [
-      `gym ${loc}`,
-      `beauty salon ${loc}`,
-      `restaurant ${loc}`,
-      `dentist ${loc}`,
-      `real estate agent ${loc}`,
-    ];
+  let termsToScrape: string[] = [];
+
+  if (Array.isArray(searchTerms) && searchTerms.length > 0) {
+    termsToScrape = searchTerms;
+  } else {
+    // Process areas & categories
+    let areaList: string[] = [];
+    if (Array.isArray(areas) && areas.length > 0) {
+      areaList = areas;
+    } else if (typeof area === 'string' && area.trim()) {
+      areaList = area.split(',').map((a: string) => a.trim()).filter(Boolean);
+    } else {
+      areaList = ['Umhlanga'];
+    }
+
+    const catList = Array.isArray(categories) && categories.length > 0 ? categories : ['gym', 'beauty salon', 'restaurant', 'dentist'];
+    termsToScrape = buildMultiRegionQueries(catList, areaList);
   }
+
+  const primaryArea = Array.isArray(areas) && areas.length > 0 ? areas.join(', ') : (area || 'Umhlanga');
 
   isExtracting = true;
   extractionProgress = {
     status: 'running',
-    log: [`Starting extraction pipeline for ${termsToScrape.length} search queries in ${area || 'Umhlanga'}...`],
+    log: [`Starting extraction pipeline for ${termsToScrape.length} search queries across South Africa (${primaryArea})...`],
     totalFound: 0,
     currentTerm: termsToScrape[0],
   };
