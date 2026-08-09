@@ -643,7 +643,7 @@ async function handleDeleteLead(leadId) {
   saveLeadsLocally();
 
   if (!isStaticMode) {
-    fetch(`/api/leads/${leadId}`, { method: 'DELETE' }).catch(() => null);
+    fetch(`/api/leads/${leadId}`, { method: 'DELETE' }).then(() => fetchStats()).catch(() => null);
   }
 
   showToast(`🗑️ Lead "${lead.name}" deleted successfully.`);
@@ -846,8 +846,24 @@ function handleSidebarRegionChange(val) {
  */
 function filterByCategory(cat) {
   currentCategoryFilter = cat;
-  document.querySelectorAll('.pill').forEach((p) => p.classList.remove('active'));
-  if (event && event.target) event.target.classList.add('active');
+  document.querySelectorAll('#category-pills .pill').forEach((pill) => {
+    const text = pill.innerText || '';
+    const matches =
+      (cat === 'ALL' && text.includes('All Categories')) ||
+      (cat === 'Fitness' && text.includes('Fitness')) ||
+      (cat === 'Beauty and Hair' && text.includes('Beauty')) ||
+      (cat === 'Restaurant' && text.includes('Restaurants')) ||
+      (cat === 'Healthcare & Wellness' && text.includes('Healthcare')) ||
+      (cat === 'Real Estate' && text.includes('Real Estate')) ||
+      (cat === 'Professional Services' && text.includes('Professional')) ||
+      (cat === 'Automotive & Trades' && text.includes('Automotive'));
+
+    if (matches) {
+      pill.classList.add('active');
+    } else {
+      pill.classList.remove('active');
+    }
+  });
   renderDashboard();
 }
 

@@ -322,15 +322,22 @@ app.post('/api/enrich', async (req: Request, res: Response) => {
     return res.json({ success: true, message: 'All leads are already fully enriched!' });
   }
 
-  res.json({ success: true, message: `Enrichment started for ${targetLeads.length} leads.` });
-
   try {
+    logger.info(`Starting enrichment batch for ${Math.min(targetLeads.length, 10)} target leads...`);
     const result = await contactEnricher.enrichBatch(targetLeads.slice(0, 10));
     const enrichedMap = new Map(result.enriched.map((e) => [e.id, e]));
 
     const updatedAll = leads.map((l) => enrichedMap.get(l.id) || l);
+    saveLeads(updatedAll);
+
+    res.json({
+      success: true,
+      message: `Contact enrichment completed for ${result.enriched.length} leads!`,
+      summary: result.summary,
+    });
   } catch (err) {
     logger.error('Enrichment batch error:', err);
+    res.status(500).json({ success: false, error: 'Enrichment batch process failed.' });
   }
 });
 

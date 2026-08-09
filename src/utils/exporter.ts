@@ -108,6 +108,20 @@ export class Exporter {
     fs.writeFileSync(timestampedCsv, csvContent, 'utf-8');
     fs.writeFileSync(latestCsv, csvContent, 'utf-8');
 
+    // Keep public & docs dashboard json files synchronized for static preview & gh-pages
+    try {
+      const publicJson = path.resolve(process.cwd(), './public/leads_dashboard.json');
+      const docsJson = path.resolve(process.cwd(), './docs/leads_dashboard.json');
+      if (fs.existsSync(path.dirname(publicJson))) {
+        fs.writeFileSync(publicJson, jsonContent, 'utf-8');
+      }
+      if (fs.existsSync(path.dirname(docsJson))) {
+        fs.writeFileSync(docsJson, jsonContent, 'utf-8');
+      }
+    } catch {
+      // Non-fatal if folder permissions or structure differs
+    }
+
     logger.info(`Exported ${businesses.length} leads to ${timestampedJson} and ${timestampedCsv}`);
 
     return {

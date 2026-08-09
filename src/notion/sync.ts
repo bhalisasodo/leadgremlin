@@ -172,7 +172,7 @@ export class NotionSyncer {
             });
             console.log('✓ Updated contact channels');
             updatedCount++;
-          } catch (updateErr) {
+          } catch {
             console.log(`Skipping ${lead.name} (duplicate)`);
             skippedCount++;
           }

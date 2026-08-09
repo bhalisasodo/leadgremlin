@@ -163,8 +163,12 @@ export class GoogleMapsScraper {
         }
       }
 
-      // Determine area
+      // Determine area dynamically from search term or address
       let area = 'Umhlanga';
+      if (searchTerm) {
+        const areaFromTerm = searchTerm.replace(/gym|beauty salon|restaurant|dentist|real estate agent|law firm|car detailing|fitness|salon/gi, '').trim();
+        if (areaFromTerm.length > 0) area = areaFromTerm;
+      }
       if (address) {
         if (/umhlanga rocks/i.test(address)) area = 'Umhlanga Rocks';
         else if (/umhlanga ridge/i.test(address)) area = 'Umhlanga Ridge';
@@ -172,7 +176,22 @@ export class GoogleMapsScraper {
         else if (/la lucia/i.test(address)) area = 'La Lucia';
         else if (/durban north/i.test(address)) area = 'Durban North';
         else if (/cornubia/i.test(address)) area = 'Cornubia';
-        else area = 'Umhlanga';
+        else if (/sandton/i.test(address)) area = 'Sandton';
+        else if (/rosebank/i.test(address)) area = 'Rosebank';
+        else if (/sea point/i.test(address)) area = 'Sea Point';
+        else if (/camps bay/i.test(address)) area = 'Camps Bay';
+        else if (/ballito/i.test(address)) area = 'Ballito';
+        else if (/centurion/i.test(address)) area = 'Centurion';
+        else if (/pretoria/i.test(address)) area = 'Pretoria';
+        else {
+          const addrParts = address.split(',').map((p) => p.trim()).filter(Boolean);
+          if (addrParts.length >= 2) {
+            const candidate = addrParts[addrParts.length - 2];
+            if (candidate && !/south africa|\d{4}/i.test(candidate)) {
+              area = candidate;
+            }
+          }
+        }
       }
 
       // Extract Phone
