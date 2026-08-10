@@ -14,6 +14,19 @@ let isStaticMode = false;
 let currentSortField = 'score-desc';
 let activeProvinceTab = 'KZN';
 
+/**
+ * Resolves full API URL using centralized LEADGREMLIN_CONFIG
+ */
+function getApiUrl(path) {
+  if (window.LEADGREMLIN_CONFIG && typeof window.LEADGREMLIN_CONFIG.apiUrl === 'function') {
+    return window.LEADGREMLIN_CONFIG.apiUrl(path);
+  }
+  const host = window.location.hostname;
+  const isLocal = host === 'localhost' || host === '127.0.0.1' || window.location.protocol === 'file:';
+  const base = isLocal ? 'http://localhost:3005' : 'https://leadgremlin.onrender.com';
+  return base.replace(/\/+$/, '') + (path.startsWith('/') ? path : '/' + path);
+}
+
 const SOUTH_AFRICA_REGIONS = [
   {
     code: 'KZN',
@@ -189,7 +202,7 @@ async function checkNotionStatus() {
   if (!dot || !text) return;
 
   try {
-    const res = await fetch('/api/notion/status').catch(() => null);
+    const res = await fetch(getApiUrl('/api/notion/status')).catch(() => null);
     if (res && res.ok) {
       const data = await res.json();
       if (data.configured) {
@@ -211,7 +224,7 @@ async function checkNotionStatus() {
  */
 async function checkExtractionStatusOnLoad() {
   try {
-    const res = await fetch('/api/extract/status').catch(() => null);
+    const res = await fetch(getApiUrl('/api/extract/status')).catch(() => null);
     if (res && res.ok) {
       const data = await res.json();
       if (data.isExtracting) {
@@ -566,13 +579,16 @@ const FALLBACK_SEED_LEADS = [
 /**
  * Fetch all business leads
  */
+/**
+ * Fetch all business leads
+ */
 async function fetchLeads() {
   try {
-    const res = await fetch('/api/leads').catch(() => null);
+    const res = await fetch(getApiUrl('/api/leads')).catch(() => null);
 
     if (res && res.ok) {
       const data = await res.json();
-      if (data.success && Array.isArray(data.leads) && data.leads.length > 0) {
+      if (data.success && Array.isArray(data.leads)) {
         allLeads = data.leads;
         isStaticMode = false;
         populateAreaFilterOptions();
@@ -640,7 +656,7 @@ function populateAreaFilterOptions() {
   const select = document.getElementById('filter-area-select');
   if (!select) return;
 
-  const areaSet = new Set<string>();
+  const areaSet = new Set();
   allLeads.forEach((l) => {
     if (l.area) areaSet.add(l.area);
   });
@@ -664,7 +680,7 @@ async function fetchStats() {
   }
 
   try {
-    const res = await fetch('/api/stats').catch(() => null);
+    const res = await fetch(getApiUrl('/api/stats')).catch(() => null);
     if (res && res.ok) {
       const data = await res.json();
       document.getElementById('stat-total').innerText = data.totalLeads || 0;
@@ -810,26 +826,23 @@ function updateCategoryPillCounts() {
     }
   });
 
+  const categoryLabels = {
+    ALL: 'All Categories',
+    Fitness: '🏋️ Fitness',
+    'Beauty and Hair': '💇 Beauty & Hair',
+    Restaurant: '🍽️ Restaurants',
+    'Healthcare & Wellness': '🩺 Healthcare',
+    'Real Estate': '🏠 Real Estate',
+    'Professional Services': '⚖️ Professional',
+    'Automotive & Trades': '🔧 Automotive',
+  };
+
   const pills = document.querySelectorAll('#category-pills .pill');
   pills.forEach((pill) => {
-    const text = pill.innerText;
-    if (text.includes('All Categories')) {
-      pill.innerHTML = `All Categories <span class="pill-count">${counts.ALL}</span>`;
-    } else if (text.includes('Fitness')) {
-      pill.innerHTML = `🏋️ Fitness <span class="pill-count">${counts.Fitness}</span>`;
-    } else if (text.includes('Beauty')) {
-      pill.innerHTML = `💇 Beauty & Hair <span class="pill-count">${counts['Beauty and Hair']}</span>`;
-    } else if (text.includes('Restaurants')) {
-      pill.innerHTML = `🍽️ Restaurants <span class="pill-count">${counts.Restaurant}</span>`;
-    } else if (text.includes('Healthcare')) {
-      pill.innerHTML = `🩺 Healthcare <span class="pill-count">${counts['Healthcare & Wellness']}</span>`;
-    } else if (text.includes('Real Estate')) {
-      pill.innerHTML = `🏠 Real Estate <span class="pill-count">${counts['Real Estate']}</span>`;
-    } else if (text.includes('Professional')) {
-      pill.innerHTML = `⚖️ Professional <span class="pill-count">${counts['Professional Services']}</span>`;
-    } else if (text.includes('Automotive')) {
-      pill.innerHTML = `🔧 Automotive <span class="pill-count">${counts['Automotive & Trades']}</span>`;
-    }
+    const cat = pill.dataset.category || 'ALL';
+    const label = categoryLabels[cat] || cat;
+    const count = counts[cat] !== undefined ? counts[cat] : 0;
+    pill.innerHTML = `${label} <span class="pill-count">${count}</span>`;
   });
 }
 
@@ -973,7 +986,7 @@ function updateLeadStageInline(leadId, newStage) {
     lead.lastContactedAt = new Date().toISOString();
     saveLeadsLocally();
     if (!isStaticMode) {
-      fetch(`/api/leads/${leadId}`, {
+      fetch(getApiUrl(`/api/leads/${leadId}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ funnelStage: newStage }),
@@ -999,7 +1012,7 @@ async function handleDeleteLead(leadId) {
   saveLeadsLocally();
 
   if (!isStaticMode) {
-    fetch(`/api/leads/${leadId}`, { method: 'DELETE' }).then(() => fetchStats()).catch(() => null);
+    fetch(getApiUrl(`/api/leads/${leadId}`), { method: 'DELETE' }).then(() => fetchStats()).catch(() => null);
   }
 
   showToast(`🗑️ Lead "${lead.name}" deleted successfully.`);
@@ -1265,18 +1278,7 @@ function handleSidebarRegionChange(val) {
 function filterByCategory(cat) {
   currentCategoryFilter = cat;
   document.querySelectorAll('#category-pills .pill').forEach((pill) => {
-    const text = pill.innerText || '';
-    const matches =
-      (cat === 'ALL' && text.includes('All Categories')) ||
-      (cat === 'Fitness' && text.includes('Fitness')) ||
-      (cat === 'Beauty and Hair' && text.includes('Beauty')) ||
-      (cat === 'Restaurant' && text.includes('Restaurants')) ||
-      (cat === 'Healthcare & Wellness' && text.includes('Healthcare')) ||
-      (cat === 'Real Estate' && text.includes('Real Estate')) ||
-      (cat === 'Professional Services' && text.includes('Professional')) ||
-      (cat === 'Automotive & Trades' && text.includes('Automotive'));
-
-    if (matches) {
+    if (pill.dataset.category === cat) {
       pill.classList.add('active');
     } else {
       pill.classList.remove('active');
@@ -1377,7 +1379,7 @@ async function handleStartExtraction(e) {
 
   if (!isStaticMode) {
     try {
-      const res = await fetch('/api/extract', {
+      const res = await fetch(getApiUrl('/api/extract'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ areas: selectedAreas, categories: selectedCategories, maxResults, includeWebSearch, includeDeepCrawl }),
@@ -1452,7 +1454,7 @@ function startStatusPolling() {
 
   pollTimer = setInterval(async () => {
     try {
-      const res = await fetch('/api/extract/status');
+      const res = await fetch(getApiUrl('/api/extract/status'));
       const statusData = await res.json();
       const logBox = document.getElementById('terminal-logs');
 
@@ -1516,7 +1518,7 @@ async function handleAddLeadSubmit(e) {
 
   if (!isStaticMode) {
     try {
-      const res = await fetch('/api/leads', {
+      const res = await fetch(getApiUrl('/api/leads'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newLeadData),
@@ -1560,7 +1562,7 @@ async function triggerEnrichment() {
 
   if (!isStaticMode) {
     try {
-      const res = await fetch('/api/enrich', { method: 'POST' });
+      const res = await fetch(getApiUrl('/api/enrich'), { method: 'POST' });
       const data = await res.json();
       showToast(data.message || 'Contact enrichment finished!');
       fetchLeads();
@@ -1682,7 +1684,7 @@ async function updateLeadStageFromModal(newStage) {
 
   if (!isStaticMode) {
     try {
-      await fetch(`/api/leads/${selectedLead.id}`, {
+      await fetch(getApiUrl(`/api/leads/${selectedLead.id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ funnelStage: newStage }),
@@ -1707,7 +1709,7 @@ async function saveLeadNotes() {
 
   if (!isStaticMode) {
     try {
-      await fetch(`/api/leads/${selectedLead.id}`, {
+      await fetch(getApiUrl(`/api/leads/${selectedLead.id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notes }),
@@ -1844,7 +1846,7 @@ async function triggerNotionSync() {
   btn.innerText = '⌛ Syncing Notion...';
 
   try {
-    const res = await fetch('/api/notion/sync', { method: 'POST' });
+    const res = await fetch(getApiUrl('/api/notion/sync'), { method: 'POST' });
     const data = await res.json();
     if (data.success) {
       showToast(`✓ Notion Sync Complete! Uploaded ${data.summary?.uploaded || 0} leads.`);
@@ -1873,7 +1875,7 @@ async function triggerWebsiteAudit() {
   btn.innerText = '⌛ Auditing...';
 
   try {
-    const res = await fetch('/api/audit', {
+    const res = await fetch(getApiUrl('/api/audit'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: selectedLead.id, website: selectedLead.website }),
@@ -1903,7 +1905,7 @@ async function changePitchTone(tone) {
 
   if (!isStaticMode) {
     try {
-      const res = await fetch(`/api/leads/${selectedLead.id}/pitch`, {
+      const res = await fetch(getApiUrl(`/api/leads/${selectedLead.id}/pitch`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tone }),

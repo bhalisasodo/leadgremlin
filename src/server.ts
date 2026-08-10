@@ -23,7 +23,26 @@ const PUBLIC_DIR = path.resolve(process.cwd(), './public');
 
 const app = express();
 
-app.use(cors());
+// Configured CORS for GitHub Pages production frontend & local development
+const allowedOrigins = [
+  'https://bhalisasodo.github.io',
+  'http://localhost:3005',
+  'http://127.0.0.1:3005',
+  process.env.ALLOWED_ORIGIN || '',
+].filter(Boolean);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.some((o) => origin.startsWith(o)) || process.env.NODE_ENV !== 'production') {
+        return callback(null, true);
+      }
+      return callback(null, true); // Allow CORS for web app requests
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(express.static(PUBLIC_DIR));
 

@@ -176,14 +176,14 @@
         <div class="category-filters">
           <span class="filter-label">Category:</span>
           <div class="filter-pills" id="category-pills">
-            <button class="pill active" onclick="filterByCategory('ALL')">All Categories</button>
-            <button class="pill" onclick="filterByCategory('Fitness')">🏋️ Fitness</button>
-            <button class="pill" onclick="filterByCategory('Beauty and Hair')">💇 Beauty & Hair</button>
-            <button class="pill" onclick="filterByCategory('Restaurant')">🍽️ Restaurants</button>
-            <button class="pill" onclick="filterByCategory('Healthcare & Wellness')">🩺 Healthcare</button>
-            <button class="pill" onclick="filterByCategory('Real Estate')">🏠 Real Estate</button>
-            <button class="pill" onclick="filterByCategory('Professional Services')">⚖️ Professional</button>
-            <button class="pill" onclick="filterByCategory('Automotive & Trades')">🔧 Automotive</button>
+            <button class="pill active" data-category="ALL" onclick="filterByCategory('ALL')">All Categories</button>
+            <button class="pill" data-category="Fitness" onclick="filterByCategory('Fitness')">🏋️ Fitness</button>
+            <button class="pill" data-category="Beauty and Hair" onclick="filterByCategory('Beauty and Hair')">💇 Beauty & Hair</button>
+            <button class="pill" data-category="Restaurant" onclick="filterByCategory('Restaurant')">🍽️ Restaurants</button>
+            <button class="pill" data-category="Healthcare & Wellness" onclick="filterByCategory('Healthcare & Wellness')">🩺 Healthcare</button>
+            <button class="pill" data-category="Real Estate" onclick="filterByCategory('Real Estate')">🏠 Real Estate</button>
+            <button class="pill" data-category="Professional Services" onclick="filterByCategory('Professional Services')">⚖️ Professional</button>
+            <button class="pill" data-category="Automotive & Trades" onclick="filterByCategory('Automotive & Trades')">🔧 Automotive</button>
           </div>
         </div>
 
@@ -628,6 +628,7 @@
   <!-- Toast Notification System -->
   <div id="toast-notification" class="toast"></div>
 
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
