@@ -13,6 +13,7 @@ import { getConfig } from './config/config.js';
 import { websiteAnalyzer } from './scoring/websiteAnalyzer.js';
 import { aiAuditor } from './scoring/aiAuditor.js';
 import { SOUTH_AFRICA_REGIONS, buildMultiRegionQueries } from './config/regions.js';
+import { AnalyticsEngine } from './utils/analytics.js';
 import crypto from 'crypto';
 
 const INITIAL_PORT = parseInt(process.env.PORT || '3005', 10);
@@ -561,6 +562,18 @@ app.get('/api/stats', (req: Request, res: Response) => {
       phonePercent: total ? Math.round((phoneCount / total) * 100) : 0,
       socialPercent: total ? Math.round((socialCount / total) * 100) : 0,
     },
+  });
+});
+
+/**
+ * GET /api/analytics - Advanced Sales Pipeline & Conversion Suite Analytics
+ */
+app.get('/api/analytics', (_req: Request, res: Response) => {
+  const leads = loadLeads();
+  const summary = AnalyticsEngine.calculate(leads);
+  res.json({
+    success: true,
+    analytics: summary,
   });
 });
 

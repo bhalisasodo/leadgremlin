@@ -256,8 +256,40 @@
         </div>
       </div>
 
-      <!-- VIEW 3: ANALYTICS & COVERAGE -->
+      <!-- VIEW 3: ANALYTICS & CONVERSION SUITE -->
       <div id="view-analytics-container" class="view-panel">
+        <!-- Analytics Top KPI Summary -->
+        <div class="analytics-kpi-grid">
+          <div class="analytics-kpi-card glass-panel">
+            <div class="kpi-icon gold">💰</div>
+            <div class="kpi-info">
+              <span class="kpi-label">Pipeline Valuation (ZAR)</span>
+              <h3 id="analytics-total-value">R0</h3>
+            </div>
+          </div>
+          <div class="analytics-kpi-card glass-panel">
+            <div class="kpi-icon green">🎉</div>
+            <div class="kpi-info">
+              <span class="kpi-label">Conversion Win Rate</span>
+              <h3 id="analytics-win-rate">0%</h3>
+            </div>
+          </div>
+          <div class="analytics-kpi-card glass-panel">
+            <div class="kpi-icon sky">📊</div>
+            <div class="kpi-info">
+              <span class="kpi-label">Average Deal Size</span>
+              <h3 id="analytics-avg-deal">R18,500</h3>
+            </div>
+          </div>
+          <div class="analytics-kpi-card glass-panel">
+            <div class="kpi-icon flame">🔥</div>
+            <div class="kpi-info">
+              <span class="kpi-label">High Priority Prospects</span>
+              <h3 id="analytics-high-opp">0</h3>
+            </div>
+          </div>
+        </div>
+
         <div class="analytics-grid">
           <div class="analytics-card glass-panel">
             <div class="card-header-sm">
@@ -273,6 +305,16 @@
               <span class="hint">Active deal volume</span>
             </div>
             <div class="chart-bars" id="stage-chart"></div>
+          </div>
+
+          <div class="analytics-card glass-panel full-width">
+            <div class="card-header-sm">
+              <h3>🇿🇦 Top South Africa Suburb Performance</h3>
+              <span class="hint">Prospect density & average opportunity score by suburb</span>
+            </div>
+            <div class="suburb-leaderboard-grid" id="suburb-leaderboard">
+              <!-- Dynamically populated via app.js -->
+            </div>
           </div>
 
           <div class="analytics-card glass-panel full-width">

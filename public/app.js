@@ -1026,51 +1026,113 @@ function copyEmailToClipboard(email, e) {
 function renderAnalytics() {
   const categoryCounts = {};
   const stageCounts = { new: 0, enriched: 0, outreach: 0, meeting: 0, proposal: 0, won: 0, lost: 0 };
+  const suburbMap = {};
 
+  let totalPipelineVal = 0;
+  let wonCount = 0;
+  let highOppCount = 0;
   let totalWithWeb = 0, totalWithEmail = 0, totalWithPhone = 0;
+
+  const total = allLeads.length || 1;
 
   allLeads.forEach((l) => {
     categoryCounts[l.category] = (categoryCounts[l.category] || 0) + 1;
     if (stageCounts[l.funnelStage] !== undefined) stageCounts[l.funnelStage]++;
+    if (l.funnelStage === 'won') wonCount++;
+
+    const score = l.opportunityScore || 75;
+    const dealVal = l.estimatedDealValue || 18500;
+    totalPipelineVal += dealVal;
+    if (score >= 70) highOppCount++;
 
     if (l.website) totalWithWeb++;
     if (l.email) totalWithEmail++;
     if (l.phone) totalWithPhone++;
+
+    const sub = l.area || 'Umhlanga';
+    if (!suburbMap[sub]) suburbMap[sub] = { count: 0, scoreSum: 0, valSum: 0 };
+    suburbMap[sub].count++;
+    suburbMap[sub].scoreSum += score;
+    suburbMap[sub].valSum += dealVal;
   });
 
+  // Top KPI Elements
+  const totalValEl = document.getElementById('analytics-total-value');
+  const winRateEl = document.getElementById('analytics-win-rate');
+  const avgDealEl = document.getElementById('analytics-avg-deal');
+  const highOppEl = document.getElementById('analytics-high-opp');
+
+  if (totalValEl) totalValEl.innerText = `R${totalPipelineVal.toLocaleString()}`;
+  if (winRateEl) winRateEl.innerText = `${Math.round((wonCount / total) * 100)}%`;
+  if (avgDealEl) avgDealEl.innerText = `R${Math.round(totalPipelineVal / total).toLocaleString()}`;
+  if (highOppEl) highOppEl.innerText = highOppCount;
+
+  // Category Chart
   const categoryChart = document.getElementById('category-chart');
+  if (categoryChart) {
+    categoryChart.innerHTML = '';
+    const maxCat = Math.max(...Object.values(categoryCounts), 1);
+    Object.entries(categoryCounts).forEach(([cat, val]) => {
+      const pct = Math.round((val / maxCat) * 100);
+      categoryChart.innerHTML += `
+        <div class="chart-bar-row">
+          <span class="chart-label">${escapeHtml(cat)}</span>
+          <div class="chart-track"><div class="chart-fill" style="width: ${pct}%;"></div></div>
+          <span class="chart-val">${val}</span>
+        </div>
+      `;
+    });
+  }
+
+  // Stage Breakdown Chart
   const stageChart = document.getElementById('stage-chart');
+  if (stageChart) {
+    stageChart.innerHTML = '';
+    const maxStage = Math.max(...Object.values(stageCounts), 1);
+    const stageLabels = { new: '🆕 New', enriched: '✨ Enriched', outreach: '📧 Outreach', meeting: '📅 Meeting', proposal: '📝 Proposal', won: '🎉 Won', lost: '❌ Lost' };
+    Object.entries(stageCounts).forEach(([stage, val]) => {
+      const pct = Math.round((val / maxStage) * 100);
+      stageChart.innerHTML += `
+        <div class="chart-bar-row">
+          <span class="chart-label" style="text-transform: capitalize;">${stageLabels[stage] || stage}</span>
+          <div class="chart-track"><div class="chart-fill" style="width: ${pct}%;"></div></div>
+          <span class="chart-val">${val}</span>
+        </div>
+      `;
+    });
+  }
+
+  // Suburb Leaderboard
+  const suburbLeaderboard = document.getElementById('suburb-leaderboard');
+  if (suburbLeaderboard) {
+    suburbLeaderboard.innerHTML = '';
+    const topSubs = Object.entries(suburbMap)
+      .map(([sub, data]) => ({ suburb: sub, count: data.count, avgScore: Math.round(data.scoreSum / data.count), val: data.valSum }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+
+    if (topSubs.length === 0) {
+      suburbLeaderboard.innerHTML = '<span style="color:var(--text-dim); font-size:12px;">No suburb location metrics available</span>';
+    } else {
+      topSubs.forEach((s) => {
+        suburbLeaderboard.innerHTML += `
+          <div class="suburb-rank-card">
+            <div class="suburb-rank-header">
+              <span class="suburb-name">📍 ${escapeHtml(s.suburb)}</span>
+              <span class="badge score-badge-sm">${s.avgScore} Avg Score</span>
+            </div>
+            <div class="suburb-rank-stats">
+              <span><strong>${s.count}</strong> Prospects</span>
+              <span style="color:var(--gold); font-weight:600;">Est. R${s.val.toLocaleString()}</span>
+            </div>
+          </div>
+        `;
+      });
+    }
+  }
+
+  // Contact Enrichment Meters
   const metersGrid = document.getElementById('coverage-meters');
-
-  if (categoryChart) categoryChart.innerHTML = '';
-  if (stageChart) stageChart.innerHTML = '';
-  if (metersGrid) metersGrid.innerHTML = '';
-
-  const maxCat = Math.max(...Object.values(categoryCounts), 1);
-  Object.entries(categoryCounts).forEach(([cat, val]) => {
-    const pct = Math.round((val / maxCat) * 100);
-    categoryChart.innerHTML += `
-      <div class="chart-bar-row">
-        <span class="chart-label">${cat}</span>
-        <div class="chart-track"><div class="chart-fill" style="width: ${pct}%;"></div></div>
-        <span class="chart-val">${val}</span>
-      </div>
-    `;
-  });
-
-  const maxStage = Math.max(...Object.values(stageCounts), 1);
-  Object.entries(stageCounts).forEach(([stage, val]) => {
-    const pct = Math.round((val / maxStage) * 100);
-    stageChart.innerHTML += `
-      <div class="chart-bar-row">
-        <span class="chart-label" style="text-transform: capitalize;">${stage}</span>
-        <div class="chart-track"><div class="chart-fill" style="width: ${pct}%;"></div></div>
-        <span class="chart-val">${val}</span>
-      </div>
-    `;
-  });
-
-  const total = allLeads.length || 1;
   const webPct = Math.round((totalWithWeb / total) * 100);
   const emailPct = Math.round((totalWithEmail / total) * 100);
   const phonePct = Math.round((totalWithPhone / total) * 100);

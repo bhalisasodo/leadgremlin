@@ -1591,3 +1591,99 @@ body {
   display: block;
 }
 
+/* Advanced Analytics & Conversion Suite */
+.analytics-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.analytics-kpi-card {
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-radius: var(--radius-md);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.analytics-kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.kpi-icon {
+  font-size: 28px;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.kpi-icon.gold { background: rgba(234, 179, 8, 0.15); }
+.kpi-icon.green { background: rgba(34, 197, 94, 0.15); }
+.kpi-icon.sky { background: rgba(14, 165, 233, 0.15); }
+.kpi-icon.flame { background: rgba(249, 115, 22, 0.15); }
+
+.kpi-info .kpi-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.kpi-info h3 {
+  font-size: 22px;
+  font-weight: 800;
+  margin-top: 4px;
+  color: var(--text-main);
+}
+
+.suburb-leaderboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.suburb-rank-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.suburb-rank-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.suburb-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.score-badge-sm {
+  font-size: 11px;
+  background: rgba(14, 165, 233, 0.15);
+  color: var(--sky);
+}
+
+.suburb-rank-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
