@@ -195,18 +195,15 @@ async function checkNotionStatus() {
       if (data.configured) {
         dot.classList.add('active');
         text.innerText = `Connected (${data.databaseId || 'CRM Active'})`;
-      } else {
-        dot.classList.remove('active');
-        text.innerText = 'Not configured (Missing token)';
+        return;
       }
-      return;
     }
-  } catch {
-    // ignore
+  } catch (err) {
+    console.warn('Notion status check failed, using local mode fallback:', err);
   }
 
   dot.classList.remove('active');
-  text.innerText = 'Local Preview Mode';
+  text.innerText = 'Notion (Local / Demo Mode)';
 }
 
 /**
@@ -1204,7 +1201,7 @@ function renderSuburbsGrid() {
     .map(
       (sub) => `
       <label class="checkbox-label">
-        <input type="checkbox" name="suburbs" value="${escapeHtml(sub.name)}" ${sub.checked ? 'checked' : ''}>
+        <input type="checkbox" name="suburbs" value="${escapeHtml(sub.name)}" ${sub.checked !== false ? 'checked' : ''}>
         ${escapeHtml(sub.name)}
       </label>
     `
