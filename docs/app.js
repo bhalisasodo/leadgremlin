@@ -1886,8 +1886,11 @@ function toggleExportMenu() {
  * Export Leads to CSV or JSON
  */
 function downloadExport(type) {
+  const menu = document.getElementById('export-menu');
+  if (menu) menu.classList.remove('show');
+
   if (type === 'csv') {
-    const headers = ['ID', 'Name', 'Category', 'Area', 'Address', 'Phone', 'Email', 'Website', 'Instagram', 'Stage', 'Score'];
+    const headers = ['ID', 'Name', 'Category', 'Area', 'Address', 'Phone', 'Email', 'Website', 'Instagram', 'Stage', 'Score', 'DealValue'];
     const rows = allLeads.map((l) => [
       `"${l.id}"`,
       `"${(l.name || '').replace(/"/g, '""')}"`,
@@ -1899,23 +1902,56 @@ function downloadExport(type) {
       `"${l.website || ''}"`,
       `"${l.socials?.instagram || ''}"`,
       `"${l.funnelStage || ''}"`,
-      `"${l.opportunityScore || ''}"`
+      `"${l.opportunityScore || ''}"`,
+      `"${l.estimatedDealValue || 18500}"`
     ]);
     const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'leadgremlin_sales_funnel.csv';
-    link.click();
+    triggerDownload(csvContent, 'leadgremlin_sales_funnel.csv', 'text/csv');
+    showToast('📥 Standard CSV export generated!');
+  } else if (type === 'instantly') {
+    const headers = ['Company Name', 'Email', 'Phone', 'Website', 'City', 'Category', 'Opportunity Score', 'Email Subject', 'Email Body'];
+    const rows = allLeads.map((l) => [
+      `"${(l.name || '').replace(/"/g, '""')}"`,
+      `"${l.email || ''}"`,
+      `"${l.phone || ''}"`,
+      `"${l.website || ''}"`,
+      `"${l.area || ''}"`,
+      `"${l.category || ''}"`,
+      `"${l.opportunityScore || 80}"`,
+      `"${(l.aiPitchScripts?.email?.subject || '').replace(/"/g, '""')}"`,
+      `"${(l.aiPitchScripts?.email?.body || '').replace(/"/g, '""').replace(/\n/g, '\\n')}"`
+    ]);
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    triggerDownload(csvContent, 'leadgremlin_instantly_campaign.csv', 'text/csv');
+    showToast('⚡ Instantly.ai Cold Campaign CSV generated!');
+  } else if (type === 'lemlist') {
+    const headers = ['companyName', 'email', 'phone', 'website', 'city', 'industry', 'leadScore', 'icebreaker'];
+    const rows = allLeads.map((l) => [
+      `"${(l.name || '').replace(/"/g, '""')}"`,
+      `"${l.email || ''}"`,
+      `"${l.phone || ''}"`,
+      `"${l.website || ''}"`,
+      `"${l.area || ''}"`,
+      `"${l.category || ''}"`,
+      `"${l.opportunityScore || 80}"`,
+      `"${(l.aiPitchScripts?.whatsapp || '').replace(/"/g, '""')}"`
+    ]);
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    triggerDownload(csvContent, 'leadgremlin_lemlist_outreach.csv', 'text/csv');
+    showToast('🚀 Lemlist Cold Outreach CSV generated!');
   } else {
     const jsonContent = JSON.stringify(allLeads, null, 2);
-    const blob = new Blob([jsonContent], { type: 'application/json' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'leadgremlin_sales_funnel.json';
-    link.click();
+    triggerDownload(jsonContent, 'leadgremlin_sales_funnel.json', 'application/json');
+    showToast('📥 Full JSON export generated!');
   }
+}
+
+function triggerDownload(content, filename, mimeType) {
+  const blob = new Blob([content], { type: `${mimeType};charset=utf-8;` });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
 }
 
 function escapeHtml(str) {

@@ -354,6 +354,40 @@ app.get('/api/notion/status', (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/notion/test - Validate Notion API credentials and database connection
+ */
+app.get('/api/notion/test', async (_req: Request, res: Response) => {
+  try {
+    const config = getConfig();
+    if (!config.notionToken || !config.notionDatabaseId) {
+      return res.json({
+        success: false,
+        connected: false,
+        message: 'NOTION_TOKEN or NOTION_DATABASE_ID missing in environment config.',
+      });
+    }
+
+    const { getNotionClient } = await import('./notion/client.js');
+    const notion = getNotionClient();
+    const db = await notion.databases.retrieve({ database_id: config.notionDatabaseId });
+
+    res.json({
+      success: true,
+      connected: true,
+      databaseName: (db as any).title?.[0]?.plain_text || 'Notion CRM Database',
+      properties: Object.keys((db as any).properties || {}),
+      message: 'Notion API connection verified!',
+    });
+  } catch (err: any) {
+    res.json({
+      success: false,
+      connected: false,
+      error: err.message || 'Failed to authenticate with Notion API.',
+    });
+  }
+});
+
+/**
  * POST /api/notion/sync - Sync local dashboard leads to Notion CRM
  */
 app.post('/api/notion/sync', async (req: Request, res: Response) => {

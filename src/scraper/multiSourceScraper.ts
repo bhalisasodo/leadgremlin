@@ -32,9 +32,20 @@ export class MultiSourceScraper {
     try {
       browser = await chromium.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-gpu',
+          '--disable-dev-shm-usage',
+          '--lang=en-US',
+        ],
       });
-      const page = await browser.newPage();
+      const context = await browser.newContext({
+        viewport: { width: 1280, height: 800 },
+        userAgent:
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      });
+      const page = await context.newPage();
 
       const query = `${searchTerm} ${area} South Africa website contact email phone`;
       const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
