@@ -26,24 +26,36 @@ export class AIAuditor {
     if (input.technicalAudit) {
       const audit = input.technicalAudit;
       if (!audit.hasHttps) {
-        issues.push('Website lacks secure SSL (HTTPS) encryption');
-        recommendations.push('Install SSL certificate & enforce HTTPS protocol');
+        issues.push('Insecure Connection: Website lacks SSL (HTTPS) encryption');
+        recommendations.push('Install SSL certificate & enforce HTTPS security protocol');
+      }
+      if (audit.cms) {
+        issues.push(`Platform Limitation: Running legacy ${audit.cms} site template`);
+        recommendations.push(`Upgrade ${audit.cms} layout for high-converting mobile speed`);
+      }
+      if (!audit.analyticsDetected || audit.analyticsDetected.length === 0) {
+        issues.push('No conversion analytics or retargeting pixel detected (missing GA4 / Meta Pixel)');
+        recommendations.push('Implement Google Analytics 4 & Meta Pixel conversion tracking');
       }
       if (!audit.hasBookingSystem) {
-        issues.push('Missing automated online booking integration');
+        issues.push('Missing automated online booking & appointment scheduling portal');
         recommendations.push('Deploy custom responsive online booking engine');
       }
       if (!audit.hasWhatsappLink) {
-        issues.push('No WhatsApp instant lead capture widget detected');
-        recommendations.push('Add high-converting 1-click WhatsApp lead CTA');
+        issues.push('No WhatsApp instant 1-click lead capture widget detected');
+        recommendations.push('Add high-converting WhatsApp lead capture widget');
       }
       if (!audit.hasResponsiveViewport) {
-        issues.push('Mobile viewport optimization required');
+        issues.push('Mobile Viewport Missing: Layout breaks on smartphones');
         recommendations.push('Implement mobile-first responsive viewport design');
       }
-      if (!audit.hasContactForm) {
-        issues.push('No direct contact inquiry form found on landing page');
-        recommendations.push('Integrate automated lead capture form');
+      if (audit.openGraph && !audit.openGraph.hasOgImage) {
+        issues.push('Social Card Missing: OpenGraph og:image thumbnail absent');
+        recommendations.push('Add high-resolution OpenGraph preview card & meta tags');
+      }
+      if (audit.seoScore !== undefined && audit.seoScore < 60) {
+        issues.push(`Low Technical SEO Score (${audit.seoScore}/100)`);
+        recommendations.push('Optimize meta titles, meta descriptions, and search indexing');
       }
     }
 
@@ -59,7 +71,8 @@ export class AIAuditor {
       recommendations.push('Implement conversion-focused landing page redesign');
     }
 
-    const estimatedProjectValueZAR = input.technicalAudit ? 15000 + issues.length * 3500 : 18500;
+    const baseValuation = 12000;
+    const estimatedProjectValueZAR = baseValuation + issues.length * 3500;
 
     return {
       issues,

@@ -11,6 +11,7 @@
     "deploy": "node scripts/sync-docs.js && gh-pages -d docs",
     "scrape": "tsx src/index.ts",
     "enrich": "tsx src/enrichment/cli.ts",
+    "audit": "tsx src/scoring/cli.ts",
     "sync": "tsx src/notion/sync.ts",
     "build": "tsc && node scripts/sync-docs.js",
     "lint": "eslint src/**/*.ts",

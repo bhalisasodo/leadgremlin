@@ -83,6 +83,30 @@ export class WebsiteAnalyzer {
       const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
       const metaDescription = descMatch ? descMatch[1].trim() : undefined;
 
+      // OpenGraph Card Detection
+      const hasOgImage = /<meta[^>]*property=["']og:image["']/i.test(html);
+      const hasOgTitle = /<meta[^>]*property=["']og:title["']/i.test(html);
+      const hasOgDescription = /<meta[^>]*property=["']og:description["']/i.test(html);
+      const openGraph = { hasOgImage, hasOgTitle, hasOgDescription };
+
+      // Detect CMS, Analytics, Frameworks & Chat Widgets
+      const cms = this.detectCms(html);
+      const analyticsDetected = this.detectAnalytics(html);
+      const frameworks = this.detectFrameworks(html);
+      const chatTools = this.detectChatTools(html);
+
+      // Compute 0-100 SEO Score
+      let seoScore = 0;
+      if (hasHttps) seoScore += 20;
+      if (metaTitle && metaTitle.length >= 10 && metaTitle.length <= 70) seoScore += 20;
+      else if (metaTitle) seoScore += 10;
+      if (metaDescription && metaDescription.length >= 30 && metaDescription.length <= 160) seoScore += 20;
+      else if (metaDescription) seoScore += 10;
+      if (hasResponsiveViewport) seoScore += 15;
+      if (hasFavicon) seoScore += 15;
+      if (hasOgImage) seoScore += 10;
+      seoScore = Math.min(100, Math.max(0, seoScore));
+
       const audit: TechnicalAudit = {
         hasHttps,
         loadSpeedSeconds,
@@ -90,7 +114,12 @@ export class WebsiteAnalyzer {
         hasBookingSystem,
         hasWhatsappLink,
         socialLinks,
-        analyticsDetected: [],
+        analyticsDetected,
+        cms,
+        frameworks,
+        chatTools,
+        openGraph,
+        seoScore,
         metaTitle,
         metaDescription,
         hasFavicon,
@@ -98,12 +127,13 @@ export class WebsiteAnalyzer {
       };
 
       // Calculate Lead Opportunity Score (0 to 100)
-      // Base score = 40. Missing high-converting features increases opportunity score!
-      let opportunityScore = 40;
+      // Base score = 35. Missing features increases opportunity score!
+      let opportunityScore = 35;
 
       if (!hasWhatsappLink) opportunityScore += 20; // +20 if missing WhatsApp widget
       if (!hasBookingSystem) opportunityScore += 15; // +15 if missing booking portal
       if (!hasResponsiveViewport) opportunityScore += 15; // +15 if missing mobile layout
+      if (analyticsDetected.length === 0) opportunityScore += 10; // +10 if missing conversion tracking
       if (!hasHttps) opportunityScore += 10; // +10 if insecure HTTP
       if (!hasContactForm) opportunityScore += 10; // +10 if missing contact form
 
@@ -122,6 +152,46 @@ export class WebsiteAnalyzer {
     }
   }
 
+  private detectCms(html: string): string | undefined {
+    if (/wp-content|wp-includes|wordpress/i.test(html)) return 'WordPress';
+    if (/wixpress\.com|wix\.com|_wix/i.test(html)) return 'Wix';
+    if (/cdn\.shopify\.com|shopify/i.test(html)) return 'Shopify';
+    if (/squarespace\.com/i.test(html)) return 'Squarespace';
+    if (/webflow\.com|website-files\.com/i.test(html)) return 'Webflow';
+    if (/components\/com_/i.test(html)) return 'Joomla';
+    if (/Drupal/i.test(html)) return 'Drupal';
+    return undefined;
+  }
+
+  private detectAnalytics(html: string): string[] {
+    const tools: string[] = [];
+    if (/googletagmanager\.com\/gtag\/js|G-[A-Z0-9]+|UA-\d+/i.test(html)) tools.push('Google Analytics 4');
+    if (/googletagmanager\.com\/gtm\.js/i.test(html)) tools.push('Google Tag Manager');
+    if (/connect\.facebook\.net|fbevents\.js|fbq\(/i.test(html)) tools.push('Meta Pixel');
+    if (/static\.hotjar\.com/i.test(html)) tools.push('Hotjar');
+    return tools;
+  }
+
+  private detectFrameworks(html: string): string[] {
+    const fw: string[] = [];
+    if (/_next\/static|react/i.test(html)) fw.push('React / Next.js');
+    if (/vue\.js|data-v-/i.test(html)) fw.push('Vue.js');
+    if (/bootstrap/i.test(html)) fw.push('Bootstrap');
+    if (/tailwind/i.test(html)) fw.push('TailwindCSS');
+    if (/jquery/i.test(html)) fw.push('jQuery');
+    return fw;
+  }
+
+  private detectChatTools(html: string): string[] {
+    const chat: string[] = [];
+    if (/tawk\.to/i.test(html)) chat.push('Tawk.to');
+    if (/crisp\.chat/i.test(html)) chat.push('Crisp');
+    if (/intercom/i.test(html)) chat.push('Intercom');
+    if (/hubspot/i.test(html)) chat.push('HubSpot Chat');
+    if (/zdassets\.com/i.test(html)) chat.push('Zendesk');
+    return chat;
+  }
+
   private createFallbackResult(url: string, defaultScore: number): WebsiteScoreResult {
     return {
       url,
@@ -134,6 +204,7 @@ export class WebsiteAnalyzer {
         hasWhatsappLink: false,
         socialLinks: {},
         analyticsDetected: [],
+        seoScore: 40,
         hasFavicon: false,
         hasResponsiveViewport: false,
       },

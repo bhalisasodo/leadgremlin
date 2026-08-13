@@ -16,6 +16,15 @@ export interface TechnicalAudit {
     tiktok?: string;
   };
   analyticsDetected: string[];
+  cms?: string;
+  frameworks?: string[];
+  chatTools?: string[];
+  openGraph?: {
+    hasOgImage: boolean;
+    hasOgTitle: boolean;
+    hasOgDescription: boolean;
+  };
+  seoScore?: number;
   metaTitle?: string;
   metaDescription?: string;
   hasFavicon: boolean;
