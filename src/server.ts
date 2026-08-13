@@ -14,6 +14,7 @@ import { websiteAnalyzer } from './scoring/websiteAnalyzer.js';
 import { aiAuditor } from './scoring/aiAuditor.js';
 import { SOUTH_AFRICA_REGIONS, buildMultiRegionQueries } from './config/regions.js';
 import { AnalyticsEngine } from './utils/analytics.js';
+import { PdfReportGenerator } from './utils/pdfGenerator.js';
 import crypto from 'crypto';
 
 const INITIAL_PORT = parseInt(process.env.PORT || '3005', 10);
@@ -624,6 +625,28 @@ app.post('/api/leads/:id/pitch', async (req: Request, res: Response) => {
     logger.error('AI Pitch API error:', err);
     res.status(500).json({ success: false, error: err.message || 'Pitch generation failed.' });
   }
+});
+
+/**
+ * GET /api/leads/:id/report - Serve printable stand-alone technical audit report HTML
+ */
+app.get('/api/leads/:id/report', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { agency } = req.query;
+
+  const leads = loadLeads();
+  const lead = leads.find((l) => l.id === id);
+
+  if (!lead) {
+    return res.status(404).send('<h2>404 - Business Lead Not Found</h2>');
+  }
+
+  const reportHtml = PdfReportGenerator.generateHtmlReport(lead, {
+    agencyName: agency ? String(agency) : 'LeadGremlin Growth Engine',
+  });
+
+  res.setHeader('Content-Type', 'text/html');
+  res.send(reportHtml);
 });
 
 /**

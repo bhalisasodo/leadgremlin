@@ -1,12 +1,17 @@
 import { websiteAnalyzer } from './websiteAnalyzer.js';
 import { aiAuditor } from './aiAuditor.js';
 import { OutreachTone } from '../types/scorer.js';
+import { PdfReportGenerator } from '../utils/pdfGenerator.js';
+import { Business } from '../types/business.js';
+import fs from 'fs';
+import path from 'path';
 
 interface CliArgs {
   url?: string;
   category?: string;
   area?: string;
   tone?: OutreachTone;
+  report?: boolean;
 }
 
 function parseCliArgs(): CliArgs {
@@ -25,6 +30,8 @@ function parseCliArgs(): CliArgs {
       if (['consultative', 'direct', 'casual', 'urgent'].includes(val)) {
         args.tone = val as OutreachTone;
       }
+    } else if (arg === '--report') {
+      args.report = true;
     }
   }
 
@@ -37,6 +44,7 @@ async function runAuditCli() {
   const category = cliArgs.category || 'Local Business';
   const area = cliArgs.area || 'Umhlanga';
   const tone = cliArgs.tone || 'consultative';
+  const saveReport = cliArgs.report || false;
 
   console.log(`
 ┌──────────────────────────────────────────────────────────┐
@@ -73,8 +81,9 @@ OpenGraph Image:   ${audit.openGraph?.hasOgImage ? '✓ Yes' : '❌ Missing'}
 `);
 
     console.log('🤖 Generating category-tailored AI multi-channel outreach pitch...');
+    const bName = url.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
     const aiOutput = await aiAuditor.generateAudit({
-      businessName: url.replace(/^https?:\/\//, '').replace(/\/.*$/, ''),
+      businessName: bName,
       websiteUrl: result.url,
       category,
       area,
@@ -110,6 +119,35 @@ ${aiOutput.multiChannelScripts?.whatsapp}
 
 ============================================================
 `);
+
+    if (saveReport) {
+      const mockLead: Business = {
+        id: 'cli_audit',
+        name: bName,
+        category: category as any,
+        area,
+        website: result.url,
+        socials: {},
+        funnelStage: 'new',
+        opportunityScore: result.score,
+        estimatedDealValue: aiOutput.estimatedProjectValueZAR,
+        technicalAudit: audit,
+        aiPitchScripts: aiOutput.multiChannelScripts,
+        notes: `Audit: ${aiOutput.issues.join(' | ')}`,
+        scrapedAt: new Date().toISOString(),
+        source: 'manual',
+      };
+
+      const htmlReport = PdfReportGenerator.generateHtmlReport(mockLead);
+      const reportsDir = path.resolve(process.cwd(), './data/reports');
+      if (!fs.existsSync(reportsDir)) {
+        fs.mkdirSync(reportsDir, { recursive: true });
+      }
+
+      const reportPath = path.join(reportsDir, `audit_${bName.replace(/[^a-zA-Z0-9]/g, '_')}.html`);
+      fs.writeFileSync(reportPath, htmlReport, 'utf-8');
+      console.log(`📄 Saved Standalone Printable HTML/PDF Audit Report: ${reportPath}`);
+    }
   } catch (err) {
     console.error('Audit execution error:', err);
     process.exit(1);
