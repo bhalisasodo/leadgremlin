@@ -93,11 +93,11 @@ let extractionProgress: { status: string; log: string[]; totalFound: number; cur
 // ----------------------------------------------------
 
 /**
- * GET /api/leads - Get all leads with optional category, funnelStage, or search filtering
+ * GET /api/leads - Get all leads with optional category, funnelStage, area, minScore, maxScore, source, or search filtering
  */
 app.get('/api/leads', (req: Request, res: Response) => {
   let leads = loadLeads();
-  const { category, stage, q, area, hasEmail, hasWebsite, hasPhone } = req.query;
+  const { category, stage, q, area, hasEmail, hasWebsite, hasPhone, minScore, maxScore, source } = req.query;
 
   if (category) {
     leads = leads.filter((l) => l.category.toLowerCase() === String(category).toLowerCase());
@@ -109,6 +109,20 @@ app.get('/api/leads', (req: Request, res: Response) => {
 
   if (area) {
     leads = leads.filter((l) => l.area.toLowerCase().includes(String(area).toLowerCase()));
+  }
+
+  if (source) {
+    leads = leads.filter((l) => l.source && l.source.toLowerCase() === String(source).toLowerCase());
+  }
+
+  if (minScore) {
+    const min = parseInt(String(minScore), 10);
+    if (!isNaN(min)) leads = leads.filter((l) => (l.opportunityScore || 0) >= min);
+  }
+
+  if (maxScore) {
+    const max = parseInt(String(maxScore), 10);
+    if (!isNaN(max)) leads = leads.filter((l) => (l.opportunityScore || 0) <= max);
   }
 
   if (hasEmail === 'true') {
@@ -228,6 +242,82 @@ app.delete('/api/leads/:id', (req: Request, res: Response) => {
 
   saveLeads(leads);
   res.json({ success: true, message: 'Lead deleted successfully' });
+});
+
+/**
+ * POST /api/leads/bulk-update - Perform bulk stage update or deletion
+ */
+app.post('/api/leads/bulk-update', (req: Request, res: Response) => {
+  const { ids, funnelStage, action } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ success: false, error: 'No lead IDs provided.' });
+  }
+
+  let leads = loadLeads();
+  const idSet = new Set(ids);
+
+  if (action === 'delete') {
+    leads = leads.filter((l) => !idSet.has(l.id));
+  } else if (funnelStage) {
+    const now = new Date().toISOString();
+    leads = leads.map((l) => {
+      if (idSet.has(l.id)) {
+        return {
+          ...l,
+          funnelStage: funnelStage as FunnelStage,
+          lastContactedAt: now,
+        };
+      }
+      return l;
+    });
+  }
+
+  saveLeads(leads);
+  res.json({ success: true, count: ids.length, message: `Bulk action "${action || 'update'}" applied to ${ids.length} leads.` });
+});
+
+/**
+ * POST /api/leads/:id/notes - Append timestamped activity note to a lead
+ */
+app.post('/api/leads/:id/notes', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { note } = req.body;
+
+  if (!note || typeof note !== 'string' || !note.trim()) {
+    return res.status(400).json({ success: false, error: 'Note text is required.' });
+  }
+
+  const leads = loadLeads();
+  const lead = leads.find((l) => l.id === id);
+
+  if (!lead) {
+    return res.status(404).json({ success: false, error: 'Lead not found.' });
+  }
+
+  const timestamp = new Date().toLocaleString();
+  const formattedNote = `[${timestamp}] ${note.trim()}`;
+  lead.notes = lead.notes ? `${formattedNote}\n${lead.notes}` : formattedNote;
+
+  saveLeads(leads);
+  res.json({ success: true, lead });
+});
+
+/**
+ * GET /api/health - System health telemetry and configuration status
+ */
+app.get('/api/health', (_req: Request, res: Response) => {
+  const config = getConfig();
+  const leads = loadLeads();
+
+  res.json({
+    status: 'online',
+    uptimeSeconds: process.uptime().toFixed(1),
+    memoryUsageMB: (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2),
+    totalLeads: leads.length,
+    notionConfigured: Boolean(config.notionToken && config.notionDatabaseId),
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString(),
+  });
 });
 
 /**
