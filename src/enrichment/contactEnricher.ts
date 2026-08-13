@@ -340,38 +340,66 @@ export class ContactEnricher {
   }
 
   /**
-   * Enriches a batch of businesses
+   * Enriches a batch of businesses concurrently using a Playwright worker page pool
    */
-  public async enrichBatch(businesses: Business[]): Promise<{ enriched: Business[]; summary: EnrichmentSummary }> {
+  public async enrichBatch(
+    businesses: Business[],
+    concurrency: number = 3
+  ): Promise<{ enriched: Business[]; summary: EnrichmentSummary }> {
+    if (businesses.length === 0) {
+      return {
+        enriched: [],
+        summary: { processed: 0, emailsFound: 0, socialsFound: 0, websitesFound: 0, phonesFound: 0 },
+      };
+    }
+
+    const workerCount = Math.max(1, Math.min(concurrency, businesses.length));
+    logger.info(`🚀 Launching Contact Enrichment Pool with ${workerCount} parallel worker page(s) for ${businesses.length} lead(s)...`);
+
+    await this.init(true);
+    const context = await this.browser!.newContext({
+      viewport: { width: 1280, height: 800 },
+      userAgent:
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    });
+
+    const pages: Page[] = await Promise.all(
+      Array.from({ length: workerCount }, () => context.newPage())
+    );
+
+    const enrichedList: Business[] = new Array(businesses.length);
+    let queueIndex = 0;
+
+    const runWorker = async (page: Page) => {
+      while (queueIndex < businesses.length) {
+        const currentIndex = queueIndex++;
+        const b = businesses[currentIndex];
+        if (b) {
+          const enriched = await this.enrichBusiness(page, b);
+          enrichedList[currentIndex] = enriched;
+        }
+      }
+    };
+
+    await Promise.all(pages.map((p) => runWorker(p)));
+    await context.close();
+    await this.close();
+
     let emailsFound = 0;
     let socialsFound = 0;
     let websitesFound = 0;
     let phonesFound = 0;
 
-    await this.init(true);
-    const context = await this.browser!.newContext({
-      viewport: { width: 1280, height: 800 },
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    });
-
-    const page = await context.newPage();
-    const enrichedList: Business[] = [];
-
-    for (const b of businesses) {
-      const enriched = await this.enrichBusiness(page, b);
-      enrichedList.push(enriched);
-
+    for (const enriched of enrichedList) {
+      if (!enriched) continue;
       if (enriched.website) websitesFound++;
       if (enriched.email) emailsFound++;
       if (Object.keys(enriched.socials || {}).length > 0) socialsFound++;
       if (enriched.phone) phonesFound++;
     }
 
-    await context.close();
-    await this.close();
-
     return {
-      enriched: enrichedList,
+      enriched: enrichedList.filter(Boolean),
       summary: {
         processed: businesses.length,
         emailsFound,

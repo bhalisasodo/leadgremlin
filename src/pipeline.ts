@@ -18,6 +18,9 @@ interface ParsedArgs {
   syncNotion?: boolean;
   runAudit?: boolean;
   pitchTone?: 'consultative' | 'direct' | 'casual' | 'urgent';
+  concurrency?: number;
+  minScore?: number;
+  requireContact?: boolean;
 }
 
 /**
@@ -47,6 +50,14 @@ function parseArgs(): ParsedArgs {
       if (['consultative', 'direct', 'casual', 'urgent'].includes(val)) {
         args.pitchTone = val as ParsedArgs['pitchTone'];
       }
+    } else if (arg.startsWith('--concurrency=')) {
+      const num = parseInt(arg.split('=')[1], 10);
+      if (!isNaN(num) && num > 0) args.concurrency = num;
+    } else if (arg.startsWith('--min-score=')) {
+      const num = parseInt(arg.split('=')[1], 10);
+      if (!isNaN(num)) args.minScore = num;
+    } else if (arg === '--require-contact') {
+      args.requireContact = true;
     }
   }
 
@@ -70,6 +81,9 @@ async function runPipeline() {
   const headless = cliArgs.headless !== undefined ? cliArgs.headless : baseConfig.headless;
   const pitchTone = cliArgs.pitchTone || 'consultative';
   const forceNotionSync = cliArgs.syncNotion || false;
+  const concurrency = cliArgs.concurrency || 3;
+  const minScore = cliArgs.minScore;
+  const requireContact = cliArgs.requireContact || false;
 
   console.log(`
 ┌──────────────────────────────────────────────────────────┐
@@ -83,6 +97,9 @@ async function runPipeline() {
   logger.info(`- Max Results per term: ${maxResults}`);
   logger.info(`- Headless Browser: ${headless}`);
   logger.info(`- Pitch Tone: ${pitchTone}`);
+  logger.info(`- Enrichment Concurrency: ${concurrency}`);
+  if (minScore !== undefined) logger.info(`- Min Opportunity Score Filter: ${minScore}`);
+  if (requireContact) logger.info(`- Filter: Require Contact (Phone/Email mandatory)`);
 
   const scraper = new MultiSourceScraper();
   const exporter = new Exporter(baseConfig.outputDir);
@@ -97,6 +114,7 @@ async function runPipeline() {
       headless,
       includeWebSearch: true,
       includeDeepCrawl: true,
+      concurrency,
     });
 
     // PHASE 2 & 3: Technical Website Auditing & AI Pitch Generation
@@ -163,6 +181,16 @@ async function runPipeline() {
     let addedCount = 0;
 
     for (const lead of extractedLeads) {
+      // Apply filters if configured
+      if (minScore !== undefined && lead.opportunityScore < minScore) {
+        logger.info(`Filter skipped lead ${lead.name} (Score ${lead.opportunityScore} < ${minScore})`);
+        continue;
+      }
+      if (requireContact && !lead.phone && !lead.email) {
+        logger.info(`Filter skipped lead ${lead.name} (No phone or email)`);
+        continue;
+      }
+
       if (!existingNames.has(lead.name.toLowerCase())) {
         existingNames.add(lead.name.toLowerCase());
         existingLeads.unshift(lead);

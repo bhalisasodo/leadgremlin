@@ -14,6 +14,28 @@ export class GoogleMapsScraper {
     this.deduplicator = deduplicator || new Deduplicator();
   }
 
+  private static readonly USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  ];
+
+  /**
+   * Selects a random modern user agent string
+   */
+  private getRandomUserAgent(): string {
+    return GoogleMapsScraper.USER_AGENTS[Math.floor(Math.random() * GoogleMapsScraper.USER_AGENTS.length)];
+  }
+
+  /**
+   * Adds human-like randomized interaction delays
+   */
+  private async humanDelay(page: Page, minMs: number = 400, maxMs: number = 900): Promise<void> {
+    const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+    await page.waitForTimeout(delay);
+  }
+
   /**
    * Initializes Playwright Browser instance
    */
@@ -307,8 +329,7 @@ export class GoogleMapsScraper {
 
     const context = await this.browser!.newContext({
       viewport: { width: 1280, height: 900 },
-      userAgent:
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      userAgent: this.getRandomUserAgent(),
     });
 
     const page = await context.newPage();
@@ -320,6 +341,7 @@ export class GoogleMapsScraper {
       await page.waitForLoadState('domcontentloaded').catch(() => null);
 
       await this.handleConsent(page);
+      await this.humanDelay(page, 500, 1000);
 
       const feedSelector = 'div[role="feed"]';
       try {
@@ -339,7 +361,9 @@ export class GoogleMapsScraper {
       let noNewItemsCount = 0;
 
       while (businesses.length < maxResults && noNewItemsCount < 4) {
-        const listingCards = page.locator('div[role="feed"] a[href*="/maps/place"]');
+        const listingCards = page.locator(
+          'div[role="feed"] a[href*="/maps/place"], div.Nv2pk a[href*="/maps/place"], a.hfA208'
+        );
         const count = await listingCards.count();
 
         if (count === 0) {
@@ -373,7 +397,7 @@ export class GoogleMapsScraper {
 
             await card.scrollIntoViewIfNeeded().catch(() => null);
             await card.click({ force: true }).catch(() => null);
-            await page.waitForTimeout(1200);
+            await this.humanDelay(page, 800, 1400);
 
             const canonicalUrl = googleMapsParser.cleanMapsUrl(href) || href;
             const business = await this.extractDetailPane(

@@ -166,15 +166,18 @@ export class MultiSourceScraper {
 
       // 2. Web Search Engine Extraction (Extended beyond Google Maps)
       if (scraperOpts.includeWebSearch) {
-        const webLeads = await this.scrapeWebSearch(term, 'Umhlanga', Math.max(3, Math.floor(maxResultsPerTerm / 2)));
+        const areaFromTerm =
+          term.replace(/gym|beauty salon|restaurant|dentist|real estate agent|law firm|car detailing|fitness|salon/gi, '').trim() ||
+          'Umhlanga';
+        const webLeads = await this.scrapeWebSearch(term, areaFromTerm, Math.max(3, Math.floor(maxResultsPerTerm / 2)));
         totalFound += webLeads.length;
         combinedForTerm.push(...webLeads);
       }
 
       // 3. Deep Contact Enrichment (Emails, Phone numbers, Websites, Social Links)
       if (scraperOpts.includeDeepCrawl && combinedForTerm.length > 0) {
-        logger.info(`🔎 Deep Crawling & Enriching ${combinedForTerm.length} leads for "${term}"...`);
-        const enriched = await contactEnricher.enrichBatch(combinedForTerm);
+        logger.info(`🔎 Deep Crawling & Enriching ${combinedForTerm.length} leads for "${term}" (Concurrency: ${options.concurrency || 3})...`);
+        const enriched = await contactEnricher.enrichBatch(combinedForTerm, options.concurrency || 3);
         combinedForTerm = enriched.enriched;
       }
 

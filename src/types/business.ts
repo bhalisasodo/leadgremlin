@@ -62,6 +62,7 @@ export interface ScraperOptions {
   timeoutMs?: number;
   includeWebSearch?: boolean;
   includeDeepCrawl?: boolean;
+  concurrency?: number;
 }
 
 /**
