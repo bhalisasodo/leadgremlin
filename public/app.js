@@ -202,11 +202,18 @@ const FUNNEL_STAGES = [
 
 // Initialize Dashboard
 document.addEventListener('DOMContentLoaded', () => {
+  // 1. Immediately initialize and render local/seed data so dashboard is instant and responsive
+  initLocalData();
+  populateAreaFilterOptions();
+  renderDashboard();
+  renderStatsLocal();
+  renderSuburbsGrid();
+
+  // 2. Asynchronously fetch fresh data from backend with fast fallback
   fetchLeads();
   fetchStats();
   checkNotionStatus();
   checkExtractionStatusOnLoad();
-  renderSuburbsGrid();
 
   // Global Keyboard Shortcuts (Ctrl+K to search, Esc to close modals)
   document.addEventListener('keydown', (e) => {
@@ -221,6 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
       closeDetailModal();
       closeExtractModal();
       closeAddLeadModal();
+      toggleMobileSidebar(false);
     }
   });
 });
@@ -609,18 +617,36 @@ const FALLBACK_SEED_LEADS = [
 ];
 
 /**
- * Fetch all business leads
+ * Initialize local/cached leads immediately for instant UI load
  */
+function initLocalData() {
+  const localSaved = localStorage.getItem('leadgremlin_leads');
+  if (localSaved) {
+    try {
+      const parsed = JSON.parse(localSaved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        allLeads = parsed;
+        return;
+      }
+    } catch {}
+  }
+  allLeads = Array.isArray(FALLBACK_SEED_LEADS) && FALLBACK_SEED_LEADS.length > 0 ? FALLBACK_SEED_LEADS : [];
+}
+
 /**
- * Fetch all business leads
+ * Fetch all business leads from API with fast timeout
  */
 async function fetchLeads() {
   try {
-    const res = await fetch(getApiUrl('/api/leads')).catch(() => null);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+    const res = await fetch(getApiUrl('/api/leads'), { signal: controller.signal }).catch(() => null);
+    clearTimeout(timeoutId);
 
     if (res && res.ok) {
       const data = await res.json();
-      if (data.success && Array.isArray(data.leads)) {
+      if (data.success && Array.isArray(data.leads) && data.leads.length > 0) {
         allLeads = data.leads;
         isStaticMode = false;
         populateAreaFilterOptions();
@@ -631,43 +657,21 @@ async function fetchLeads() {
 
     // Static GitHub Pages / local file protocol fallback mode
     isStaticMode = true;
-    const localSaved = localStorage.getItem('leadgremlin_leads');
-
-    if (localSaved) {
+    const jsonRes = await fetch('./leads_dashboard.json').catch(() => null);
+    if (jsonRes && jsonRes.ok) {
       try {
-        const parsed = JSON.parse(localSaved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          allLeads = parsed;
-        } else {
-          allLeads = FALLBACK_SEED_LEADS;
-        }
-      } catch {
-        allLeads = FALLBACK_SEED_LEADS;
-      }
-    } else {
-      const jsonRes = await fetch('./leads_dashboard.json').catch(() => fetch('../data/leads_dashboard.json')).catch(() => null);
-      if (jsonRes && jsonRes.ok) {
-        try {
-          allLeads = await jsonRes.json();
+        const jsonLeads = await jsonRes.json();
+        if (Array.isArray(jsonLeads) && jsonLeads.length > 0) {
+          allLeads = jsonLeads;
           localStorage.setItem('leadgremlin_leads', JSON.stringify(allLeads));
-        } catch {
-          allLeads = FALLBACK_SEED_LEADS;
+          populateAreaFilterOptions();
+          renderDashboard();
+          renderStatsLocal();
         }
-      } else {
-        allLeads = FALLBACK_SEED_LEADS;
-        localStorage.setItem('leadgremlin_leads', JSON.stringify(allLeads));
-      }
+      } catch {}
     }
-
-    populateAreaFilterOptions();
-    renderDashboard();
-    renderStatsLocal();
   } catch (err) {
-    console.error('Failed to fetch leads:', err);
-    allLeads = FALLBACK_SEED_LEADS;
-    populateAreaFilterOptions();
-    renderDashboard();
-    renderStatsLocal();
+    console.warn('API fetch skipped or timed out, using local data:', err);
   }
 }
 
@@ -1392,12 +1396,15 @@ function renderAnalytics() {
 function switchView(viewName) {
   activeView = viewName;
   document.querySelectorAll('.nav-item').forEach((item) => item.classList.remove('active'));
+  document.querySelectorAll('.mobile-nav-item').forEach((item) => item.classList.remove('active'));
   document.querySelectorAll('.view-panel').forEach((panel) => panel.classList.remove('active'));
 
   const navBtn = document.getElementById(`nav-${viewName}`);
+  const mobNavBtn = document.getElementById(`mob-nav-${viewName}`);
   const viewPanel = document.getElementById(`view-${viewName}-container`);
 
   if (navBtn) navBtn.classList.add('active');
+  if (mobNavBtn) mobNavBtn.classList.add('active');
   if (viewPanel) viewPanel.classList.add('active');
 
   const titles = {
@@ -1406,9 +1413,12 @@ function switchView(viewName) {
     analytics: { main: 'Lead Analytics', sub: 'Conversion metrics & channel coverage' },
   };
 
-  document.getElementById('view-title').innerText = titles[viewName].main;
-  document.getElementById('view-subtitle').innerText = titles[viewName].sub;
+  const titleEl = document.getElementById('view-title');
+  const subEl = document.getElementById('view-subtitle');
+  if (titleEl && titles[viewName]) titleEl.innerText = titles[viewName].main;
+  if (subEl && titles[viewName]) subEl.innerText = titles[viewName].sub;
 
+  toggleMobileSidebar(false);
   renderDashboard();
 }
 
@@ -1488,6 +1498,7 @@ function handleSidebarRegionChange(val) {
     }
     applyFilters();
   }
+  toggleMobileSidebar(false);
 }
 
 /**

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#070a12">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -731,6 +731,30 @@
       </div>
     </div>
   </div>
+
+  <!-- Mobile Bottom Sticky Navigation Bar -->
+  <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+    <button class="mobile-nav-item active" id="mob-nav-kanban" onclick="switchView('kanban')">
+      <span class="mob-icon">📊</span>
+      <span class="mob-label">Pipeline</span>
+    </button>
+    <button class="mobile-nav-item" id="mob-nav-table" onclick="switchView('table')">
+      <span class="mob-icon">📋</span>
+      <span class="mob-label">Database</span>
+    </button>
+    <button class="mobile-nav-item" id="mob-nav-analytics" onclick="switchView('analytics')">
+      <span class="mob-icon">📈</span>
+      <span class="mob-label">Analytics</span>
+    </button>
+    <button class="mobile-nav-item mobile-nav-highlight" onclick="openExtractModal()">
+      <span class="mob-icon">⚡</span>
+      <span class="mob-label">Extract</span>
+    </button>
+    <button class="mobile-nav-item" onclick="toggleMobileSidebar(true)">
+      <span class="mob-icon">⚙️</span>
+      <span class="mob-label">Region</span>
+    </button>
+  </nav>
 
   <!-- Toast Notification System -->
   <div id="toast-notification" class="toast"></div>
