@@ -1842,7 +1842,6 @@ async function triggerEnrichment() {
  * Open Prospect Detail Drawer Modal
  */
 let currentPitchChannel = 'email';
-let currentPitchTone = 'consultative';
 
 function openDetailModal(leadId) {
   selectedLead = allLeads.find((l) => l.id === leadId);
