@@ -1337,6 +1337,35 @@ function hideLiveExtractionBanner() {
 }
 
 /**
+ * Handle Niche Preset Selection Change in Extract Modal
+ */
+function handleNichePresetChange(preset) {
+  const badge = document.getElementById('preset-badge');
+  const catWrap = document.getElementById('categories-select-wrap');
+  
+  if (badge) {
+    if (preset === 'all_high_yield') badge.innerText = '⚡ Full Spectrum (12 Niches)';
+    else if (preset === 'custom') badge.innerText = '✏️ Custom Selection';
+    else badge.innerText = '🎯 Focused Vertical';
+  }
+
+  if (catWrap) {
+    catWrap.style.display = preset === 'custom' ? 'block' : 'block';
+  }
+}
+
+/**
+ * Quick-select Top Metro Commercial Hubs across SA
+ */
+function selectTopMetroHubs() {
+  const topHubs = ['umhlanga', 'durban_north', 'ballito', 'sandton', 'rosebank', 'pretoria_east', 'sea_point', 'century_city', 'gqeberha', 'bloemfontein'];
+  document.querySelectorAll('input[name="suburbs"]').forEach((cb) => {
+    cb.checked = topHubs.includes(cb.value);
+  });
+  showToast('✓ Selected top metro hubs across South Africa!');
+}
+
+/**
  * Start Multi-Area Lead Extraction Scraper Task
  */
 async function handleStartExtraction(e) {
@@ -1354,15 +1383,12 @@ async function handleStartExtraction(e) {
     return;
   }
 
+  const nichePreset = document.getElementById('extract-niche-preset')?.value || 'all_high_yield';
   const checkboxes = document.querySelectorAll('input[name="categories"]:checked');
   const selectedCategories = Array.from(checkboxes).map((cb) => cb.value);
 
-  if (selectedCategories.length === 0) {
-    showToast('⚠️ Please select at least one prospect category!');
-    return;
-  }
-
   const maxResults = parseInt(document.getElementById('extract-max').value, 10);
+  const useModifiers = document.getElementById('ext-use-modifiers')?.checked ?? true;
   const includeWebSearch = document.getElementById('ext-web-search').checked;
   const includeDeepCrawl = document.getElementById('ext-deep-crawl').checked;
 
@@ -1375,18 +1401,26 @@ async function handleStartExtraction(e) {
   terminal.classList.remove('hidden');
   logBox.innerHTML = `<div class="log-line info">🚀 Launching scraper engine for ${selectedAreas.length} South Africa locations: ${selectedAreas.slice(0, 3).join(', ')}...</div>`;
 
-  showLiveExtractionBanner(`Extracting ${selectedCategories.length} categories across ${selectedAreas.length} SA locations...`);
+  showLiveExtractionBanner(`Extracting ${nichePreset !== 'custom' ? nichePreset.replace(/_/g, ' ') : selectedCategories.length + ' categories'} across ${selectedAreas.length} SA locations...`);
 
   if (!isStaticMode) {
     try {
       const res = await fetch(getApiUrl('/api/extract'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ areas: selectedAreas, categories: selectedCategories, maxResults, includeWebSearch, includeDeepCrawl }),
+        body: JSON.stringify({
+          areas: selectedAreas,
+          categories: selectedCategories,
+          nichePreset: nichePreset !== 'custom' ? nichePreset : undefined,
+          useModifiers,
+          maxResults,
+          includeWebSearch,
+          includeDeepCrawl,
+        }),
       });
       const data = await res.json();
       if (data.success) {
-        logBox.innerHTML += `<div class="log-line success">✓ Multi-Area Live Scraper process running...</div>`;
+        logBox.innerHTML += `<div class="log-line success">✓ Multi-Area Live Scraper process running (${data.terms?.length || 0} queries)...</div>`;
         startStatusPolling();
         return;
       }
@@ -1399,7 +1433,7 @@ async function handleStartExtraction(e) {
   let step = 0;
   const simLogs = [
     `Initializing Playwright Chromium engine...`,
-    `Searching Google Maps & Web Engines for ${selectedCategories[0]} in ${selectedAreas[0]}...`,
+    `Searching Google Maps & Web Engines for ${selectedCategories[0] || 'high-value niches'} in ${selectedAreas[0]}...`,
     `Extracting business cards, address, phone & rating data...`,
     `Deep crawling domain homepages for decision-maker contact emails...`,
     `✓ Extraction complete! Added qualified leads across ${selectedAreas.join(', ')}.`
@@ -1774,6 +1808,7 @@ function renderPitchSuite(lead) {
     whatsapp: '💬 WhatsApp Instant Message',
     socialDm: '📱 Instagram / Social DM Script',
     coldCall: '📞 Cold Call Phone Script',
+    dripSequence: '🗓️ 3-Step Automated Drip Sequence',
   };
 
   document.getElementById('pitch-channel-label').innerText = channelLabels[currentPitchChannel] || 'Outreach Script';
@@ -1787,6 +1822,23 @@ function renderPitchSuite(lead) {
     textEl.innerText = scripts.socialDm || '';
   } else if (currentPitchChannel === 'coldCall') {
     textEl.innerText = `OPENER:\n${scripts.coldCall?.opener || ''}\n\nDISCOVERY:\n${scripts.coldCall?.discovery || ''}\n\nOBJECTION HANDLING:\n${scripts.coldCall?.objectionHandling || ''}\n\nCLOSE:\n${scripts.coldCall?.close || ''}`;
+  } else if (currentPitchChannel === 'dripSequence') {
+    const steps = scripts.dripSequence || [
+      { stepNumber: 1, dayDelay: 0, title: 'Day 1: Technical Audit Pitch', subject: scripts.email?.subject, body: scripts.email?.body },
+      { stepNumber: 2, dayDelay: 3, title: 'Day 3: Niche Case Study Follow-Up', subject: `Re: ${scripts.email?.subject}`, body: `Hi Team,\n\nFollowing up on my previous note. We recently helped a nearby ${lead.category || 'business'} increase client inquiries by 45% via automated intake.\n\nWould you like a 60-second video demo?` },
+      { stepNumber: 3, dayDelay: 7, title: 'Day 7: Final Breakup & Free PDF Audit', subject: `Complimentary Audit Report for ${lead.name}`, body: `Hi Management,\n\nI won't keep flooding your inbox. Reply "AUDIT" if you would like our free technical report for ${lead.name}.` }
+    ];
+
+    textEl.innerText = steps
+      .map(
+        (s) => `============================================================
+📌 STEP ${s.stepNumber} (${s.title} - Delay: Day ${s.dayDelay})
+------------------------------------------------------------
+SUBJECT: ${s.subject}
+
+${s.body}`
+      )
+      .join('\n\n');
   }
 }
 
@@ -1795,22 +1847,124 @@ function renderPitchSuite(lead) {
  */
 function getDefaultPitchScripts(lead) {
   const name = lead.name || 'Business';
-  const category = lead.category || 'local business';
-  const area = lead.area || 'South Africa';
+  const category = (lead.category || 'Local Business').toLowerCase();
+  const area = lead.area || 'Umhlanga';
+  const rating = lead.rating || 4.8;
+  const reviews = lead.reviewCount || 35;
+  const audit = lead.technicalAudit;
+
+  // Determine audit diagnostic callout
+  let auditCallout = 'our diagnostic audit identified key conversion bottlenecks on your website.';
+  let subjectHook = `Growth & lead intake optimization for ${name}`;
+
+  if (audit && !audit.hasHttps) {
+    auditCallout = 'we noticed your website lacks an SSL certificate (showing an insecure "Not Secure" warning in browsers), which deters over 60% of potential clients.';
+    subjectHook = `Fixing ${name}'s website security warning`;
+  } else if (audit && audit.loadSpeedSeconds && audit.loadSpeedSeconds > 3.0) {
+    auditCallout = `we ran a mobile performance audit and detected slow load times exceeding ${audit.loadSpeedSeconds}s, causing mobile visitors to bounce.`;
+    subjectHook = `Mobile speed fix for ${name}`;
+  } else if (audit && !audit.hasBookingSystem) {
+    auditCallout = 'we noticed your website is missing a 24/7 automated online booking portal for after-hours client appointments.';
+    subjectHook = `24/7 Online Booking idea for ${name}`;
+  } else if (audit && !audit.hasWhatsappLink) {
+    auditCallout = 'we noticed your site lacks a 1-click WhatsApp lead capture widget, letting high-intent inquiries slip to competitors.';
+    subjectHook = `WhatsApp lead capture idea for ${name}`;
+  } else if (!lead.website) {
+    auditCallout = 'we noticed your business currently lacks a dedicated high-converting website, relying solely on directory listings.';
+    subjectHook = `High-converting digital storefront for ${name}`;
+  }
+
+  // Determine Niche Specific Hooks
+  let nicheAngle = 'Automated Lead Intake & 24/7 Client Conversion';
+  let painPoint = 'local clients comparing providers choose the competitor who responds fastest to web & WhatsApp inquiries';
+  let solution = 'an automated 24/7 WhatsApp & calendar lead intake funnel';
+  let caseMetric = 'helped a local business increase inbound client inquiries by 45% in 30 days';
+  let callDiscovery = `How are you currently following up with visitors who browse your website after hours?`;
+  let callObjection = `That's exactly why we built this automated engine—it handles client inquiries 24/7 without needing extra staff.`;
+
+  if (/health|dental|dentist|physio|chiro|medical|doctor|aesthetic/i.test(category)) {
+    nicheAngle = 'High-Value Patient Intake & Consultation Booking';
+    painPoint = 'patients searching for specialized treatments bounce when they cannot book consultations instantly online';
+    solution = 'a POPIA-compliant patient intake portal with 1-click WhatsApp consultation booking';
+    caseMetric = 'helped a private practice secure 19 high-ticket treatment consultations in 30 days';
+    callDiscovery = `When new patients find your practice online after hours, can they instantly schedule a consultation?`;
+    callObjection = `Medical practices love this because it integrates seamlessly with your front desk without disrupting existing PMS software.`;
+  } else if (/fitness|gym|crossfit|pilates|yoga/i.test(category)) {
+    nicheAngle = 'After-Hours Membership Inquiries & Free Trial Funnel';
+    painPoint = '70% of gym membership searches happen after 6 PM when desk staff is off, letting prospects slip away';
+    solution = 'an automated 24/7 WhatsApp trial pass & class booking funnel';
+    caseMetric = 'helped a fitness studio capture 28 new monthly trial signups in 3 weeks';
+    callDiscovery = `How are you currently capturing membership inquiries that come in after hours?`;
+    callObjection = `Desk staff love this because it qualifies leads and confirms trial passes without staff needing to touch a phone.`;
+  } else if (/beauty|hair|salon|spa|barber|laser/i.test(category)) {
+    nicheAngle = 'Eliminating No-Shows & Automating Salon Bookings';
+    painPoint = 'clients want to book appointments instantly via WhatsApp at night without phone tag or DM delays';
+    solution = 'a 1-click WhatsApp & calendar booking portal with automated deposit collection';
+    caseMetric = 'reduced appointment no-shows by 85% and added 34 new client bookings in month one';
+    callDiscovery = `Are you currently losing time going back and forth on WhatsApp to schedule appointments?`;
+    callObjection = `Our automated assistant handles the calendar, takes deposits, and sends reminders automatically.`;
+  } else if (/auto|car|mechanic|detailing|solar|electrician|plumber|contractor/i.test(category)) {
+    nicheAngle = '1-Tap Emergency Callouts & Instant Quote Requests';
+    painPoint = 'homeowners and drivers in need of urgent quotes call the first competitor with a 1-tap WhatsApp quote button';
+    solution = 'an emergency 1-tap quote capture funnel with instant WhatsApp dispatch';
+    caseMetric = 'increased weekly inbound service quote requests by 65% for a local contractor';
+    callDiscovery = `When someone has an urgent repair in ${area}, how easily can they send photos and get a quote via WhatsApp?`;
+    callObjection = `I know you're on the tools all day! That's why the system collects job details and photos automatically before you call.`;
+  } else if (/real estate|property|estate agent/i.test(category)) {
+    nicheAngle = 'Instant Property Valuation Funnels & Buyer Pre-Qualification';
+    painPoint = 'property sellers and luxury buyers expect instant WhatsApp responses and virtual tour booking';
+    solution = 'an instant property valuation calculator and WhatsApp automated buyer qualification funnel';
+    caseMetric = 'delivered 15 exclusive listing valuation requests and 42 qualified buyer inquiries in 60 days';
+    callDiscovery = `How quickly is your team able to follow up when a prospective seller requests a property valuation online?`;
+    callObjection = `This pre-qualifies buyers by budget and location before passing them directly to your designated agent.`;
+  }
+
+  const emailSubject = `${subjectHook} in ${area}`;
+  const emailBody = `Hi ${name} Team,\n\nI came across ${name} while auditing top-rated ${lead.category || 'local'} businesses in ${area}.\n\nI noticed your team has built a strong reputation (${rating}★ with ${reviews}+ reviews). However, during our review, ${auditCallout}\n\nBecause ${painPoint}, we built ${solution}.\n\nFor instance, we recently ${caseMetric}.\n\nCan I send you a 2-minute video preview showing what this would look like for ${name} this Thursday?\n\nBest regards,\nLeadGremlin Growth Engine`;
+
+  const whatsappText = `⚡ *Quick Growth Idea for ${name} (${area})*\n\nHi team, loved your ${rating}★ reviews! While reviewing top ${lead.category || 'local'} spots in ${area}, ${auditCallout}\n\nWe build automated funnels tailored for ${lead.category || 'local'} businesses. Would you be open to a 60-second video demo showing how to capture more direct inquiries? 🚀`;
+
+  const socialDmText = `Hey ${name} team! 👋 Super impressive work in ${area} with ${reviews}+ reviews. Quick heads up: ${auditCallout} We build 1-click booking funnels for ${lead.category || 'local'} businesses. DM us if you'd like a free mockup! 📩`;
+
+  const coldCallBattlecard = {
+    opener: `Hi, is this the manager or owner at ${name}? My name is LeadGremlin, calling briefly regarding your ${area} digital lead intake.`,
+    discovery: callDiscovery,
+    objectionHandling: callObjection,
+    close: `Can I drop a 60-second video breakdown directly to your WhatsApp or email so you can take a look whenever you have 2 minutes?`,
+  };
+
+  const dripSequence = [
+    {
+      stepNumber: 1,
+      dayDelay: 0,
+      title: `Day 1: Technical Audit & ${nicheAngle}`,
+      subject: emailSubject,
+      body: emailBody,
+    },
+    {
+      stepNumber: 2,
+      dayDelay: 3,
+      title: `Day 3: Case Study & Niche Proof Follow-Up`,
+      subject: `Re: ${emailSubject}`,
+      body: `Hi ${name} Team,\n\nFollowing up briefly on my note regarding ${name}'s client intake in ${area}.\n\nTo give you a quick example, we recently ${caseMetric} by implementing ${solution}.\n\nWould you be open to taking a look at a 60-second video breakdown showing how this applies to ${name}?\n\nBest regards,\nLeadGremlin Growth Engine`,
+    },
+    {
+      stepNumber: 3,
+      dayDelay: 7,
+      title: `Day 7: Final Breakup & Free PDF Audit Report`,
+      subject: `Complimentary Technical Audit Report for ${name}`,
+      body: `Hi ${name} Management,\n\nI know you're busy serving clients in ${area}, so I won't keep following up.\n\nWe put together a complete Technical Website & Lead Intake Audit Report for ${name} detailing the exact steps to capture more monthly clients.\n\nIf you'd like the complimentary PDF report, just reply "AUDIT" and I'll send it right over.\n\nWishing ${name} continued success!\n\nBest regards,\nLeadGremlin Growth Engine`,
+    },
+  ];
 
   return {
-    email: {
-      subject: `Optimizing ${name}'s digital lead intake in ${area}`,
-      body: `Hi ${name} Team,\n\nI came across ${name} while auditing top-rated ${category} businesses in ${area}.\n\nI noticed your team has an incredible reputation, but your website could convert 35% more high-intent local clients through automated WhatsApp booking widgets and instant lead capture.\n\nWe recently built a sales funnel engine specifically for ${area} businesses to extract & capture inbound leads 24/7.\n\nWould you be open to a 10-minute demo this Thursday?\n\nBest regards,\nLeadGremlin Engine`,
-    },
-    whatsapp: `Hi ${name} Team 👋 We audited top ${category} providers in ${area}!\n\nWe noticed your site is missing a 1-click WhatsApp lead booking link, letting inquiries slip to competitors.\n\nMind if I share a 60-second video demo showing how to capture 3x more bookings? 🚀`,
-    socialDm: `Hey ${name} team! 👋 Love your work in ${area}. Quick tip: adding an instant WhatsApp booking link to your profile can double your weekly client inquiries. DM us if you'd like a free mockup! 🙌`,
-    coldCall: {
-      opener: `Hi, is this the manager at ${name}? My name is LeadGremlin, calling briefly from South Africa Digital Lead Engine.`,
-      discovery: `We conduct digital growth audits for ${category} providers in ${area}. I noticed your site lacks an automated lead booking widget. How are you following up after hours?`,
-      objectionHandling: `I completely understand you're busy! That's why we built this automated widget—it captures leads 24/7 without staff needing to take calls.`,
-      close: `Can I drop a 60-second video demo directly to your WhatsApp or email address?`,
-    },
+    email: { subject: emailSubject, body: emailBody },
+    whatsapp: whatsappText,
+    socialDm: socialDmText,
+    coldCall: coldCallBattlecard,
+    dripSequence,
+    nicheAngle,
+    primaryAuditCallout: auditCallout,
   };
 }
 

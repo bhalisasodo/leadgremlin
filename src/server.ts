@@ -12,9 +12,11 @@ import { syncLeadsToNotion } from './notion/sync.js';
 import { getConfig } from './config/config.js';
 import { websiteAnalyzer } from './scoring/websiteAnalyzer.js';
 import { aiAuditor } from './scoring/aiAuditor.js';
-import { SOUTH_AFRICA_REGIONS, buildMultiRegionQueries } from './config/regions.js';
+import { SOUTH_AFRICA_REGIONS, buildMultiRegionQueries, INDUSTRY_NICHE_PRESETS, buildExpandedQueryMatrix, getNicheKeywords } from './config/regions.js';
 import { AnalyticsEngine } from './utils/analytics.js';
 import { PdfReportGenerator } from './utils/pdfGenerator.js';
+import { WebhookNotifier } from './outreach/webhookNotifier.js';
+import { EmailSequenceManager } from './outreach/emailSequence.js';
 import crypto from 'crypto';
 
 const INITIAL_PORT = parseInt(process.env.PORT || '3005', 10);
@@ -332,6 +334,16 @@ app.get('/api/regions', (_req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/niches - Get industry niche presets catalog
+ */
+app.get('/api/niches', (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    niches: INDUSTRY_NICHE_PRESETS,
+  });
+});
+
+/**
  * POST /api/extract - Trigger live extraction & web scraping button action
  */
 app.post('/api/extract', async (req: Request, res: Response) => {
@@ -339,12 +351,27 @@ app.post('/api/extract', async (req: Request, res: Response) => {
     return res.status(409).json({ error: 'An extraction process is already running.' });
   }
 
-  const { searchTerms, area, areas, categories, maxResults, includeWebSearch, includeDeepCrawl } = req.body;
+  const { searchTerms, area, areas, categories, nichePreset, niches, provinces, useModifiers, maxResults, includeWebSearch, includeDeepCrawl } = req.body;
 
   let termsToScrape: string[] = [];
 
   if (Array.isArray(searchTerms) && searchTerms.length > 0) {
     termsToScrape = searchTerms;
+  } else if (nichePreset || (Array.isArray(niches) && niches.length > 0) || (Array.isArray(provinces) && provinces.length > 0)) {
+    const selectedNiches = nichePreset ? [nichePreset] : (niches || ['all_high_yield']);
+    let areaList: string[] = [];
+    if (Array.isArray(areas) && areas.length > 0) {
+      areaList = areas;
+    } else if (typeof area === 'string' && area.trim()) {
+      areaList = area.split(',').map((a: string) => a.trim()).filter(Boolean);
+    }
+    termsToScrape = buildExpandedQueryMatrix({
+      niches: selectedNiches,
+      provinces: Array.isArray(provinces) && provinces.length > 0 ? provinces : undefined,
+      suburbs: areaList.length > 0 ? areaList : undefined,
+      useModifiers: Boolean(useModifiers),
+      maxQueries: 80,
+    });
   } else {
     // Process areas & categories
     let areaList: string[] = [];
@@ -647,6 +674,60 @@ app.get('/api/leads/:id/report', (req: Request, res: Response) => {
 
   res.setHeader('Content-Type', 'text/html');
   res.send(reportHtml);
+});
+
+/**
+ * GET /api/outreach/config - Check webhook and outreach sequence configuration
+ */
+app.get('/api/outreach/config', (_req: Request, res: Response) => {
+  res.json({
+    webhookConfigured: Boolean(process.env.WEBHOOK_URL),
+    webhookUrl: process.env.WEBHOOK_URL ? `${process.env.WEBHOOK_URL.slice(0, 15)}...` : null,
+    hasSignatureSecret: Boolean(process.env.WEBHOOK_SECRET),
+    mode: process.env.WEBHOOK_URL ? 'live' : 'preview',
+  });
+});
+
+/**
+ * POST /api/outreach/webhook/test - Send a test webhook ping payload
+ */
+app.post('/api/outreach/webhook/test', async (req: Request, res: Response) => {
+  const { url } = req.body;
+  const targetUrl = url || process.env.WEBHOOK_URL;
+
+  if (!targetUrl) {
+    return res.status(400).json({ success: false, error: 'No webhook URL provided or configured in environment.' });
+  }
+
+  const success = await WebhookNotifier.sendTestPing(targetUrl);
+  res.json({
+    success,
+    url: targetUrl,
+    message: success ? 'Test webhook delivered successfully!' : 'Failed to deliver webhook payload.',
+  });
+});
+
+/**
+ * POST /api/leads/:id/outreach - Generate outreach sequence and dispatch webhook for a lead
+ */
+app.post('/api/leads/:id/outreach', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const leads = loadLeads();
+  const lead = leads.find((l) => l.id === id);
+
+  if (!lead) {
+    return res.status(404).json({ success: false, error: 'Lead not found.' });
+  }
+
+  const sequence = EmailSequenceManager.generateSequence(lead);
+  const webhookSent = await WebhookNotifier.notifyLeadCreated(lead);
+
+  res.json({
+    success: true,
+    sequence,
+    webhookSent,
+    lead,
+  });
 });
 
 /**

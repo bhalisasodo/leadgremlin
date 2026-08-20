@@ -349,8 +349,30 @@
         <form id="extract-form" onsubmit="handleStartExtraction(event)">
           <div class="form-group">
             <div class="section-title-row">
+              <label>Industry Niche Preset & Target Vertical</label>
+              <span class="badge badge-sm" id="preset-badge">⚡ Multi-Niche Enabled</span>
+            </div>
+            <select id="extract-niche-preset" class="form-control" onchange="handleNichePresetChange(this.value)">
+              <option value="all_high_yield">🚀 All High-Yield Niches (Full Spectrum B2B & Services)</option>
+              <option value="healthcare_medical">🩺 Healthcare & Specialized Medical (Dentists, Physios, MedSpas)</option>
+              <option value="trades_home_services">⚡ Home Services, Solar & Trades (Solar, Electricians, Plumbers)</option>
+              <option value="beauty_aesthetics">💅 Beauty, Hair & MedSpas (Salons, Spas, Barbers, Laser)</option>
+              <option value="fitness_wellness">🏋️ Fitness, CrossFit & Wellness (Gyms, Pilates, Personal Trainers)</option>
+              <option value="hospitality_dining">🍽️ Hospitality, Dining & Venues (Fine Dining, Cafes, Steakhouses)</option>
+              <option value="professional_legal">⚖️ Legal, Accounting & Corporate (Law Firms, Tax, Financial)</option>
+              <option value="automotive_services">🚗 Automotive Repair & Detailing (Workshops, Ceramic Coating)</option>
+              <option value="real_estate">🏡 Real Estate & Property Management (Agencies, Commercial Brokers)</option>
+              <option value="custom">✏️ Custom Category Selection Below</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <div class="section-title-row">
               <label>Target Regions & Locations across South Africa</label>
-              <button type="button" class="btn-text" onclick="selectAllSuburbs(true)">Select All</button>
+              <div class="btn-group-sm">
+                <button type="button" class="btn-text" onclick="selectAllSuburbs(true)">Select All SA</button>
+                <button type="button" class="btn-text ml-2" onclick="selectTopMetroHubs()">Top Metros</button>
+              </div>
             </div>
 
             <!-- Province Tabs -->
@@ -374,26 +396,30 @@
             <!-- Custom Location Input -->
             <div class="mt-3">
               <label style="font-size:11px; color:var(--text-dim);">Additional Custom SA Cities / Suburbs (comma-separated):</label>
-              <input type="text" id="extract-custom-areas" class="form-control" placeholder="e.g. Umhlanga, Sandton, Sea Point, Rosebank, Constantia">
+              <input type="text" id="extract-custom-areas" class="form-control" placeholder="e.g. Umhlanga, Sandton, Sea Point, Rosebank, Constantia, Pretoria East">
             </div>
           </div>
 
-          <div class="form-group">
-            <label>Prospect Categories to Extract</label>
+          <div class="form-group" id="categories-select-wrap">
+            <label>Specific Business Categories</label>
             <div class="checkbox-grid">
-              <label class="checkbox-label"><input type="checkbox" name="categories" value="gym" checked> Gym & Fitness</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="dentist" checked> Dentists & Medical Clinics</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="solar installer" checked> Solar & Renewable Energy</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="gym" checked> Gyms, CrossFit & Fitness</label>
               <label class="checkbox-label"><input type="checkbox" name="categories" value="beauty salon" checked> Beauty & Hair Salons</label>
-              <label class="checkbox-label"><input type="checkbox" name="categories" value="restaurant" checked> Restaurants & Cafes</label>
-              <label class="checkbox-label"><input type="checkbox" name="categories" value="dentist" checked> Dentists & Clinics</label>
-              <label class="checkbox-label"><input type="checkbox" name="categories" value="real estate agent" checked> Real Estate</label>
-              <label class="checkbox-label"><input type="checkbox" name="categories" value="law firm" checked> Professional Services</label>
-              <label class="checkbox-label"><input type="checkbox" name="categories" value="car detailing" checked> Auto & Services</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="restaurant" checked> Restaurants & Dining</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="real estate agent" checked> Real Estate & Property</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="law firm" checked> Law Firms & Legal</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="car detailing" checked> Auto Repair & Detailing</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="electrician" checked> Electricians & Trades</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="plumber" checked> Plumbers & Gas</label>
             </div>
           </div>
 
           <div class="form-group">
-            <label>Extended Search Engines Beyond Google Maps</label>
+            <label>Search Optimization & Intent Modifiers</label>
             <div class="checkbox-group">
+              <label class="checkbox-label"><input type="checkbox" id="ext-use-modifiers" checked> Generate Commercial Intent Queries ("best", "top rated", "specialist")</label>
               <label class="checkbox-label"><input type="checkbox" id="ext-google-maps" checked disabled> Google Maps Scraper</label>
               <label class="checkbox-label"><input type="checkbox" id="ext-web-search" checked> DuckDuckGo / Web Engine Search</label>
               <label class="checkbox-label"><input type="checkbox" id="ext-deep-crawl" checked> Direct Website Deep Crawl (Email & Socials)</label>
@@ -541,6 +567,7 @@
                   <option value="direct">Direct</option>
                   <option value="casual">Casual</option>
                   <option value="urgent">Urgent</option>
+                  <option value="roi_focused">ROI / Financial Model</option>
                 </select>
               </div>
             </div>
@@ -551,6 +578,7 @@
               <button class="pitch-tab" data-channel="whatsapp" onclick="switchPitchTab('whatsapp')">💬 WhatsApp</button>
               <button class="pitch-tab" data-channel="socialDm" onclick="switchPitchTab('socialDm')">📱 Social DM</button>
               <button class="pitch-tab" data-channel="coldCall" onclick="switchPitchTab('coldCall')">📞 Cold Call</button>
+              <button class="pitch-tab" data-channel="dripSequence" onclick="switchPitchTab('dripSequence')">🗓️ 3-Step Drip</button>
             </div>
 
             <div class="pitch-body-wrap">

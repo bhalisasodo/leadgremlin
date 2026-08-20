@@ -6,18 +6,22 @@ import { Exporter } from './utils/exporter.js';
 import { syncLeadsToNotion } from './notion/sync.js';
 import { logger } from './utils/logger.js';
 import { Business } from './types/business.js';
-import { buildMultiRegionQueries } from './config/regions.js';
+import { buildMultiRegionQueries, buildExpandedQueryMatrix } from './config/regions.js';
+import { OutreachTone } from './types/scorer.js';
 import fs from 'fs';
 import path from 'path';
 
 interface ParsedArgs {
   terms?: string[];
   area?: string;
+  niches?: string[];
+  provinces?: string[];
+  useModifiers?: boolean;
   limit?: number;
   headless?: boolean;
   syncNotion?: boolean;
   runAudit?: boolean;
-  pitchTone?: 'consultative' | 'direct' | 'casual' | 'urgent';
+  pitchTone?: OutreachTone;
   concurrency?: number;
   minScore?: number;
   requireContact?: boolean;
@@ -34,8 +38,16 @@ function parseArgs(): ParsedArgs {
     if (arg.startsWith('--terms=')) {
       const val = arg.replace('--terms=', '').trim();
       args.terms = val.split(',').map((t) => t.trim()).filter((t) => t.length > 0);
-    } else if (arg.startsWith('--area=')) {
-      args.area = arg.replace('--area=', '').trim();
+    } else if (arg.startsWith('--area=') || arg.startsWith('--areas=')) {
+      args.area = arg.split('=')[1].trim();
+    } else if (arg.startsWith('--niches=') || arg.startsWith('--niche=')) {
+      const val = arg.split('=')[1].trim();
+      args.niches = val.split(',').map((n) => n.trim()).filter(Boolean);
+    } else if (arg.startsWith('--provinces=') || arg.startsWith('--province=')) {
+      const val = arg.split('=')[1].trim();
+      args.provinces = val.split(',').map((p) => p.trim()).filter(Boolean);
+    } else if (arg === '--modifiers' || arg === '--use-modifiers=true') {
+      args.useModifiers = true;
     } else if (arg.startsWith('--limit=') || arg.startsWith('-n=')) {
       const num = parseInt(arg.split('=')[1], 10);
       if (!isNaN(num) && num > 0) args.limit = num;
@@ -47,8 +59,8 @@ function parseArgs(): ParsedArgs {
       args.runAudit = true;
     } else if (arg.startsWith('--tone=')) {
       const val = arg.replace('--tone=', '').trim().toLowerCase();
-      if (['consultative', 'direct', 'casual', 'urgent'].includes(val)) {
-        args.pitchTone = val as ParsedArgs['pitchTone'];
+      if (['consultative', 'direct', 'casual', 'urgent', 'roi_focused'].includes(val)) {
+        args.pitchTone = val as OutreachTone;
       }
     } else if (arg.startsWith('--concurrency=')) {
       const num = parseInt(arg.split('=')[1], 10);
@@ -70,11 +82,24 @@ async function runPipeline() {
   const cliArgs = parseArgs();
 
   // Combine CLI flags with environment config
+  let searchTerms = cliArgs.terms;
   const area = cliArgs.area || 'Umhlanga';
   const areasList = area.split(',').map((a) => a.trim()).filter(Boolean);
-  let searchTerms = cliArgs.terms;
+
   if (!searchTerms || searchTerms.length === 0) {
-    searchTerms = buildMultiRegionQueries(['gym', 'beauty salon', 'restaurant', 'dentist'], areasList);
+    if (cliArgs.niches || cliArgs.provinces) {
+      searchTerms = buildExpandedQueryMatrix({
+        niches: cliArgs.niches,
+        provinces: cliArgs.provinces,
+        suburbs: areasList.length > 0 && areasList[0] !== 'Umhlanga' ? areasList : undefined,
+        useModifiers: cliArgs.useModifiers,
+      });
+    } else {
+      searchTerms = buildExpandedQueryMatrix({
+        niches: ['all_high_yield'],
+        suburbs: areasList,
+      });
+    }
   }
 
   const maxResults = cliArgs.limit || Math.min(baseConfig.maxResults, 10);
@@ -92,8 +117,8 @@ async function runPipeline() {
 `);
 
   logger.info('Pipeline Execution Target Parameters:');
-  logger.info(`- Target Area: ${area}`);
-  logger.info(`- Search Terms (${searchTerms.length}): ${searchTerms.join(', ')}`);
+  logger.info(`- Target Area(s): ${areasList.join(', ')}`);
+  logger.info(`- Search Terms (${searchTerms.length}): ${searchTerms.slice(0, 5).join(', ')}${searchTerms.length > 5 ? ` ... (+${searchTerms.length - 5} more)` : ''}`);
   logger.info(`- Max Results per term: ${maxResults}`);
   logger.info(`- Headless Browser: ${headless}`);
   logger.info(`- Pitch Tone: ${pitchTone}`);

@@ -1228,11 +1228,12 @@
     "socials": {},
     "reviewCount": 5,
     "mapsUrl": "https://www.google.com/maps/place/Fitness+Cartel/data=!4m7!3m6!1s0x1ef705c2b63cd243:0xf36e81103d6aec0a!8m2!3d-29.7188501!4d31.0660539!16s%2Fg%2F11mhs52prg!19sChIJQ9I8tsIF9x4RCuxqPRCBbvM",
-    "funnelStage": "enriched",
+    "funnelStage": "outreach",
     "opportunityScore": 95,
     "scrapedAt": "2026-08-06T19:20:21.763Z",
     "searchTerm": "gym Umhlanga",
-    "source": "google_maps"
+    "source": "google_maps",
+    "lastContactedAt": "2026-08-19T17:36:59.679Z"
   },
   {
     "id": "lead_269be0fbc871",

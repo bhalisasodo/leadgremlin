@@ -188,7 +188,10 @@ export class GoogleMapsScraper {
       // Determine area dynamically from search term or address
       let area = 'Umhlanga';
       if (searchTerm) {
-        const areaFromTerm = searchTerm.replace(/gym|beauty salon|restaurant|dentist|real estate agent|law firm|car detailing|fitness|salon/gi, '').trim();
+        const areaFromTerm = searchTerm
+          .replace(/best|top rated|specialist|emergency|private|clinic|services/gi, '')
+          .replace(/dentist|cosmetic dentist|dental|physiotherapist|chiropractor|doctor|aesthetic|solar|electrician|plumber|roofing|hvac|beauty salon|hair salon|med spa|barber|nail|gym|crossfit|pilates|yoga|restaurant|fine dining|steakhouse|law firm|attorney|accountant|real estate|estate agent|car detailing|mechanic/gi, '')
+          .trim();
         if (areaFromTerm.length > 0) area = areaFromTerm;
       }
       if (address) {
@@ -197,14 +200,34 @@ export class GoogleMapsScraper {
         else if (/gateway/i.test(address)) area = 'Gateway, Umhlanga';
         else if (/la lucia/i.test(address)) area = 'La Lucia';
         else if (/durban north/i.test(address)) area = 'Durban North';
-        else if (/cornubia/i.test(address)) area = 'Cornubia';
-        else if (/sandton/i.test(address)) area = 'Sandton';
-        else if (/rosebank/i.test(address)) area = 'Rosebank';
-        else if (/sea point/i.test(address)) area = 'Sea Point';
-        else if (/camps bay/i.test(address)) area = 'Camps Bay';
+        else if (/morningside/i.test(address)) area = 'Morningside';
+        else if (/berea/i.test(address)) area = 'Berea';
+        else if (/westville/i.test(address)) area = 'Westville';
+        else if (/pinetown/i.test(address)) area = 'Pinetown';
+        else if (/hillcrest/i.test(address)) area = 'Hillcrest';
         else if (/ballito/i.test(address)) area = 'Ballito';
+        else if (/sandton/i.test(address)) area = 'Sandton';
+        else if (/bryanston/i.test(address)) area = 'Bryanston';
+        else if (/rosebank/i.test(address)) area = 'Rosebank';
+        else if (/fourways/i.test(address)) area = 'Fourways';
+        else if (/midrand/i.test(address)) area = 'Midrand';
         else if (/centurion/i.test(address)) area = 'Centurion';
         else if (/pretoria/i.test(address)) area = 'Pretoria';
+        else if (/sea point/i.test(address)) area = 'Sea Point';
+        else if (/camps bay/i.test(address)) area = 'Camps Bay';
+        else if (/waterfront/i.test(address)) area = 'Waterfront';
+        else if (/century city/i.test(address)) area = 'Century City';
+        else if (/constantia/i.test(address)) area = 'Constantia';
+        else if (/durbanville/i.test(address)) area = 'Durbanville';
+        else if (/stellenbosch/i.test(address)) area = 'Stellenbosch';
+        else if (/somerset west/i.test(address)) area = 'Somerset West';
+        else if (/gqeberha|port elizabeth/i.test(address)) area = 'Gqeberha';
+        else if (/east london/i.test(address)) area = 'East London';
+        else if (/bloemfontein/i.test(address)) area = 'Bloemfontein';
+        else if (/nelspruit|mbombela/i.test(address)) area = 'Nelspruit';
+        else if (/polokwane/i.test(address)) area = 'Polokwane';
+        else if (/rustenburg/i.test(address)) area = 'Rustenburg';
+        else if (/kimberley/i.test(address)) area = 'Kimberley';
         else {
           const addrParts = address.split(',').map((p) => p.trim()).filter(Boolean);
           if (addrParts.length >= 2) {

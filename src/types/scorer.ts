@@ -39,13 +39,24 @@ export interface WebsiteScoreResult {
 }
 
 export type OutreachChannel = 'email' | 'whatsapp' | 'social_dm' | 'cold_call';
-export type OutreachTone = 'consultative' | 'direct' | 'casual' | 'urgent';
+export type OutreachTone = 'consultative' | 'direct' | 'casual' | 'urgent' | 'roi_focused';
+
+export interface EmailStepScript {
+  stepNumber: number;
+  dayDelay: number;
+  title: string;
+  subject: string;
+  body: string;
+}
 
 export interface MultiChannelScripts {
   email: { subject: string; body: string };
   whatsapp: string;
   socialDm: string;
   coldCall: { opener: string; discovery: string; objectionHandling: string; close: string };
+  dripSequence?: EmailStepScript[];
+  primaryAuditCallout?: string;
+  nicheAngle?: string;
 }
 
 export interface AIAuditInput {
@@ -59,6 +70,8 @@ export interface AIAuditInput {
   screenshotPaths?: string[];
   technicalAudit?: TechnicalAudit;
   tone?: OutreachTone;
+  customPrompt?: string;
+  llmApiKey?: string;
 }
 
 export interface AIAuditOutput {
@@ -68,4 +81,5 @@ export interface AIAuditOutput {
   personalizedOutreachScript: string;
   multiChannelScripts?: MultiChannelScripts;
   auditTimestamp: string;
+  generatedBy?: 'llm' | 'deterministic_engine';
 }

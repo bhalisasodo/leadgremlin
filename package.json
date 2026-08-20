@@ -2,6 +2,7 @@
   "name": "leadgremlin",
   "version": "1.0.0",
   "description": "LeadGremlin - AI Outbound Lead Engine (MVP)",
+  "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "pipeline": "tsx src/pipeline.ts",

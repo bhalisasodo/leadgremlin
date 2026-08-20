@@ -168,6 +168,186 @@ export const SOUTH_AFRICA_REGIONS: RegionGroup[] = [
 ];
 
 /**
+ * Industry Niche Presets with High-Yield Commercial Subcategories
+ */
+export interface NichePreset {
+  id: string;
+  name: string;
+  emoji: string;
+  description: string;
+  keywords: string[];
+}
+
+export const INDUSTRY_NICHE_PRESETS: NichePreset[] = [
+  {
+    id: 'healthcare_medical',
+    name: 'Healthcare & Specialized Medical',
+    emoji: '🩺',
+    description: 'Dentists, cosmetic clinics, physiotherapists, chiropractors & specialists',
+    keywords: [
+      'dentist',
+      'cosmetic dentist',
+      'dental clinic',
+      'physiotherapist',
+      'chiropractor',
+      'aesthetic clinic',
+      'dermatologist',
+      'optometrist',
+      'orthodontist',
+      'private doctor clinic',
+    ],
+  },
+  {
+    id: 'trades_home_services',
+    name: 'Home Services, Solar & Trades',
+    emoji: '⚡',
+    description: 'Solar installers, electricians, plumbers, HVAC, roofing & contractors',
+    keywords: [
+      'solar installer',
+      'solar power company',
+      'electrician',
+      'plumber',
+      'air conditioning hvac',
+      'roofing contractor',
+      'renovation contractor',
+      'pest control',
+      'landscaping services',
+      'pool service',
+    ],
+  },
+  {
+    id: 'beauty_aesthetics',
+    name: 'Beauty, Hair & MedSpas',
+    emoji: '💅',
+    description: 'Hair salons, medical spas, nail bars, aesthetics & barber shops',
+    keywords: [
+      'beauty salon',
+      'hair salon',
+      'med spa',
+      'skincare clinic',
+      'nail salon',
+      'barber shop',
+      'laser clinic',
+      'day spa',
+      'eyelash and brow studio',
+      'massage therapy',
+    ],
+  },
+  {
+    id: 'fitness_wellness',
+    name: 'Fitness, CrossFit & Wellness',
+    emoji: '🏋️',
+    description: 'Gyms, CrossFit boxes, Pilates, Yoga, personal trainers & martial arts',
+    keywords: [
+      'gym',
+      'crossfit box',
+      'pilates studio',
+      'yoga studio',
+      'personal trainer',
+      'boxing gym',
+      'martial arts academy',
+      'fitness center',
+      'ems fitness',
+    ],
+  },
+  {
+    id: 'hospitality_dining',
+    name: 'Hospitality, Dining & Venues',
+    emoji: '🍽️',
+    description: 'Fine dining, boutique restaurants, cafes, steakhouses & event venues',
+    keywords: [
+      'restaurant',
+      'fine dining',
+      'steakhouse',
+      'italian restaurant',
+      'seafood restaurant',
+      'artisan cafe',
+      'boutique hotel',
+      'wedding venue',
+      'catering company',
+    ],
+  },
+  {
+    id: 'professional_legal',
+    name: 'Legal, Accounting & Corporate Services',
+    emoji: '⚖️',
+    description: 'Law firms, conveyancers, accounting practices, tax consultants & architects',
+    keywords: [
+      'law firm',
+      'attorney',
+      'conveyancing attorney',
+      'chartered accountant',
+      'tax consultant',
+      'financial advisor',
+      'architect',
+      'interior designer',
+      'commercial cleaning',
+    ],
+  },
+  {
+    id: 'automotive_services',
+    name: 'Automotive Repair & Detailing',
+    emoji: '🚗',
+    description: 'Auto repair, panel beaters, ceramic coating, tyre centres & workshops',
+    keywords: [
+      'car detailing',
+      'ceramic coating',
+      'auto repair mechanic',
+      'panel beater',
+      'tyre and fitment center',
+      'car audio security',
+      'towing service',
+      'vehicle wrap',
+    ],
+  },
+  {
+    id: 'real_estate',
+    name: 'Real Estate & Property Management',
+    emoji: '🏡',
+    description: 'Estate agencies, property managers, commercial brokers & developments',
+    keywords: [
+      'real estate agency',
+      'estate agent',
+      'property management',
+      'commercial property broker',
+      'property developer',
+      'luxury villa rental',
+    ],
+  },
+  {
+    id: 'all_high_yield',
+    name: 'All High-Yield Niches (Full Spectrum)',
+    emoji: '🚀',
+    description: 'Cross-industry extraction across all primary B2B & local service verticals',
+    keywords: [
+      'dentist',
+      'solar installer',
+      'beauty salon',
+      'gym',
+      'law firm',
+      'physiotherapist',
+      'real estate agent',
+      'car detailing',
+      'electrician',
+      'plumber',
+      'restaurant',
+      'chartered accountant',
+    ],
+  },
+];
+
+export const COMMERCIAL_INTENT_MODIFIERS = [
+  '',
+  'best',
+  'top rated',
+  'specialist',
+  'emergency',
+  'private',
+  'clinic',
+  'services',
+];
+
+/**
  * Get all available provinces metadata
  */
 export function getAllProvinces() {
@@ -220,6 +400,16 @@ export function findRegionBySuburb(suburbNameOrId: string): { group: RegionGroup
 }
 
 /**
+ * Get keyword list for a specific niche preset ID
+ */
+export function getNicheKeywords(presetIdOrKey: string): string[] {
+  const preset = INDUSTRY_NICHE_PRESETS.find(
+    (p) => p.id.toLowerCase() === presetIdOrKey.toLowerCase() || p.name.toLowerCase().includes(presetIdOrKey.toLowerCase())
+  );
+  return preset ? preset.keywords : [presetIdOrKey];
+}
+
+/**
  * Generate multi-location batch search queries (e.g. "gym Sandton", "beauty salon Sea Point")
  */
 export function buildMultiRegionQueries(categories: string[], areas: string[]): string[] {
@@ -236,5 +426,58 @@ export function buildMultiRegionQueries(categories: string[], areas: string[]): 
   }
 
   return queries;
+}
+
+export interface ExpandedMatrixOptions {
+  niches?: string[]; // Preset IDs or raw keywords
+  provinces?: string[]; // Province codes (e.g. ['KZN', 'GP'] or ['ALL'])
+  suburbs?: string[]; // Specific suburb names or IDs
+  useModifiers?: boolean;
+  maxQueries?: number;
+}
+
+/**
+ * Advanced Query Matrix Generator for National Search Population
+ */
+export function buildExpandedQueryMatrix(options: ExpandedMatrixOptions = {}): string[] {
+  let targetKeywords: string[] = [];
+
+  if (options.niches && options.niches.length > 0) {
+    for (const n of options.niches) {
+      const kw = getNicheKeywords(n);
+      targetKeywords.push(...kw);
+    }
+  } else {
+    // Default to all high yield
+    targetKeywords = getNicheKeywords('all_high_yield');
+  }
+  targetKeywords = Array.from(new Set(targetKeywords));
+
+  let targetAreas: string[] = [];
+  if (options.suburbs && options.suburbs.length > 0) {
+    targetAreas = options.suburbs;
+  } else if (options.provinces && options.provinces.length > 0) {
+    for (const prov of options.provinces) {
+      const subs = getSuburbsByProvince(prov);
+      targetAreas.push(...subs.map((s) => s.name.replace(/\s*\(.*?\)/, '').trim()));
+    }
+  } else {
+    // Default popular hubs
+    targetAreas = ['Umhlanga', 'Sandton', 'Sea Point', 'Durban North', 'Rosebank', 'Ballito', 'Pretoria East', 'Century City'];
+  }
+  targetAreas = Array.from(new Set(targetAreas));
+
+  const queries: string[] = [];
+  for (const area of targetAreas) {
+    for (const kw of targetKeywords) {
+      queries.push(`${kw} ${area}`);
+      if (options.useModifiers) {
+        queries.push(`best ${kw} ${area}`);
+      }
+    }
+  }
+
+  const max = options.maxQueries || 150;
+  return queries.slice(0, max);
 }
 

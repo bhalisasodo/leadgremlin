@@ -37,6 +37,22 @@ export class PdfReportGenerator {
       day: 'numeric',
     });
 
+    const recommendations = [
+      !audit?.hasWhatsappLink ? 'Deploy automated 24/7 WhatsApp lead capture widget with instant response' : null,
+      !audit?.hasBookingSystem ? 'Install custom responsive online booking engine for after-hours scheduling' : null,
+      !audit?.analyticsDetected || audit.analyticsDetected.length === 0 ? 'Implement Google Analytics 4 & Meta Pixel conversion tracking' : null,
+      !audit?.hasResponsiveViewport ? 'Implement mobile-first responsive viewport design' : null,
+      !audit?.hasHttps ? 'Install SSL certificate and enforce HTTPS security' : null,
+      audit?.seoScore !== undefined && audit.seoScore < 60 ? 'Optimize on-page meta tags, schema markup & search visibility' : null,
+    ].filter(Boolean) as string[];
+
+    if (recommendations.length === 0) {
+      recommendations.push('Deploy automated 24/7 WhatsApp lead capture widget');
+      recommendations.push('Install custom responsive online booking engine');
+      recommendations.push('Set up GA4 & Meta Pixel conversion tracking');
+      recommendations.push('Implement mobile-first landing page redesign');
+    }
+
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -226,7 +242,7 @@ export class PdfReportGenerator {
         <tr>
           <td>WhatsApp Instant Lead CTA</td>
           <td>${audit?.hasWhatsappLink ? '✓ Installed' : '❌ Missing Widget'}</td>
-          <td>${audit?.hasWhatsappLink ? 'Captured' : 'High - Missing 15+ Weekly Bookings'}</td>
+          <td>${audit?.hasWhatsappLink ? 'Captured' : 'High - Missing Weekly Bookings'}</td>
         </tr>
         <tr>
           <td>Online Booking Portal</td>
@@ -262,10 +278,7 @@ export class PdfReportGenerator {
     <div>
       <h2 class="section-title">Recommended Upgrades</h2>
       <ul class="rec-list">
-        <li>✓ Deploy automated 24/7 WhatsApp lead capture widget</li>
-        <li>✓ Install custom responsive online booking engine</li>
-        <li>✓ Set up GA4 & Meta Pixel conversion tracking</li>
-        <li>✓ Implement mobile-first landing page redesign</li>
+        ${recommendations.map((rec) => `<li>✓ ${rec}</li>`).join('\n')}
       </ul>
     </div>
   </div>
@@ -275,7 +288,7 @@ export class PdfReportGenerator {
       ? `
   <!-- Outreach Pitch Blueprint -->
   <div class="section">
-    <h2 class="section-title">Proposed Sales Outreach Script (Consultative)</h2>
+    <h2 class="section-title">Proposed Sales Outreach Script (${scripts.nicheAngle || 'Personalized'})</h2>
     <div class="script-box"><strong>Subject: ${scripts.email.subject}</strong>\n\n${scripts.email.body}</div>
   </div>
   `

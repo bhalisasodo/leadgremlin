@@ -167,8 +167,10 @@ export class MultiSourceScraper {
       // 2. Web Search Engine Extraction (Extended beyond Google Maps)
       if (scraperOpts.includeWebSearch) {
         const areaFromTerm =
-          term.replace(/gym|beauty salon|restaurant|dentist|real estate agent|law firm|car detailing|fitness|salon/gi, '').trim() ||
-          'Umhlanga';
+          term
+            .replace(/best|top rated|specialist|emergency|private|clinic|services/gi, '')
+            .replace(/dentist|cosmetic dentist|dental|physiotherapist|chiropractor|doctor|aesthetic|solar|electrician|plumber|roofing|hvac|beauty salon|hair salon|med spa|barber|nail|gym|crossfit|pilates|yoga|restaurant|fine dining|steakhouse|law firm|attorney|accountant|real estate|estate agent|car detailing|mechanic/gi, '')
+            .trim() || 'Umhlanga';
         const webLeads = await this.scrapeWebSearch(term, areaFromTerm, Math.max(3, Math.floor(maxResultsPerTerm / 2)));
         totalFound += webLeads.length;
         combinedForTerm.push(...webLeads);
