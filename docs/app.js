@@ -13,6 +13,10 @@ let pollTimer = null;
 let isStaticMode = false;
 let currentSortField = 'score-desc';
 let activeProvinceTab = 'KZN';
+let currentSequenceArchetype = 'omni_channel_blitz';
+let activeSequenceData = null;
+let activeTouchpointIndex = 0;
+let currentPitchTone = 'consultative';
 
 /**
  * Resolves full API URL using centralized LEADGREMLIN_CONFIG
@@ -1793,261 +1797,42 @@ function renderTechnicalAuditDrawer(lead) {
 }
 
 /**
- * Render Multi-Channel Pitch Suite Tabs & Script
+ * Change Sequence Playbook Archetype
  */
-function renderPitchSuite(lead) {
-  const scripts = lead.aiPitchScripts || getDefaultPitchScripts(lead);
-  lead.aiPitchScripts = scripts;
+async function changeSequenceArchetype(archetype) {
+  currentSequenceArchetype = archetype;
+  activeTouchpointIndex = 0;
+  if (!selectedLead) return;
 
-  document.querySelectorAll('.pitch-tab').forEach((tab) => {
-    tab.classList.toggle('active', tab.dataset.channel === currentPitchChannel);
-  });
+  const archSelect = document.getElementById('sequence-archetype-select');
+  if (archSelect) archSelect.value = archetype;
 
-  const channelLabels = {
-    email: '📧 Email Outreach Script',
-    whatsapp: '💬 WhatsApp Instant Message',
-    socialDm: '📱 Instagram / Social DM Script',
-    coldCall: '📞 Cold Call Phone Script',
-    dripSequence: '🗓️ 3-Step Automated Drip Sequence',
-  };
-
-  document.getElementById('pitch-channel-label').innerText = channelLabels[currentPitchChannel] || 'Outreach Script';
-  const textEl = document.getElementById('ai-script-text');
-
-  if (currentPitchChannel === 'email') {
-    textEl.innerText = `SUBJECT: ${scripts.email?.subject || 'Digital Lead Optimization'}\n\n${scripts.email?.body || ''}`;
-  } else if (currentPitchChannel === 'whatsapp') {
-    textEl.innerText = scripts.whatsapp || '';
-  } else if (currentPitchChannel === 'socialDm') {
-    textEl.innerText = scripts.socialDm || '';
-  } else if (currentPitchChannel === 'coldCall') {
-    textEl.innerText = `OPENER:\n${scripts.coldCall?.opener || ''}\n\nDISCOVERY:\n${scripts.coldCall?.discovery || ''}\n\nOBJECTION HANDLING:\n${scripts.coldCall?.objectionHandling || ''}\n\nCLOSE:\n${scripts.coldCall?.close || ''}`;
-  } else if (currentPitchChannel === 'dripSequence') {
-    const steps = scripts.dripSequence || [
-      { stepNumber: 1, dayDelay: 0, title: 'Day 1: Technical Audit Pitch', subject: scripts.email?.subject, body: scripts.email?.body },
-      { stepNumber: 2, dayDelay: 3, title: 'Day 3: Niche Case Study Follow-Up', subject: `Re: ${scripts.email?.subject}`, body: `Hi Team,\n\nFollowing up on my previous note. We recently helped a nearby ${lead.category || 'business'} increase client inquiries by 45% via automated intake.\n\nWould you like a 60-second video demo?` },
-      { stepNumber: 3, dayDelay: 7, title: 'Day 7: Final Breakup & Free PDF Audit', subject: `Complimentary Audit Report for ${lead.name}`, body: `Hi Management,\n\nI won't keep flooding your inbox. Reply "AUDIT" if you would like our free technical report for ${lead.name}.` }
-    ];
-
-    textEl.innerText = steps
-      .map(
-        (s) => `============================================================
-📌 STEP ${s.stepNumber} (${s.title} - Delay: Day ${s.dayDelay})
-------------------------------------------------------------
-SUBJECT: ${s.subject}
-
-${s.body}`
-      )
-      .join('\n\n');
-  }
-}
-
-/**
- * Fallback Pitch Scripts
- */
-function getDefaultPitchScripts(lead) {
-  const name = lead.name || 'Business';
-  const category = (lead.category || 'Local Business').toLowerCase();
-  const area = lead.area || 'Umhlanga';
-  const rating = lead.rating || 4.8;
-  const reviews = lead.reviewCount || 35;
-  const audit = lead.technicalAudit;
-
-  // Determine audit diagnostic callout
-  let auditCallout = 'our diagnostic audit identified key conversion bottlenecks on your website.';
-  let subjectHook = `Growth & lead intake optimization for ${name}`;
-
-  if (audit && !audit.hasHttps) {
-    auditCallout = 'we noticed your website lacks an SSL certificate (showing an insecure "Not Secure" warning in browsers), which deters over 60% of potential clients.';
-    subjectHook = `Fixing ${name}'s website security warning`;
-  } else if (audit && audit.loadSpeedSeconds && audit.loadSpeedSeconds > 3.0) {
-    auditCallout = `we ran a mobile performance audit and detected slow load times exceeding ${audit.loadSpeedSeconds}s, causing mobile visitors to bounce.`;
-    subjectHook = `Mobile speed fix for ${name}`;
-  } else if (audit && !audit.hasBookingSystem) {
-    auditCallout = 'we noticed your website is missing a 24/7 automated online booking portal for after-hours client appointments.';
-    subjectHook = `24/7 Online Booking idea for ${name}`;
-  } else if (audit && !audit.hasWhatsappLink) {
-    auditCallout = 'we noticed your site lacks a 1-click WhatsApp lead capture widget, letting high-intent inquiries slip to competitors.';
-    subjectHook = `WhatsApp lead capture idea for ${name}`;
-  } else if (!lead.website) {
-    auditCallout = 'we noticed your business currently lacks a dedicated high-converting website, relying solely on directory listings.';
-    subjectHook = `High-converting digital storefront for ${name}`;
-  }
-
-  // Determine Niche Specific Hooks
-  let nicheAngle = 'Automated Lead Intake & 24/7 Client Conversion';
-  let painPoint = 'local clients comparing providers choose the competitor who responds fastest to web & WhatsApp inquiries';
-  let solution = 'an automated 24/7 WhatsApp & calendar lead intake funnel';
-  let caseMetric = 'helped a local business increase inbound client inquiries by 45% in 30 days';
-  let callDiscovery = `How are you currently following up with visitors who browse your website after hours?`;
-  let callObjection = `That's exactly why we built this automated engine—it handles client inquiries 24/7 without needing extra staff.`;
-
-  if (/health|dental|dentist|physio|chiro|medical|doctor|aesthetic/i.test(category)) {
-    nicheAngle = 'High-Value Patient Intake & Consultation Booking';
-    painPoint = 'patients searching for specialized treatments bounce when they cannot book consultations instantly online';
-    solution = 'a POPIA-compliant patient intake portal with 1-click WhatsApp consultation booking';
-    caseMetric = 'helped a private practice secure 19 high-ticket treatment consultations in 30 days';
-    callDiscovery = `When new patients find your practice online after hours, can they instantly schedule a consultation?`;
-    callObjection = `Medical practices love this because it integrates seamlessly with your front desk without disrupting existing PMS software.`;
-  } else if (/fitness|gym|crossfit|pilates|yoga/i.test(category)) {
-    nicheAngle = 'After-Hours Membership Inquiries & Free Trial Funnel';
-    painPoint = '70% of gym membership searches happen after 6 PM when desk staff is off, letting prospects slip away';
-    solution = 'an automated 24/7 WhatsApp trial pass & class booking funnel';
-    caseMetric = 'helped a fitness studio capture 28 new monthly trial signups in 3 weeks';
-    callDiscovery = `How are you currently capturing membership inquiries that come in after hours?`;
-    callObjection = `Desk staff love this because it qualifies leads and confirms trial passes without staff needing to touch a phone.`;
-  } else if (/beauty|hair|salon|spa|barber|laser/i.test(category)) {
-    nicheAngle = 'Eliminating No-Shows & Automating Salon Bookings';
-    painPoint = 'clients want to book appointments instantly via WhatsApp at night without phone tag or DM delays';
-    solution = 'a 1-click WhatsApp & calendar booking portal with automated deposit collection';
-    caseMetric = 'reduced appointment no-shows by 85% and added 34 new client bookings in month one';
-    callDiscovery = `Are you currently losing time going back and forth on WhatsApp to schedule appointments?`;
-    callObjection = `Our automated assistant handles the calendar, takes deposits, and sends reminders automatically.`;
-  } else if (/auto|car|mechanic|detailing|solar|electrician|plumber|contractor/i.test(category)) {
-    nicheAngle = '1-Tap Emergency Callouts & Instant Quote Requests';
-    painPoint = 'homeowners and drivers in need of urgent quotes call the first competitor with a 1-tap WhatsApp quote button';
-    solution = 'an emergency 1-tap quote capture funnel with instant WhatsApp dispatch';
-    caseMetric = 'increased weekly inbound service quote requests by 65% for a local contractor';
-    callDiscovery = `When someone has an urgent repair in ${area}, how easily can they send photos and get a quote via WhatsApp?`;
-    callObjection = `I know you're on the tools all day! That's why the system collects job details and photos automatically before you call.`;
-  } else if (/real estate|property|estate agent/i.test(category)) {
-    nicheAngle = 'Instant Property Valuation Funnels & Buyer Pre-Qualification';
-    painPoint = 'property sellers and luxury buyers expect instant WhatsApp responses and virtual tour booking';
-    solution = 'an instant property valuation calculator and WhatsApp automated buyer qualification funnel';
-    caseMetric = 'delivered 15 exclusive listing valuation requests and 42 qualified buyer inquiries in 60 days';
-    callDiscovery = `How quickly is your team able to follow up when a prospective seller requests a property valuation online?`;
-    callObjection = `This pre-qualifies buyers by budget and location before passing them directly to your designated agent.`;
-  }
-
-  const emailSubject = `${subjectHook} in ${area}`;
-  const emailBody = `Hi ${name} Team,\n\nI came across ${name} while auditing top-rated ${lead.category || 'local'} businesses in ${area}.\n\nI noticed your team has built a strong reputation (${rating}★ with ${reviews}+ reviews). However, during our review, ${auditCallout}\n\nBecause ${painPoint}, we built ${solution}.\n\nFor instance, we recently ${caseMetric}.\n\nCan I send you a 2-minute video preview showing what this would look like for ${name} this Thursday?\n\nBest regards,\nLeadGremlin Growth Engine`;
-
-  const whatsappText = `⚡ *Quick Growth Idea for ${name} (${area})*\n\nHi team, loved your ${rating}★ reviews! While reviewing top ${lead.category || 'local'} spots in ${area}, ${auditCallout}\n\nWe build automated funnels tailored for ${lead.category || 'local'} businesses. Would you be open to a 60-second video demo showing how to capture more direct inquiries? 🚀`;
-
-  const socialDmText = `Hey ${name} team! 👋 Super impressive work in ${area} with ${reviews}+ reviews. Quick heads up: ${auditCallout} We build 1-click booking funnels for ${lead.category || 'local'} businesses. DM us if you'd like a free mockup! 📩`;
-
-  const coldCallBattlecard = {
-    opener: `Hi, is this the manager or owner at ${name}? My name is LeadGremlin, calling briefly regarding your ${area} digital lead intake.`,
-    discovery: callDiscovery,
-    objectionHandling: callObjection,
-    close: `Can I drop a 60-second video breakdown directly to your WhatsApp or email so you can take a look whenever you have 2 minutes?`,
-  };
-
-  const dripSequence = [
-    {
-      stepNumber: 1,
-      dayDelay: 0,
-      title: `Day 1: Technical Audit & ${nicheAngle}`,
-      subject: emailSubject,
-      body: emailBody,
-    },
-    {
-      stepNumber: 2,
-      dayDelay: 3,
-      title: `Day 3: Case Study & Niche Proof Follow-Up`,
-      subject: `Re: ${emailSubject}`,
-      body: `Hi ${name} Team,\n\nFollowing up briefly on my note regarding ${name}'s client intake in ${area}.\n\nTo give you a quick example, we recently ${caseMetric} by implementing ${solution}.\n\nWould you be open to taking a look at a 60-second video breakdown showing how this applies to ${name}?\n\nBest regards,\nLeadGremlin Growth Engine`,
-    },
-    {
-      stepNumber: 3,
-      dayDelay: 7,
-      title: `Day 7: Final Breakup & Free PDF Audit Report`,
-      subject: `Complimentary Technical Audit Report for ${name}`,
-      body: `Hi ${name} Management,\n\nI know you're busy serving clients in ${area}, so I won't keep following up.\n\nWe put together a complete Technical Website & Lead Intake Audit Report for ${name} detailing the exact steps to capture more monthly clients.\n\nIf you'd like the complimentary PDF report, just reply "AUDIT" and I'll send it right over.\n\nWishing ${name} continued success!\n\nBest regards,\nLeadGremlin Growth Engine`,
-    },
-  ];
-
-  return {
-    email: { subject: emailSubject, body: emailBody },
-    whatsapp: whatsappText,
-    socialDm: socialDmText,
-    coldCall: coldCallBattlecard,
-    dripSequence,
-    nicheAngle,
-    primaryAuditCallout: auditCallout,
-  };
-}
-
-/**
- * Switch Active Pitch Tab
- */
-function switchPitchTab(channel) {
-  currentPitchChannel = channel;
-  if (selectedLead) {
-    renderPitchSuite(selectedLead);
-  }
-}
-
-/**
- * Copy Pitch Script to Clipboard
- */
-function copyPitchToClipboard() {
-  const textEl = document.getElementById('ai-script-text');
-  if (!textEl || !textEl.innerText) return;
-
-  navigator.clipboard.writeText(textEl.innerText).then(
-    () => showToast('✓ Pitch script copied to clipboard!'),
-    () => showToast('✖ Failed to copy to clipboard')
-  );
-}
-
-/**
- * Trigger Live Notion Database Sync
- */
-async function triggerNotionSync() {
-  const btn = document.getElementById('btn-notion-sync');
-  btn.disabled = true;
-  btn.innerText = '⌛ Syncing Notion...';
-
-  try {
-    const res = await fetch(getApiUrl('/api/notion/sync'), { method: 'POST' });
-    const data = await res.json();
-    if (data.success) {
-      showToast(`✓ Notion Sync Complete! Uploaded ${data.summary?.uploaded || 0} leads.`);
-    } else {
-      showToast(`⚠️ Notion Sync Warning: ${data.error || 'Check environment config'}`);
+  // If connected to API, request generation
+  if (!isStaticMode) {
+    try {
+      const res = await fetch(getApiUrl('/api/sequences/generate'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: selectedLead.id,
+          archetype: currentSequenceArchetype,
+          tone: currentPitchTone,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.sequence) {
+        activeSequenceData = data.sequence;
+        renderPitchSuite(selectedLead);
+        showToast(`✓ Generated ${data.sequence.archetypeName}`);
+        return;
+      }
+    } catch {
+      // Fall through to local generation
     }
-  } catch (err) {
-    showToast(`ℹ Notion sync skipped (Local static mode)`);
-  } finally {
-    btn.disabled = false;
-    btn.innerText = '🔗 Sync to Notion';
-  }
-}
-
-/**
- * Trigger Website Audit
- */
-async function triggerWebsiteAudit() {
-  if (!selectedLead || !selectedLead.website) {
-    showToast('⚠️ No website URL attached to this lead.');
-    return;
   }
 
-  const btn = document.getElementById('btn-run-audit');
-  btn.disabled = true;
-  btn.innerText = '⌛ Auditing...';
-
-  try {
-    const res = await fetch(getApiUrl('/api/audit'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: selectedLead.id, website: selectedLead.website }),
-    });
-    const data = await res.json();
-    if (data.success && data.lead) {
-      selectedLead = data.lead;
-      renderTechnicalAuditDrawer(selectedLead);
-      renderPitchSuite(selectedLead);
-      document.getElementById('detail-score').innerText = selectedLead.opportunityScore || 80;
-      showToast('✓ Technical audit & pitch scripts updated!');
-    }
-  } catch {
-    showToast('ℹ Audit completed in preview mode.');
-  } finally {
-    btn.disabled = false;
-    btn.innerText = '🔄 Run Audit';
-  }
+  activeSequenceData = generateSequenceLocal(selectedLead, currentSequenceArchetype, currentPitchTone);
+  renderPitchSuite(selectedLead);
 }
 
 /**
@@ -2056,6 +1841,9 @@ async function triggerWebsiteAudit() {
 async function changePitchTone(tone) {
   currentPitchTone = tone;
   if (!selectedLead) return;
+
+  const toneSelect = document.getElementById('pitch-tone-select');
+  if (toneSelect) toneSelect.value = tone;
 
   if (!isStaticMode) {
     try {
@@ -2067,16 +1855,222 @@ async function changePitchTone(tone) {
       const data = await res.json();
       if (data.success && data.scripts) {
         selectedLead.aiPitchScripts = data.scripts;
-        renderPitchSuite(selectedLead);
-        showToast(`✓ Re-generated pitch scripts in ${tone} tone!`);
-        return;
       }
     } catch {
-      // ignore
+      // Fall through
     }
   }
 
-  showToast(`✓ Switched tone to ${tone}`);
+  await changeSequenceArchetype(currentSequenceArchetype);
+}
+
+/**
+ * Select a specific touchpoint in the active sequence timeline
+ */
+function selectTouchpoint(index) {
+  if (!activeSequenceData || !activeSequenceData.touchpoints) return;
+  activeTouchpointIndex = index;
+  const tp = activeSequenceData.touchpoints[index];
+  if (!tp) return;
+
+  // Map channel tab
+  if (tp.channel === 'email') currentPitchChannel = 'email';
+  else if (tp.channel === 'whatsapp') currentPitchChannel = 'whatsapp';
+  else if (tp.channel === 'social_dm') currentPitchChannel = 'socialDm';
+  else if (tp.channel === 'cold_call') currentPitchChannel = 'coldCall';
+  else currentPitchChannel = 'dripSequence';
+
+  renderPitchSuite(selectedLead);
+}
+
+/**
+ * Render Interactive Cadence Timeline Chips
+ */
+function renderSequenceTimeline(sequence) {
+  const container = document.getElementById('sequence-timeline-chips');
+  if (!container || !sequence || !sequence.touchpoints) return;
+
+  container.innerHTML = sequence.touchpoints
+    .map((tp, idx) => {
+      const isActive = idx === activeTouchpointIndex;
+      return `
+      <div class="timeline-chip ${isActive ? 'active' : ''}" onclick="selectTouchpoint(${idx})">
+        <span class="chip-day">Day ${tp.dayDelay}</span>
+        <span>${tp.channelEmoji}</span>
+        <span>${tp.title.replace(/^Day \d+:\s*/, '')}</span>
+      </div>
+    `;
+    })
+    .join('');
+}
+
+/**
+ * Export Current Sequence to Instantly/Smartlead CSV or JSON
+ */
+function exportCurrentSequence(format = 'csv') {
+  if (!selectedLead) {
+    showToast('⚠️ Please select a lead first!');
+    return;
+  }
+
+  const seq = activeSequenceData || generateSequenceLocal(selectedLead, currentSequenceArchetype, currentPitchTone);
+
+  if (format === 'json') {
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(seq, null, 2));
+    const dlAnchor = document.createElement('a');
+    dlAnchor.setAttribute('href', dataStr);
+    dlAnchor.setAttribute('download', `sequence_${selectedLead.name.replace(/[^a-zA-Z0-9]/g, '_')}_${seq.archetype}.json`);
+    dlAnchor.click();
+    showToast('✓ Sequence exported to JSON!');
+    return;
+  }
+
+  // CSV Export
+  const emailSteps = seq.touchpoints.filter((t) => t.channel === 'email');
+  const headers = ['Email', 'CompanyName', 'Website', 'Phone', 'City', 'Category', 'Subject 1', 'Body 1', 'Delay 1', 'Subject 2', 'Body 2', 'Delay 2', 'Subject 3', 'Body 3', 'Delay 3'];
+  
+  const escapeCsv = (v) => `"${String(v || '').replace(/"/g, '""')}"`;
+  const row = [
+    escapeCsv(selectedLead.email || ''),
+    escapeCsv(selectedLead.name),
+    escapeCsv(selectedLead.website || ''),
+    escapeCsv(selectedLead.phone || ''),
+    escapeCsv(selectedLead.area || ''),
+    escapeCsv(selectedLead.category || ''),
+    escapeCsv(emailSteps[0]?.subject || ''),
+    escapeCsv(emailSteps[0]?.body || ''),
+    escapeCsv(emailSteps[0]?.dayDelay ?? 0),
+    escapeCsv(emailSteps[1]?.subject || ''),
+    escapeCsv(emailSteps[1]?.body || ''),
+    escapeCsv(emailSteps[1]?.dayDelay ?? 3),
+    escapeCsv(emailSteps[2]?.subject || ''),
+    escapeCsv(emailSteps[2]?.body || ''),
+    escapeCsv(emailSteps[2]?.dayDelay ?? 7),
+  ];
+
+  const csvContent = 'data:text/csv;charset=utf-8,' + encodeURIComponent([headers.join(','), row.join(',')].join('\n'));
+  const dlAnchor = document.createElement('a');
+  dlAnchor.setAttribute('href', csvContent);
+  dlAnchor.setAttribute('download', `instantly_leadgremlin_${selectedLead.name.replace(/[^a-zA-Z0-9]/g, '_')}.csv`);
+  dlAnchor.click();
+  showToast('✓ Exported Instantly / Smartlead CSV!');
+}
+
+/**
+ * Local Client-Side Sequence Generator
+ */
+function generateSequenceLocal(lead, archetype, tone) {
+  const name = lead.name || 'Business';
+  const category = (lead.category || 'Local Business').toLowerCase();
+  const area = lead.area || 'Umhlanga';
+  const rating = lead.rating || 4.8;
+  const reviews = lead.reviewCount || 35;
+  const audit = lead.technicalAudit;
+  const estVal = lead.estimatedDealValue ? `R${lead.estimatedDealValue.toLocaleString()}` : 'R22,500';
+
+  let auditCallout = 'our diagnostic audit identified key conversion bottlenecks on your website.';
+  let primaryIssue = 'Missing automated lead capture funnel';
+
+  if (audit && !audit.hasHttps) {
+    auditCallout = 'we noticed your website lacks an SSL certificate (showing an insecure "Not Secure" warning in browsers), deterring over 60% of potential clients.';
+    primaryIssue = 'Insecure HTTP protocol connection';
+  } else if (audit && audit.loadSpeedSeconds && audit.loadSpeedSeconds > 3.0) {
+    auditCallout = `we ran a mobile diagnostic and detected slow page load speeds (${audit.loadSpeedSeconds}s), causing visitors to bounce.`;
+    primaryIssue = `Slow mobile load speed (${audit.loadSpeedSeconds}s)`;
+  } else if (audit && !audit.hasBookingSystem) {
+    auditCallout = 'we noticed your website is missing a 24/7 automated online booking portal for after-hours scheduling.';
+    primaryIssue = 'No after-hours online booking portal';
+  } else if (audit && !audit.hasWhatsappLink) {
+    auditCallout = 'we noticed your site lacks a 1-click WhatsApp lead capture widget, letting high-intent inquiries slip to competitors.';
+    primaryIssue = 'Missing 1-click WhatsApp intake widget';
+  }
+
+  let nicheAngle = 'Automated Lead Intake & 24/7 Client Conversion';
+  let painPoint = 'local clients searching for providers choose whoever responds fastest to web & WhatsApp inquiries';
+  let solution = 'an automated 24/7 WhatsApp & calendar lead intake funnel';
+  let caseProof = 'helped a nearby local business increase client bookings by 45% in 30 days';
+
+  if (/health|dental|dentist|physio|chiro|medical|aesthetic/i.test(category)) {
+    nicheAngle = 'High-Value Patient Intake & Consultation Booking';
+    painPoint = 'patients searching for specialized treatments bounce when they cannot book consultations instantly';
+    solution = 'a POPIA-compliant patient intake portal with 1-click WhatsApp consultation booking';
+    caseProof = 'helped a private practice secure 19 high-ticket treatment consultations in 30 days';
+  } else if (/solar|electrician|plumber|trades|contractor/i.test(category)) {
+    nicheAngle = '1-Tap Emergency Callouts & Instant Quote Requests';
+    painPoint = 'homeowners needing urgent repairs choose the competitor with instant 1-tap WhatsApp quote dispatch';
+    solution = 'an emergency 1-tap quote capture funnel with instant WhatsApp dispatch';
+    caseProof = 'increased weekly inbound service quote requests by 65% for a local contractor';
+  } else if (/beauty|hair|salon|spa|barber|laser/i.test(category)) {
+    nicheAngle = 'Eliminating No-Shows & Automating Salon Bookings';
+    painPoint = 'clients want to book appointments instantly via WhatsApp late at night without DM delays';
+    solution = 'a 1-click WhatsApp & calendar booking portal with automated deposit collection';
+    caseProof = 'reduced appointment no-shows by 85% and added 34 new client bookings in month one';
+  } else if (/fitness|gym|crossfit|pilates|yoga/i.test(category)) {
+    nicheAngle = 'After-Hours Membership Inquiries & Free Trial Funnel';
+    painPoint = 'over 70% of gym membership searches happen after 6 PM when front desk staff is off';
+    solution = 'an automated 24/7 WhatsApp trial pass & class booking funnel';
+    caseProof = 'helped a fitness studio capture 28 new monthly trial signups in 3 weeks';
+  }
+
+  const emailSubject = `Optimizing ${name}'s digital lead intake in ${area}`;
+  const emailBody = `Hi ${name} Team,\n\nI came across ${name} while auditing top-rated ${lead.category || 'local'} providers in ${area}.\n\nI noticed your team has built a strong reputation (${rating}★ with ${reviews}+ reviews). However, during our review, ${auditCallout}\n\nBecause ${painPoint}, we developed ${solution}.\n\nFor instance, we recently ${caseProof}.\n\nCan I show you a 5-minute live preview tailored for ${name} this Thursday?\n\nBest regards,\nLeadGremlin Growth Engine`;
+
+  const touchpoints = [
+    {
+      stepNumber: 1,
+      dayDelay: 0,
+      channel: 'email',
+      channelEmoji: '📧',
+      title: 'Day 0: Technical Audit & Opportunity Pitch',
+      subject: emailSubject,
+      body: emailBody,
+      actionGuidance: 'Send from primary sales email. Personalize first line with recent business news or post.',
+    },
+    {
+      stepNumber: 2,
+      dayDelay: 1,
+      channel: 'whatsapp',
+      channelEmoji: '💬',
+      title: 'Day 1: WhatsApp 60s Video Hook',
+      body: `Hi ${name} Team 👋 Sent you a quick email yesterday regarding ${name}'s web lead intake in ${area}!\n\nWe put together a 60-second video demo showing how ${solution} captures 3x more direct client inquiries.\n\nMind if I drop the 1-minute video link right here on WhatsApp? 🚀`,
+      actionGuidance: 'Send directly to business WhatsApp number. Attach custom 60-second video walkthrough.',
+    },
+    {
+      stepNumber: 3,
+      dayDelay: 4,
+      channel: 'cold_call',
+      channelEmoji: '📞',
+      title: 'Day 4: Diagnostic Discovery Call',
+      body: `Call decision-maker at ${name}.\n\n• Opener: Hi, is this the owner at ${name}? Calling regarding your ${area} lead intake.\n• Discovery: When potential clients find ${name} online after hours, can they book instantly?\n• Objection: Desk staff love this because it qualifies leads 24/7 without extra staff.\n• Close: Can I drop a 60s video breakdown to your WhatsApp?`,
+      actionGuidance: 'Call between 09:30 - 11:30 or 14:00 - 16:00.',
+    },
+    {
+      stepNumber: 4,
+      dayDelay: 8,
+      channel: 'social_dm',
+      channelEmoji: '📱',
+      title: 'Day 8: Social DM / Instagram Nudge',
+      body: `Hey ${name} team! 👋 Loved your recent work in ${area}. Quick question: did you see the digital audit report we sent to your team? We built a 1-click lead capture mockup tailored for ${name}. DM us if you'd like the preview link! 📩`,
+      actionGuidance: 'Send via Instagram DM or LinkedIn message to owner/manager profile.',
+    },
+    {
+      stepNumber: 5,
+      dayDelay: 14,
+      channel: 'email',
+      channelEmoji: '📧',
+      title: 'Day 14: Final Breakup & Free PDF Report Offer',
+      subject: `Complimentary Technical Audit Report for ${name}`,
+      body: `Hi ${name} Management,\n\nI know you're busy serving clients in ${area}, so I won't keep following up.\n\nWe put together a full complimentary Technical Website & Mobile Audit Report for ${name} (${estVal} scope) identifying 4 quick fixes to boost your monthly bookings.\n\nIf you'd like the PDF report, just reply "AUDIT" and I'll send it right over.\n\nWishing ${name} continued success!\n\nBest regards,\nLeadGremlin Growth Engine`,
+      actionGuidance: 'Attach generated PDF report if lead expressed interest.',
+    },
+  ];
+
+  return {
+    archetype: archetype || 'omni_channel_blitz',
+    archetypeName: archetype === 'roi_calculator' ? 'Commercial Valuation & ROI Leakage' : archetype === 'audit_breakdown' ? 'Technical Audit & Video Walkthrough' : archetype === 'niche_case_study' ? 'Niche Transformation & Proof' : archetype === 're_engagement' ? 'Stalled Lead Revival' : 'Omni-Channel Cadence (14-Day Blitz)',
+    archetypeEmoji: archetype === 'roi_calculator' ? '💰' : archetype === 'audit_breakdown' ? '🔍' : archetype === 'niche_case_study' ? '📈' : archetype === 're_engagement' ? '🔄' : '🚀',
+    touchpoints,
+  };
 }
 
 /**

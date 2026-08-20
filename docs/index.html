@@ -557,19 +557,42 @@
             <button class="btn btn-sm btn-secondary mt-2" onclick="saveLeadNotes()">Save Notes</button>
           </div>
 
-          <!-- Multi-Channel AI Outreach Pitch Suite -->
+          <!-- Multi-Channel AI Outreach Pitch Suite & Sequence Playbooks -->
           <div class="detail-section">
             <div class="section-title-row">
-              <h4 class="section-title">AI Multi-Channel Pitch Suite</h4>
+              <h4 class="section-title">Multi-Channel Outreach Sequences</h4>
               <div class="tone-select-wrap">
                 <select id="pitch-tone-select" class="form-control-sm" onchange="changePitchTone(this.value)">
-                  <option value="consultative">Consultative</option>
-                  <option value="direct">Direct</option>
-                  <option value="casual">Casual</option>
-                  <option value="urgent">Urgent</option>
-                  <option value="roi_focused">ROI / Financial Model</option>
+                  <option value="consultative">Consultative Tone</option>
+                  <option value="direct">Direct Tone</option>
+                  <option value="casual">Casual Tone</option>
+                  <option value="urgent">Urgent Tone</option>
+                  <option value="roi_focused">ROI / Commercial Model</option>
                 </select>
               </div>
+            </div>
+
+            <!-- Sequence Playbook Archetype Selector Bar -->
+            <div class="sequence-controls-bar">
+              <div style="flex: 1; min-width: 220px;">
+                <label style="font-size: 11px; color: var(--text-dim); display: block; margin-bottom: 4px;">Outreach Cadence Playbook:</label>
+                <select id="sequence-archetype-select" class="form-control-sm" style="width: 100%;" onchange="changeSequenceArchetype(this.value)">
+                  <option value="omni_channel_blitz">🚀 Omni-Channel Cadence (14-Day Blitz: Email + WA + Call + DM)</option>
+                  <option value="audit_breakdown">🔍 Technical Audit & Video Walkthrough (10-Day Cadence)</option>
+                  <option value="roi_calculator">💰 Commercial Valuation & ROI Leakage (10-Day Cadence)</option>
+                  <option value="niche_case_study">📈 Niche Transformation & Proof (12-Day Cadence)</option>
+                  <option value="re_engagement">🔄 Stalled Lead Revival (7-Day Re-engagement)</option>
+                </select>
+              </div>
+              <div class="btn-group-sm mt-3" style="display: flex; gap: 6px;">
+                <button type="button" class="btn btn-sm btn-outline" onclick="exportCurrentSequence('csv')">📥 Instantly CSV</button>
+                <button type="button" class="btn btn-sm btn-outline" onclick="exportCurrentSequence('json')">📄 JSON</button>
+              </div>
+            </div>
+
+            <!-- Interactive Cadence Timeline Chips -->
+            <div class="timeline-scroll-wrap" id="sequence-timeline-chips">
+              <!-- Dynamically populated via app.js -->
             </div>
 
             <!-- Pitch Channel Tabs -->
@@ -578,7 +601,7 @@
               <button class="pitch-tab" data-channel="whatsapp" onclick="switchPitchTab('whatsapp')">💬 WhatsApp</button>
               <button class="pitch-tab" data-channel="socialDm" onclick="switchPitchTab('socialDm')">📱 Social DM</button>
               <button class="pitch-tab" data-channel="coldCall" onclick="switchPitchTab('coldCall')">📞 Cold Call</button>
-              <button class="pitch-tab" data-channel="dripSequence" onclick="switchPitchTab('dripSequence')">🗓️ 3-Step Drip</button>
+              <button class="pitch-tab" data-channel="dripSequence" onclick="switchPitchTab('dripSequence')">🗓️ Full Cadence</button>
             </div>
 
             <div class="pitch-body-wrap">
@@ -588,6 +611,9 @@
               </div>
               <div class="ai-output-box" id="ai-script-output">
                 <pre id="ai-script-text">Select or generate pitch script above...</pre>
+              </div>
+              <div id="action-guidance-container" class="action-guidance-box hidden">
+                <!-- Action guidance note -->
               </div>
             </div>
           </div>

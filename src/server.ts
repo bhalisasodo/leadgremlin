@@ -16,7 +16,7 @@ import { SOUTH_AFRICA_REGIONS, buildMultiRegionQueries, INDUSTRY_NICHE_PRESETS, 
 import { AnalyticsEngine } from './utils/analytics.js';
 import { PdfReportGenerator } from './utils/pdfGenerator.js';
 import { WebhookNotifier } from './outreach/webhookNotifier.js';
-import { EmailSequenceManager } from './outreach/emailSequence.js';
+import { EmailSequenceManager, SequenceEngine, SequenceExporter } from './outreach/emailSequence.js';
 import crypto from 'crypto';
 
 const INITIAL_PORT = parseInt(process.env.PORT || '3005', 10);
@@ -728,6 +728,90 @@ app.post('/api/leads/:id/outreach', async (req: Request, res: Response) => {
     webhookSent,
     lead,
   });
+});
+
+/**
+ * GET /api/sequences/archetypes - List all available sequence archetypes & playbooks
+ */
+app.get('/api/sequences/archetypes', (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    archetypes: SequenceEngine.getArchetypes(),
+  });
+});
+
+/**
+ * POST /api/sequences/generate - Generate comprehensive multi-channel sequence for a lead
+ */
+app.post('/api/sequences/generate', async (req: Request, res: Response) => {
+  const { leadId, lead: customLead, archetype, tone } = req.body;
+  let targetLead: Business | null = null;
+  const leads = loadLeads();
+
+  if (leadId) {
+    targetLead = leads.find((l) => l.id === leadId) || null;
+  } else if (customLead) {
+    targetLead = customLead;
+  }
+
+  if (!targetLead) {
+    return res.status(400).json({ success: false, error: 'Lead data or leadId is required.' });
+  }
+
+  const sequence = SequenceEngine.generateSequence(
+    targetLead,
+    archetype || 'omni_channel_blitz',
+    tone || 'consultative'
+  );
+
+  if (leadId && targetLead) {
+    targetLead.outreachSequences = targetLead.outreachSequences || {};
+    targetLead.outreachSequences[archetype || 'omni_channel_blitz'] = sequence;
+    saveLeads(leads);
+  }
+
+  res.json({
+    success: true,
+    sequence,
+    lead: targetLead,
+  });
+});
+
+/**
+ * POST /api/sequences/export - Export multi-channel sequences to Instantly/Smartlead CSV or JSON
+ */
+app.post('/api/sequences/export', async (req: Request, res: Response) => {
+  const { leadIds, archetype, tone, format } = req.body;
+  const leads = loadLeads();
+  const selectedLeads = Array.isArray(leadIds) && leadIds.length > 0
+    ? leads.filter((l) => leadIds.includes(l.id))
+    : leads.slice(0, 50);
+
+  if (selectedLeads.length === 0) {
+    return res.status(400).json({ success: false, error: 'No leads found to export.' });
+  }
+
+  const targetArchetype = archetype || 'omni_channel_blitz';
+  const targetTone = tone || 'consultative';
+
+  const pairs = selectedLeads.map((lead) => ({
+    lead,
+    sequence: SequenceEngine.generateSequence(lead, targetArchetype, targetTone),
+  }));
+
+  if (format === 'json') {
+    return res.json({
+      success: true,
+      count: pairs.length,
+      archetype: targetArchetype,
+      data: pairs.map((p) => p.sequence),
+    });
+  }
+
+  const csv = SequenceExporter.toInstantlyCsv(pairs);
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="leadgremlin_${targetArchetype}_sequences.csv"`);
+  res.send(csv);
 });
 
 /**
