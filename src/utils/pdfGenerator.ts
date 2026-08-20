@@ -262,10 +262,95 @@ export class PdfReportGenerator {
   <div class="val-banner">
     <div>
       <div style="font-size: 14px; opacity: 0.9;">ESTIMATED POTENTIAL PROJECT VALUE</div>
-      <div style="font-size: 13px; opacity: 0.7;">Based on required lead intake redesign & booking funnel installation</div>
+      <div style="font-size: 13px; opacity: 0.7;">Based on required sales funnel consolidation & automated booking installation</div>
     </div>
     <div class="val-amount">R${estValue}</div>
   </div>
+
+  <!-- Sales Funnel & Workflow Diagnostic -->
+  ${
+    audit?.funnelTechStack
+      ? `
+  <div class="section">
+    <h2 class="section-title">Sales Funnel & Multi-Channel Workflow Diagnostic</h2>
+    <table class="tech-table">
+      <thead>
+        <tr>
+          <th>Funnel Component</th>
+          <th>Detected Technology</th>
+          <th>Commercial Analysis</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Social Media Link-in-Bio</td>
+          <td>${audit.funnelTechStack.linkInBioTool ? `⚠️ ${audit.funnelTechStack.linkInBioTool}` : '✓ Direct Website / Custom Hub'}</td>
+          <td>${audit.funnelTechStack.linkInBioTool ? 'High Friction: 40-50% of social visitors drop off on multi-link lists' : 'Optimized Direct Capture'}</td>
+        </tr>
+        <tr>
+          <td>Niche Booking Engine</td>
+          <td>${audit.funnelTechStack.bookingEngine ? `⚡ ${audit.funnelTechStack.bookingEngine}` : '❌ No Automated Booking Engine'}</td>
+          <td>${audit.funnelTechStack.bookingEngine ? 'External Redirect: Disconnects Meta Pixel & loses brand immersion' : 'High Lead Loss: After-hours inquiries bounce'}</td>
+        </tr>
+        <tr>
+          <td>Lead Capture Channels</td>
+          <td>${audit.funnelTechStack.leadCaptureChannels.join(', ')}</td>
+          <td>Multi-Channel Inbound Flow</td>
+        </tr>
+        <tr>
+          <td>Payment & Checkout Gateway</td>
+          <td>${audit.funnelTechStack.paymentGateway ? `💳 ${audit.funnelTechStack.paymentGateway}` : 'Manual EFT / In-Person'}</td>
+          <td>Transaction Intake Rails</td>
+        </tr>
+        <tr>
+          <td>Funnel Architecture</td>
+          <td><strong style="text-transform:uppercase; color:var(--primary);">${audit.funnelTechStack.currentArchitecture.replace(/_/g, ' ')}</strong></td>
+          <td>Funnel Maturity Grade</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  `
+      : ''
+  }
+
+  <!-- Tailored Commercial Business Case -->
+  ${
+    audit?.businessCase || lead.businessCase
+      ? `
+  <div class="section">
+    <h2 class="section-title">Tailored Commercial Business Case</h2>
+    <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px;">
+      <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 10px; color: var(--primary);">${(audit?.businessCase || lead.businessCase)?.headline}</h3>
+      <p style="font-size: 14px; margin-bottom: 12px;"><strong>Current Customer Journey:</strong> ${(audit?.businessCase || lead.businessCase)?.currentWorkflowSummary}</p>
+      
+      <div style="margin-bottom: 14px;">
+        <strong style="font-size: 13px; text-transform: uppercase; color: var(--danger);">Identified Funnel Friction & Gaps:</strong>
+        <ul style="margin: 6px 0 0 18px; font-size: 13px; color: #475569;">
+          ${(audit?.businessCase || lead.businessCase)?.identifiedGaps.map(g => `<li style="margin-bottom:4px;">${g}</li>`).join('')}
+        </ul>
+      </div>
+
+      <div style="background: #f0fdf4; border-left: 4px solid var(--success); padding: 12px 14px; border-radius: 0 6px 6px 0; margin-bottom: 12px;">
+        <strong style="font-size: 13px; color: #166534; text-transform: uppercase;">Proposed Centralized Touchpoint Solution:</strong>
+        <p style="font-size: 13px; color: #14532d; margin-top: 4px;">${(audit?.businessCase || lead.businessCase)?.proposedCentralizedSolution}</p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; font-size: 13px;">
+        <div style="background: #ffffff; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+          <div style="color: #64748b; font-size: 11px; text-transform: uppercase;">Projected Recovered Inquiries</div>
+          <div style="font-size: 16px; font-weight: 800; color: var(--primary); margin-top: 2px;">${(audit?.businessCase || lead.businessCase)?.projectedMonthlyRecoveredLeads}</div>
+        </div>
+        <div style="background: #ffffff; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+          <div style="color: #64748b; font-size: 11px; text-transform: uppercase;">Est. Monthly Revenue Impact</div>
+          <div style="font-size: 16px; font-weight: 800; color: var(--success); margin-top: 2px;">+R${((audit?.businessCase || lead.businessCase)?.estimatedMonthlyRevenueImpactZAR || 25000).toLocaleString('en-US')} / mo</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  `
+      : ''
+  }
 
   <!-- Identified Gaps & Recommendations -->
   <div class="grid-2">

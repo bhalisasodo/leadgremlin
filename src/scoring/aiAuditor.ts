@@ -1,4 +1,13 @@
-import { AIAuditInput, AIAuditOutput, MultiChannelScripts, OutreachTone, TechnicalAudit, EmailStepScript } from '../types/scorer.js';
+import {
+  AIAuditInput,
+  AIAuditOutput,
+  MultiChannelScripts,
+  OutreachTone,
+  TechnicalAudit,
+  EmailStepScript,
+  FunnelTechStack,
+  TailoredBusinessCase,
+} from '../types/scorer.js';
 import { logger } from '../utils/logger.js';
 
 interface NicheStrategy {
@@ -11,14 +20,14 @@ interface NicheStrategy {
 }
 
 /**
- * Phase 3: AI Auditor & Hyper-Personalized Multi-Channel Pitch Script Suite
+ * Phase 3 & 5: AI Auditor & Hyper-Personalized Multi-Channel Pitch Script Suite & Business Case Builder
  */
 export class AIAuditor {
   /**
-   * Generates AI Website Audit and Multi-Channel Outreach Pitch Scripts
+   * Generates AI Website Audit, Sales Funnel Diagnostic, Business Case, and Multi-Channel Outreach Pitch Scripts
    */
   public async generateAudit(input: AIAuditInput): Promise<AIAuditOutput> {
-    logger.info(`Generating AI Multi-Channel Audit Pitch for: ${input.businessName}`);
+    logger.info(`Generating AI Multi-Channel Audit & Business Case Pitch for: ${input.businessName}`);
 
     const tone: OutreachTone = input.tone || 'consultative';
     const category = input.category || 'Local Business';
@@ -34,10 +43,37 @@ export class AIAuditor {
       website
     );
 
-    // 2. Determine Niche Strategy & Value Proposition
+    // 2. Extract / Derive Funnel Tech Stack
+    const funnelTechStack: FunnelTechStack = input.technicalAudit?.funnelTechStack || {
+      linkInBioTool: undefined,
+      bookingEngine: input.technicalAudit?.hasBookingSystem ? 'Custom' : undefined,
+      leadCaptureChannels: input.technicalAudit?.hasWhatsappLink
+        ? ['WhatsApp Direct', 'Contact Form']
+        : ['Contact Form'],
+      paymentGateway: undefined,
+      analyticsRetargeting: input.technicalAudit?.analyticsDetected || [],
+      currentArchitecture:
+        input.technicalAudit?.hasBookingSystem && input.technicalAudit?.hasWhatsappLink
+          ? 'unified_optimized_hub'
+          : 'manual_friction_heavy',
+    };
+
+    // 3. Build Tailored Commercial Business Case
+    const businessCase: TailoredBusinessCase = this.generateBusinessCase(
+      name,
+      category,
+      area,
+      website,
+      input.technicalAudit?.socialLinks,
+      funnelTechStack,
+      input.technicalAudit,
+      estimatedProjectValueZAR
+    );
+
+    // 4. Determine Niche Strategy & Value Proposition
     const niche = this.getNicheStrategy(category, area, primaryGap);
 
-    // 3. Attempt LLM API if key is available, else use intelligent deterministic engine
+    // 5. Attempt LLM API if key is available, else use intelligent deterministic engine
     let multiChannelScripts: MultiChannelScripts;
     let generatedBy: 'llm' | 'deterministic_engine' = 'deterministic_engine';
 
@@ -49,14 +85,53 @@ export class AIAuditor {
           multiChannelScripts = llmResult;
           generatedBy = 'llm';
         } else {
-          multiChannelScripts = this.buildDeterministicScripts(name, category, area, rating, reviews, tone, niche, auditGaps, primaryGap, website);
+          multiChannelScripts = this.buildDeterministicScripts(
+            name,
+            category,
+            area,
+            rating,
+            reviews,
+            tone,
+            niche,
+            auditGaps,
+            primaryGap,
+            website,
+            funnelTechStack,
+            businessCase
+          );
         }
       } catch (err) {
         logger.warn(`LLM generation failed, falling back to deterministic engine: ${String(err)}`);
-        multiChannelScripts = this.buildDeterministicScripts(name, category, area, rating, reviews, tone, niche, auditGaps, primaryGap, website);
+        multiChannelScripts = this.buildDeterministicScripts(
+          name,
+          category,
+          area,
+          rating,
+          reviews,
+          tone,
+          niche,
+          auditGaps,
+          primaryGap,
+          website,
+          funnelTechStack,
+          businessCase
+        );
       }
     } else {
-      multiChannelScripts = this.buildDeterministicScripts(name, category, area, rating, reviews, tone, niche, auditGaps, primaryGap, website);
+      multiChannelScripts = this.buildDeterministicScripts(
+        name,
+        category,
+        area,
+        rating,
+        reviews,
+        tone,
+        niche,
+        auditGaps,
+        primaryGap,
+        website,
+        funnelTechStack,
+        businessCase
+      );
     }
 
     return {
@@ -65,6 +140,8 @@ export class AIAuditor {
       estimatedProjectValueZAR,
       personalizedOutreachScript: multiChannelScripts.email.body,
       multiChannelScripts,
+      funnelTechStack,
+      businessCase,
       auditTimestamp: new Date().toISOString(),
       generatedBy,
     };
@@ -282,7 +359,118 @@ export class AIAuditor {
   }
 
   /**
-   * Deterministic multi-channel script generator based on tone, niche, and real audit data
+   * Generates a tailored, personalized commercial business case and centralized touchpoint blueprint
+   */
+  public generateBusinessCase(
+    name: string,
+    category: string,
+    area: string,
+    website: string,
+    socials: TechnicalAudit['socialLinks'] | undefined,
+    funnelStack: FunnelTechStack | undefined,
+    audit: TechnicalAudit | undefined,
+    estimatedProjectValueZAR: number
+  ): TailoredBusinessCase {
+    const linkTool = funnelStack?.linkInBioTool;
+    const booking = funnelStack?.bookingEngine;
+    const payment = funnelStack?.paymentGateway;
+    const igHandle = socials?.instagram
+      ? socials.instagram.split('/').filter(Boolean).pop()
+      : `@${name.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+
+    let currentWorkflowSummary = '';
+    const identifiedGaps: string[] = [];
+    const commercialFrictionPoints: string[] = [];
+    let proposedCentralizedSolution = '';
+    let strategicPitchHook = '';
+
+    if (linkTool && booking) {
+      currentWorkflowSummary = `Instagram Bio (${igHandle}) ➔ ${linkTool} Landing ➔ External ${booking} Portal & Manual WhatsApp`;
+      identifiedGaps.push(
+        `${linkTool} Drop-Off Friction: Directing high-intent social followers to a multi-link directory introduces an unnecessary 40-50% click barrier before prospects see your class schedule or offers.`
+      );
+      identifiedGaps.push(
+        `External ${booking} Portal Disconnect: Rerouting traffic to an external 3rd-party domain strips away brand immersion and prevents Meta Pixel & GA4 event retargeting on non-converting visitors.`
+      );
+      identifiedGaps.push(
+        `Disjointed Multi-Channel Intake: Inquiries across Instagram DMs, WhatsApp, and phone calls are not synchronized with ${booking}, leading to manual response lag.`
+      );
+      commercialFrictionPoints.push(
+        `Over 40% of mobile users abandon external portal redirects before completing booking/signup`
+      );
+      commercialFrictionPoints.push(
+        `Zero visitor retargeting on dropped prospects who click ${linkTool} but do not register`
+      );
+      commercialFrictionPoints.push(
+        `Manual back-and-forth communication required to confirm bookings and send payment links`
+      );
+
+      proposedCentralizedSolution = `A single, high-converting Branded Digital Hub that replaces ${linkTool} and centralizes your ${booking} schedule, 1-click WhatsApp trial pass claims, instant ${payment || 'online'} payments, and unified Meta Pixel retargeting into one seamless branded touchpoint.`;
+      strategicPitchHook = `We noticed on Instagram that ${name} routes members through ${linkTool} to ${booking}. We developed a centralized touchpoint blueprint for ${name} that eliminates the 40% drop-off barrier by unifying trial booking, WhatsApp intake, and member signups in one high-converting hub.`;
+    } else if (linkTool) {
+      currentWorkflowSummary = `Instagram Bio (${igHandle}) ➔ ${linkTool} Link-in-Bio ➔ Disconnected External Links & Manual Phone/DM`;
+      identifiedGaps.push(
+        `Multi-Link Directory Fatigue: Visitors clicking ${linkTool} are overwhelmed by choices without a clear, high-converting primary booking CTA.`
+      );
+      identifiedGaps.push(
+        `Loss of Retargeting Pixel Data: Third-party bio links do not allow ${name} to build custom audiences for Meta or Google ad retargeting.`
+      );
+      commercialFrictionPoints.push(
+        `Prospects browsing on mobile drop off before reaching contact details`
+      );
+      commercialFrictionPoints.push(
+        `No automated booking engine to confirm appointments 24/7`
+      );
+
+      proposedCentralizedSolution = `A custom branded mobile landing page that replaces ${linkTool}, featuring instant 1-click WhatsApp chat, interactive service menu, direct booking calendar, and built-in Meta Pixel retargeting.`;
+      strategicPitchHook = `We noticed ${name} uses ${linkTool} on social media. We designed a branded, high-converting touchpoint that replaces ${linkTool} and captures 35%+ more direct client inquiries.`;
+    } else if (booking) {
+      currentWorkflowSummary = `Social / Google Maps ➔ External ${booking} Portal ➔ Manual Confirmation`;
+      identifiedGaps.push(
+        `External Portal Leakage: Sending prospects directly to ${booking} skips pre-framing, social proof, and WhatsApp capture.`
+      );
+      commercialFrictionPoints.push(
+        `Clients who abandon ${booking} are lost forever with no automated WhatsApp recovery`
+      );
+
+      proposedCentralizedSolution = `A high-converting branded portal integrating ${booking} seamlessly with automated 1-click WhatsApp follow-ups and local search SEO.`;
+      strategicPitchHook = `We saw ${name} uses ${booking} for bookings. We built an automated touchpoint that captures abandoned visitors and converts 30% more inquiries via WhatsApp.`;
+    } else {
+      currentWorkflowSummary = `Social Profiles / Google Listing ➔ Manual DM / Phone Calls / In-Person Walk-ins`;
+      identifiedGaps.push(
+        `Zero Automated Intake: Inquiries arriving after business hours (6 PM - 8 AM) go unanswered until staff manually replies.`
+      );
+      identifiedGaps.push(
+        `High Response Latency: Manual DM / phone qualification creates friction, allowing competitors with 1-click booking to win clients.`
+      );
+      commercialFrictionPoints.push(
+        `70% of potential clients browse services after hours and bounce if instant booking is unavailable`
+      );
+      commercialFrictionPoints.push(
+        `Staff spends 10+ hours/week answering repetitive pricing and availability inquiries`
+      );
+
+      proposedCentralizedSolution = `A 24/7 Automated Client Acquisition Engine featuring 1-click WhatsApp lead capture, instant scheduling calendar, automated FAQ qualification, and online payment intake.`;
+      strategicPitchHook = `We noticed ${name} currently relies on manual inquiries. We built an automated 24/7 client acquisition engine for ${category} businesses in ${area} that captures after-hours leads automatically.`;
+    }
+
+    const estimatedMonthlyRevenueImpactZAR = Math.round((estimatedProjectValueZAR || 18500) * 1.4);
+
+    return {
+      headline: `Centralized Touchpoint & Workflow Optimization for ${name}`,
+      currentWorkflowSummary,
+      identifiedGaps,
+      commercialFrictionPoints,
+      proposedCentralizedSolution,
+      projectedMonthlyRecoveredLeads: `+12 to +25 qualified monthly inquiries`,
+      estimatedMonthlyRevenueImpactZAR,
+      paybackPeriodDays: 18,
+      strategicPitchHook,
+    };
+  }
+
+  /**
+   * Deterministic multi-channel script generator based on tone, niche, and real audit & funnel data
    */
   private buildDeterministicScripts(
     name: string,
@@ -294,13 +482,24 @@ export class AIAuditor {
     niche: NicheStrategy,
     auditGaps: string[],
     primaryGap: string,
-    website: string
+    website: string,
+    funnelStack?: FunnelTechStack,
+    businessCase?: TailoredBusinessCase
   ): MultiChannelScripts {
     // Generate audit callout snippet for the pitch
     let auditCalloutText = '';
     let auditSubjectHook = '';
 
-    if (primaryGap === 'insecure_ssl') {
+    if (funnelStack?.linkInBioTool && funnelStack?.bookingEngine) {
+      auditCalloutText = `we noticed on Instagram that you route prospects through ${funnelStack.linkInBioTool} to ${funnelStack.bookingEngine}, which creates a 40%+ drop-off barrier and prevents Meta Pixel retargeting.`;
+      auditSubjectHook = `Centralized touchpoint idea for ${name} (${funnelStack.linkInBioTool} + ${funnelStack.bookingEngine})`;
+    } else if (funnelStack?.linkInBioTool) {
+      auditCalloutText = `we noticed ${name} uses ${funnelStack.linkInBioTool} on social media, which introduces multi-link friction and lacks direct 1-click WhatsApp booking.`;
+      auditSubjectHook = `High-converting social funnel for ${name}`;
+    } else if (funnelStack?.bookingEngine) {
+      auditCalloutText = `we saw ${name} uses ${funnelStack.bookingEngine}, but lacks a branded centralized touchpoint and 1-click WhatsApp intake.`;
+      auditSubjectHook = `Optimizing ${name}'s ${funnelStack.bookingEngine} intake`;
+    } else if (primaryGap === 'insecure_ssl') {
       auditCalloutText = `we noticed ${name}'s website is currently missing an SSL certificate (showing an insecure "Not Secure" warning in browsers), which deters over 60% of potential clients.`;
       auditSubjectHook = `Fixing ${name}'s website security warning`;
     } else if (primaryGap === 'slow_speed') {
@@ -322,7 +521,7 @@ export class AIAuditor {
       auditCalloutText = `we noticed ${name} currently lacks a dedicated high-converting website, relying solely on directory listings while competitors capture Google search traffic.`;
       auditSubjectHook = `High-converting digital storefront for ${name}`;
     } else {
-      auditCalloutText = `our diagnostic audit identified 3 conversion bottlenecks on ${name}'s website that are restricting your monthly inbound client flow.`;
+      auditCalloutText = `our diagnostic audit identified 3 conversion bottlenecks on ${name}'s sales funnel that are restricting your monthly inbound client flow.`;
       auditSubjectHook = `Growth & lead intake optimization for ${name}`;
     }
 
@@ -336,11 +535,11 @@ export class AIAuditor {
     switch (tone) {
       case 'direct':
         emailSubject = `${auditSubjectHook} in ${area}`;
-        emailBody = `Hi ${name} Team,\n\nWe audited top ${category} providers in ${area} and noticed ${name} has an impressive ${rating}★ reputation with ${reviews}+ reviews.\n\nHowever, ${auditCalloutText}\n\nSince ${niche.painPoint}, we built ${niche.solution}.\n\nWe recently ${niche.caseMetric}.\n\nCan I send you a 2-minute video preview showing what this would look like for ${name} this Thursday?\n\nBest regards,\nLeadGremlin Growth Engine`;
-        whatsappText = `⚡ *Quick Growth Idea for ${name} (${area})*\n\nHi team, loved your ${rating}★ reviews! While reviewing top ${category} spots in ${area}, ${auditCalloutText}\n\nWe build automated funnels tailored for ${category} businesses. Would you be open to a 60-second video demo showing how to capture more direct inquiries? 🚀`;
-        socialDmText = `Hey ${name} team! 👋 Super impressive work in ${area} with ${reviews}+ reviews. Quick heads up: ${auditCalloutText} We build 1-click booking funnels for ${category} businesses. DM us if you'd like a free mockup! 📩`;
+        emailBody = `Hi ${name} Team,\n\nWe audited top ${category} providers in ${area} and noticed ${name} has an impressive ${rating}★ reputation with ${reviews}+ reviews.\n\nHowever, ${auditCalloutText}\n\nSince ${niche.painPoint}, we built ${niche.solution}.\n\nWe recently ${niche.caseMetric}.\n\nCan I send you a 2-minute video preview showing what this centralized hub would look like for ${name} this Thursday?\n\nBest regards,\nLeadGremlin Growth Engine`;
+        whatsappText = `⚡ *Quick Growth Idea for ${name} (${area})*\n\nHi team, loved your ${rating}★ reviews! While reviewing top ${category} spots in ${area}, ${auditCalloutText}\n\nWe build centralized conversion funnels tailored for ${category} businesses. Would you be open to a 60-second video demo showing how to capture more direct inquiries? 🚀`;
+        socialDmText = `Hey ${name} team! 👋 Super impressive work in ${area} with ${reviews}+ reviews. Quick heads up: ${auditCalloutText} We build 1-click centralized touchpoints for ${category} businesses. DM us if you'd like a free mockup! 📩`;
         coldCallBattlecard = {
-          opener: `Hi, is this the manager or owner at ${name}? My name is LeadGremlin, calling briefly regarding your ${area} digital lead intake.`,
+          opener: `Hi, is this the manager or owner at ${name}? My name is LeadGremlin, calling briefly regarding your ${area} digital lead intake and sales workflow.`,
           discovery: niche.callDiscovery,
           objectionHandling: niche.callObjection,
           close: `Can I drop a 60-second video breakdown directly to your WhatsApp or email so you can take a look whenever you have 2 minutes?`,
@@ -349,9 +548,9 @@ export class AIAuditor {
 
       case 'casual':
         emailSubject = `Quick idea for ${name} 💡 (${area})`;
-        emailBody = `Hey ${name} team,\n\nCame across your profile while exploring top ${category} spots around ${area}. Big fans of your ${rating}★ rating and ${reviews}+ reviews!\n\nJust noticed a quick technical fix on your website: ${auditCalloutText}\n\nWe recently ${niche.caseMetric} by setting up ${niche.solution}.\n\nWould love to send over a quick 2-minute video showing how it works if you're open to it?\n\nCheers,\nLeadGremlin Growth Engine`;
+        emailBody = `Hey ${name} team,\n\nCame across your profile while exploring top ${category} spots around ${area}. Big fans of your ${rating}★ rating and ${reviews}+ reviews!\n\nJust noticed a quick sales funnel fix: ${auditCalloutText}\n\nWe recently ${niche.caseMetric} by setting up ${niche.solution}.\n\nWould love to send over a quick 2-minute video showing how it works if you're open to it?\n\nCheers,\nLeadGremlin Growth Engine`;
         whatsappText = `Hey ${name} team 👋 Came across your ${category} business in ${area} and loved your ${rating}★ reviews! Noticed a quick tweak: ${auditCalloutText}\n\nMind if I share a 1-min quick link showing how to capture more bookings automatically? 😊`;
-        socialDmText = `Hey guys! Love what ${name} is doing in ${area} 🔥 Noticed your page could easily capture 30% more clients with a direct booking funnel. We set these up in 24 hours. DM us if you want a free preview! 🙌`;
+        socialDmText = `Hey guys! Love what ${name} is doing in ${area} 🔥 Noticed your page could easily capture 30% more clients with a centralized booking hub. We set these up in 24 hours. DM us if you want a free preview! 🙌`;
         coldCallBattlecard = {
           opener: `Hey there! Is this ${name}? Hope you're having an awesome week. Calling really quick from ${area}.`,
           discovery: niche.callDiscovery,
@@ -363,10 +562,10 @@ export class AIAuditor {
       case 'urgent':
         emailSubject = `URGENT: ${name} is losing ${category} leads in ${area}`;
         emailBody = `Attention ${name} Management,\n\nOur automated diagnostic audit revealed that ${name} is currently leaking potential clients in ${area}.\n\nSpecifically, ${auditCalloutText}\n\nWhile your rating (${rating}★) is excellent, nearby ${category} competitors are capturing after-hours clients because ${niche.painPoint}.\n\nWe have 2 slots open this week for complimentary sales funnel implementations in ${area}. Let's get this resolved before more inquiries slip away.\n\nRegards,\nLeadGremlin Growth Engine`;
-        whatsappText = `⚠️ *Missed Inquiries Alert for ${name}*\n\nHi team, your ${category} page in ${area} is currently missing critical lead intake: ${auditCalloutText}\n\nWe have a free implementation slot open this week for ${area}. Reply YES for an instant preview! ⏱️`;
-        socialDmText = `⚠️ Hey ${name}! Local ${category} competitors in ${area} are using automated lead intake to capture after-hours clients. We can fix your lead funnel in under 24 hours. Tap back if interested! ⚡`;
+        whatsappText = `⚠️ *Missed Inquiries Alert for ${name}*\n\nHi team, your ${category} sales workflow in ${area} is currently missing critical lead intake: ${auditCalloutText}\n\nWe have a free implementation slot open this week for ${area}. Reply YES for an instant preview! ⏱️`;
+        socialDmText = `⚠️ Hey ${name}! Local ${category} competitors in ${area} are using centralized lead intake to capture after-hours clients. We can fix your lead funnel in under 24 hours. Tap back if interested! ⚡`;
         coldCallBattlecard = {
-          opener: `Hi, urgency call for ${name} management regarding your ${area} website lead capture. Do you have 30 seconds?`,
+          opener: `Hi, urgency call for ${name} management regarding your ${area} sales funnel and lead capture. Do you have 30 seconds?`,
           discovery: `Our diagnostic audit found that ${auditCalloutText} You're losing high-intent client inquiries every week to nearby competitors.`,
           objectionHandling: `I understand you have an existing setup, but right now it's leaking potential revenue every single evening.`,
           close: `Let's lock in 10 minutes tomorrow morning to fix this lead leak. Does 9:30 AM or 11:00 AM work better?`,
@@ -375,12 +574,12 @@ export class AIAuditor {
 
       case 'roi_focused':
         emailSubject = `ROI Breakdown: R25k+ Monthly Revenue Opportunity for ${name}`;
-        emailBody = `Hi ${name} Leadership,\n\nI conducted a commercial revenue audit of ${category} businesses in ${area}.\n\nBased on your ${rating}★ reputation and local search volume, ${name} is well positioned to capture an additional 15-25 high-value client bookings each month.\n\nHowever, ${auditCalloutText} which creates friction in your conversion pipeline.\n\nBy implementing ${niche.solution}, we recently ${niche.caseMetric}.\n\nCan I share our 3-minute financial model and implementation blueprint this Wednesday?\n\nBest regards,\nLeadGremlin Growth Engine`;
+        emailBody = `Hi ${name} Leadership,\n\nI conducted a commercial revenue audit of ${category} businesses in ${area}.\n\nBased on your ${rating}★ reputation and local search volume, ${name} is well positioned to capture an additional 15-25 high-value client bookings each month.\n\nHowever, ${auditCalloutText} which creates friction in your conversion pipeline.\n\nBy implementing ${niche.solution}, we recently ${niche.caseMetric}.\n\nCan I share our 3-minute financial model and centralized blueprint this Wednesday?\n\nBest regards,\nLeadGremlin Growth Engine`;
         whatsappText = `📊 *Revenue Growth Model for ${name}*\n\nHi team, our commercial audit shows ${name} could generate R20k-R35k in additional monthly bookings in ${area}.\n\nKey finding: ${auditCalloutText}\n\nWould you like to review our 2-page ROI breakdown and live mockup? 📈`;
-        socialDmText = `Hi ${name}! 📈 We put together a growth breakdown showing how top ${category} businesses in ${area} add R25k+ monthly via automated booking funnels. Would love to send the PDF model over!`;
+        socialDmText = `Hi ${name}! 📈 We put together a growth breakdown showing how top ${category} businesses in ${area} add R25k+ monthly via centralized booking funnels. Would love to send the PDF model over!`;
         coldCallBattlecard = {
           opener: `Good day, my name is LeadGremlin. I'm calling for ${name} management regarding your digital revenue intake in ${area}.`,
-          discovery: `We analyze conversion ROI for top ${category} providers. I noticed your site has great reviews, but ${auditCalloutText} What is your target for new client acquisition this quarter?`,
+          discovery: `We analyze conversion ROI for top ${category} providers. I noticed your brand has great reviews, but ${auditCalloutText} What is your target for new client acquisition this quarter?`,
           objectionHandling: `Understood! Our system typically pays for itself within the first 14 days by converting existing traffic that is currently bouncing.`,
           close: `Would you be open to a 10-minute screenshare this Thursday to see the exact numbers and live preview?`,
         };
@@ -389,11 +588,11 @@ export class AIAuditor {
       case 'consultative':
       default:
         emailSubject = `Optimizing ${name}'s digital lead intake in ${area}`;
-        emailBody = `Hi ${name} Team,\n\nI came across ${name} while auditing top-rated ${category} businesses in ${area}.\n\nI noticed your team has built an incredible reputation (${rating}★ with ${reviews}+ reviews). However, during our technical review, ${auditCalloutText}\n\nBecause ${niche.painPoint}, we developed ${niche.solution}.\n\nFor instance, we recently ${niche.caseMetric}.\n\nCan we show you a 5-minute live preview tailored to ${name} this Thursday at 10 AM?\n\nBest regards,\nLeadGremlin Automated Growth Engine`;
+        emailBody = `Hi ${name} Team,\n\nI came across ${name} while auditing top-rated ${category} businesses in ${area}.\n\nI noticed your team has built an incredible reputation (${rating}★ with ${reviews}+ reviews). However, during our sales funnel review, ${auditCalloutText}\n\nBecause ${niche.painPoint}, we developed ${niche.solution}.\n\nFor instance, we recently ${niche.caseMetric}.\n\nCan we show you a 5-minute live preview tailored to ${name} this Thursday at 10 AM?\n\nBest regards,\nLeadGremlin Automated Growth Engine`;
         whatsappText = `Hi ${name} Team 👋 We audited top ${category} businesses in ${area} and loved your ${rating}★ rating!\n\nWe noticed a small gap: ${auditCalloutText}\n\nWe put together a complimentary growth breakdown showing how ${niche.solution} can boost your weekly inquiries. Would you like us to send the PDF audit over? 📄`;
-        socialDmText = `Hi ${name}! 🌟 Compliments on your ${reviews}+ positive reviews in ${area}. We created a short audit showing how your ${category} page can capture 35% more inbound clients with automated WhatsApp booking. Would love to send it over!`;
+        socialDmText = `Hi ${name}! 🌟 Compliments on your ${reviews}+ positive reviews in ${area}. We created a short audit showing how your ${category} page can capture 35% more inbound clients with a centralized WhatsApp booking hub. Would love to send it over!`;
         coldCallBattlecard = {
-          opener: `Good morning/afternoon, my name is LeadGremlin. I'm calling regarding ${name}'s online client intake in ${area}.`,
+          opener: `Good morning/afternoon, my name is LeadGremlin. I'm calling regarding ${name}'s online client intake and sales workflow in ${area}.`,
           discovery: niche.callDiscovery,
           objectionHandling: niche.callObjection,
           close: `Would Thursday at 10 AM or 2 PM work for a brief 10-minute screenshare to walk through the audit findings?`,
@@ -406,7 +605,7 @@ export class AIAuditor {
       {
         stepNumber: 1,
         dayDelay: 0,
-        title: `Day 1: Technical Audit & ${niche.headline}`,
+        title: `Day 1: Technical & Funnel Audit: ${niche.headline}`,
         subject: emailSubject,
         body: emailBody,
       },
@@ -415,14 +614,14 @@ export class AIAuditor {
         dayDelay: 3,
         title: `Day 3: Case Study & Niche Proof Follow-Up`,
         subject: `Re: ${emailSubject}`,
-        body: `Hi ${name} Team,\n\nFollowing up briefly on my note regarding ${name}'s lead intake in ${area}.\n\nTo give you a quick example, we recently ${niche.caseMetric} by implementing ${niche.solution}.\n\nWould you be open to taking a look at a 60-second video breakdown showing how this applies to ${name}?\n\nBest regards,\nLeadGremlin Growth Engine`,
+        body: `Hi ${name} Team,\n\nFollowing up briefly on my note regarding ${name}'s sales workflow and lead intake in ${area}.\n\nTo give you a quick example, we recently ${niche.caseMetric} by implementing ${niche.solution}.\n\nWould you be open to taking a look at a 60-second video breakdown showing how this applies to ${name}?\n\nBest regards,\nLeadGremlin Growth Engine`,
       },
       {
         stepNumber: 3,
         dayDelay: 7,
         title: `Day 7: Final Breakup & Complimentary PDF Audit Report`,
-        subject: `Complimentary Technical Audit Report for ${name}`,
-        body: `Hi ${name} Management,\n\nI know you're busy serving clients in ${area}, so I won't keep following up.\n\nWe put together a complete Technical Website & Lead Intake Audit Report for ${name} detailing the exact steps to capture more monthly ${category} clients.\n\nIf you'd like the complimentary PDF report, just reply "AUDIT" and I'll send it right over.\n\nWishing ${name} continued success!\n\nBest regards,\nLeadGremlin Growth Engine`,
+        subject: `Complimentary Sales Funnel & Technical Audit Report for ${name}`,
+        body: `Hi ${name} Management,\n\nI know you're busy serving clients in ${area}, so I won't keep following up.\n\nWe put together a complete Sales Funnel & Technical Audit Report for ${name} detailing the exact steps to capture more monthly ${category} clients.\n\nIf you'd like the complimentary PDF report, just reply "AUDIT" and I'll send it right over.\n\nWishing ${name} continued success!\n\nBest regards,\nLeadGremlin Growth Engine`,
       },
     ];
 

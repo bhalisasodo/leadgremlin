@@ -2055,6 +2055,7 @@ function openDetailModal(leadId) {
   }
 
   renderTechnicalAuditDrawer(selectedLead);
+  renderSalesFunnelDiagnostic(selectedLead);
   renderPitchSuite(selectedLead);
   renderDetailTags(selectedLead);
   renderActivityTimeline(selectedLead);
@@ -2152,6 +2153,202 @@ function renderTechnicalAuditDrawer(lead) {
     `
     )
     .join('');
+}
+
+/**
+ * Render Sales Funnel & Workflow Architecture Diagnostic & Tailored Business Case
+ */
+function renderSalesFunnelDiagnostic(lead) {
+  const archBadge = document.getElementById('detail-funnel-arch-badge');
+  const chipsContainer = document.getElementById('detail-funnel-stack-chips');
+  const caseCard = document.getElementById('detail-business-case-card');
+  if (!chipsContainer || !caseCard) return;
+
+  // 1. Resolve or compute Funnel Tech Stack
+  const name = lead.name || 'Prospect';
+  const cat = (lead.category || '').toLowerCase();
+  const website = lead.website || '';
+  const socials = lead.socials || {};
+  const isFitness = /fitness|gym|crossfit|pilates|yoga|training|cartel/i.test(cat) || /cartel|crossfit|fitness/i.test(name);
+  const isBeauty = /beauty|hair|salon|spa|barber|aesthetic/i.test(cat);
+  const isDining = /restaurant|cafe|coffee|bistro|dining|food/i.test(cat);
+  const isHealth = /health|dental|dentist|physio|chiro|medical|doctor/i.test(cat);
+
+  let funnelStack = lead.funnelTechStack || lead.technicalAudit?.funnelTechStack;
+  if (!funnelStack) {
+    let linkTool = undefined;
+    let bookingEngine = undefined;
+    let paymentGateway = undefined;
+
+    if (isFitness) {
+      linkTool = 'Linktree';
+      bookingEngine = 'Octiv (BoxChamp)';
+      paymentGateway = 'PayFast';
+    } else if (isBeauty) {
+      linkTool = 'Linktree';
+      bookingEngine = 'Fresha';
+      paymentGateway = 'Yoco';
+    } else if (isDining) {
+      linkTool = undefined;
+      bookingEngine = 'Dineplan';
+      paymentGateway = 'Yoco';
+    } else if (isHealth) {
+      linkTool = undefined;
+      bookingEngine = 'RecoMed';
+      paymentGateway = undefined;
+    } else if (lead.technicalAudit?.hasBookingSystem) {
+      bookingEngine = 'Calendly';
+    }
+
+    const leadCapture = [];
+    if (lead.phone) leadCapture.push('WhatsApp Direct');
+    if (socials.instagram) leadCapture.push('Instagram DM');
+    if (lead.email) leadCapture.push('Contact Form');
+    if (leadCapture.length === 0) leadCapture.push('Manual Phone / In-Person');
+
+    const analytics = (lead.technicalAudit?.analyticsDetected && lead.technicalAudit.analyticsDetected.length > 0)
+      ? lead.technicalAudit.analyticsDetected
+      : [];
+
+    let arch = 'manual_friction_heavy';
+    if (linkTool && bookingEngine) arch = 'fragmented_external_stack';
+    else if (linkTool) arch = 'fragmented_external_stack';
+    else if (bookingEngine && lead.phone) arch = 'unified_optimized_hub';
+    else if (website) arch = 'isolated_website_silo';
+
+    funnelStack = {
+      linkInBioTool: linkTool,
+      bookingEngine,
+      leadCaptureChannels: leadCapture,
+      paymentGateway,
+      analyticsRetargeting: analytics,
+      currentArchitecture: arch,
+    };
+  }
+
+  // 2. Resolve or compute Tailored Business Case
+  let businessCase = lead.businessCase || lead.technicalAudit?.businessCase;
+  if (!businessCase) {
+    const linkTool = funnelStack.linkInBioTool;
+    const booking = funnelStack.bookingEngine;
+    const payment = funnelStack.paymentGateway;
+    const igHandle = socials.instagram ? socials.instagram.split('/').filter(Boolean).pop() : `@${name.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+
+    let currentWorkflowSummary = '';
+    const identifiedGaps = [];
+    let proposedCentralizedSolution = '';
+
+    if (linkTool && booking) {
+      currentWorkflowSummary = `Instagram Bio (${igHandle}) ➔ ${linkTool} Landing ➔ External ${booking} Portal & Manual WhatsApp`;
+      identifiedGaps.push(`${linkTool} Click Friction: Directing social followers to a multi-link directory introduces an unnecessary 40-50% bounce rate before prospects see offers.`);
+      identifiedGaps.push(`External ${booking} Portal Disconnect: Rerouting traffic away to an external domain strips away brand immersion and prevents Meta Pixel retargeting.`);
+      identifiedGaps.push(`Disjointed Inbound Intake: WhatsApp inquiries, DMs, and class bookings operate in silos without automated follow-up.`);
+      proposedCentralizedSolution = `A high-converting Branded Digital Hub that replaces ${linkTool} and centralizes your ${booking} schedule, 1-click WhatsApp trial pass claims, instant ${payment || 'online'} payments, and unified Meta Pixel retargeting in one seamless touchpoint.`;
+    } else if (linkTool) {
+      currentWorkflowSummary = `Instagram Bio (${igHandle}) ➔ ${linkTool} Link-in-Bio ➔ Disconnected External Links & Manual Phone/DM`;
+      identifiedGaps.push(`Multi-Link Directory Fatigue: Visitors clicking ${linkTool} are overwhelmed by choices without a clear booking CTA.`);
+      identifiedGaps.push(`Loss of Retargeting Pixel Data: Third-party bio links do not allow ${name} to build custom audiences for Meta or Google ad retargeting.`);
+      proposedCentralizedSolution = `A custom branded mobile landing page that replaces ${linkTool}, featuring instant 1-click WhatsApp chat, interactive service menu, direct booking calendar, and built-in Meta Pixel retargeting.`;
+    } else if (booking) {
+      currentWorkflowSummary = `Social / Google Maps ➔ External ${booking} Portal ➔ Manual Confirmation`;
+      identifiedGaps.push(`External Portal Leakage: Sending prospects directly to ${booking} skips pre-framing, social proof, and WhatsApp capture.`);
+      proposedCentralizedSolution = `A high-converting branded portal integrating ${booking} seamlessly with automated 1-click WhatsApp follow-ups and local search SEO.`;
+    } else {
+      currentWorkflowSummary = `Social Profiles / Google Listing ➔ Manual DM / Phone Calls / In-Person Walk-ins`;
+      identifiedGaps.push(`Zero Automated Intake: Inquiries arriving after business hours (6 PM - 8 AM) go unanswered until staff manually replies.`);
+      identifiedGaps.push(`High Response Latency: Manual qualification allows competitors with 1-click booking to win clients.`);
+      proposedCentralizedSolution = `A 24/7 Automated Client Acquisition Engine featuring 1-click WhatsApp lead capture, instant scheduling calendar, automated FAQ qualification, and online payment intake.`;
+    }
+
+    const estImpact = Math.round((lead.estimatedDealValue || 18500) * 1.4);
+    businessCase = {
+      headline: `Centralized Touchpoint & Workflow Blueprint for ${name}`,
+      currentWorkflowSummary,
+      identifiedGaps,
+      commercialFrictionPoints: ['40%+ mobile drop-off rate on external redirects', 'Zero visitor retargeting on dropped prospects'],
+      proposedCentralizedSolution,
+      projectedMonthlyRecoveredLeads: '+15 to +28 qualified monthly inquiries',
+      estimatedMonthlyRevenueImpactZAR: estImpact,
+      paybackPeriodDays: 18,
+      strategicPitchHook: `We noticed on Instagram that you route prospects through ${linkTool || 'social links'} to ${booking || 'manual channels'}...`,
+    };
+  }
+
+  // 3. Render Architecture Badge
+  if (archBadge) {
+    const archMap = {
+      fragmented_external_stack: { label: '⚠️ Fragmented Multi-Tool Stack', class: 'badge-warning' },
+      manual_friction_heavy: { label: '⚙️ Manual Friction-Heavy', class: 'badge-warning' },
+      isolated_website_silo: { label: '🌐 Disconnected Website Silo', class: 'badge-info' },
+      unified_optimized_hub: { label: '✨ Unified Optimized Hub', class: 'badge-success' },
+    };
+    const archInfo = archMap[funnelStack.currentArchitecture] || archMap.fragmented_external_stack;
+    archBadge.innerText = archInfo.label;
+  }
+
+  // 4. Render Funnel Stack Chips
+  const chipsHtml = [];
+  if (funnelStack.linkInBioTool) {
+    chipsHtml.push(`<span class="funnel-stack-chip warning">🔗 Bio: ${escapeHtml(funnelStack.linkInBioTool)} (Click Friction)</span>`);
+  } else {
+    chipsHtml.push(`<span class="funnel-stack-chip success">🌐 Direct Web Domain</span>`);
+  }
+
+  if (funnelStack.bookingEngine) {
+    chipsHtml.push(`<span class="funnel-stack-chip portal">⚡ Booking: ${escapeHtml(funnelStack.bookingEngine)}</span>`);
+  } else {
+    chipsHtml.push(`<span class="funnel-stack-chip warning">❌ No Booking Engine</span>`);
+  }
+
+  (funnelStack.leadCaptureChannels || []).forEach((ch) => {
+    chipsHtml.push(`<span class="funnel-stack-chip">💬 ${escapeHtml(ch)}</span>`);
+  });
+
+  if (funnelStack.paymentGateway) {
+    chipsHtml.push(`<span class="funnel-stack-chip payment">💳 Pay: ${escapeHtml(funnelStack.paymentGateway)}</span>`);
+  }
+
+  if (funnelStack.analyticsRetargeting && funnelStack.analyticsRetargeting.length > 0) {
+    funnelStack.analyticsRetargeting.forEach((pix) => {
+      chipsHtml.push(`<span class="funnel-stack-chip success">📊 ${escapeHtml(pix)}</span>`);
+    });
+  } else {
+    chipsHtml.push(`<span class="funnel-stack-chip warning">⚠️ No Retargeting Pixel</span>`);
+  }
+
+  chipsContainer.innerHTML = chipsHtml.join('');
+
+  // 5. Render Tailored Business Case Card
+  caseCard.innerHTML = `
+    <div class="bc-title">💼 Tailored Commercial Business Case</div>
+    
+    <div class="bc-journey-box">
+      <strong>Customer Journey:</strong> ${escapeHtml(businessCase.currentWorkflowSummary)}
+    </div>
+
+    <div class="bc-gaps-wrap">
+      <div class="bc-gaps-label">Identified Funnel Friction & Gaps</div>
+      <ul class="bc-gap-list">
+        ${businessCase.identifiedGaps.map((g) => `<li>${escapeHtml(g)}</li>`).join('')}
+      </ul>
+    </div>
+
+    <div class="bc-solution-box">
+      <strong>Proposed Centralized Hub Blueprint:</strong>
+      ${escapeHtml(businessCase.proposedCentralizedSolution)}
+    </div>
+
+    <div class="bc-roi-row">
+      <div class="bc-roi-item">
+        <div class="bc-roi-label">Projected Recovered Inquiries</div>
+        <div class="bc-roi-val">${escapeHtml(businessCase.projectedMonthlyRecoveredLeads)}</div>
+      </div>
+      <div class="bc-roi-item">
+        <div class="bc-roi-label">Est. Monthly Revenue Impact</div>
+        <div class="bc-roi-val green">+R${(businessCase.estimatedMonthlyRevenueImpactZAR || 25000).toLocaleString()} / mo</div>
+      </div>
+    </div>
+  `;
 }
 
 /**
@@ -2690,8 +2887,9 @@ async function triggerWebsiteAudit() {
 
   saveLeadsLocally();
   renderTechnicalAuditDrawer(selectedLead);
+  renderSalesFunnelDiagnostic(selectedLead);
   renderDashboard();
-  showToast(`✓ Technical audit completed for ${selectedLead.name}!`);
+  showToast(`✓ Technical & Funnel audit completed for ${selectedLead.name}!`);
   if (btn) btn.innerText = '🔄 Run Technical Audit';
 }
 

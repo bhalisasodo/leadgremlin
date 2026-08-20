@@ -1535,6 +1535,171 @@ body {
   margin-bottom: 4px;
 }
 
+/* Sales Funnel & Workflow Architecture Diagnostic */
+.funnel-stack-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.funnel-stack-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+}
+
+.funnel-stack-chip.warning {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+.funnel-stack-chip.portal {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #7dd3fc;
+}
+
+.funnel-stack-chip.success {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #86efac;
+}
+
+.funnel-stack-chip.payment {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: #fde68a;
+}
+
+.business-case-card {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bc-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #a5b4fc;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bc-journey-box {
+  background: rgba(0, 0, 0, 0.25);
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.bc-journey-box strong {
+  color: var(--text-main);
+}
+
+.bc-gaps-wrap {
+  margin-top: 2px;
+}
+
+.bc-gaps-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #f87171;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.bc-gap-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+  margin: 0;
+}
+
+.bc-gap-list li {
+  padding-left: 14px;
+  position: relative;
+  color: #cbd5e1;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.bc-gap-list li::before {
+  content: '⚠️';
+  position: absolute;
+  left: 0;
+  font-size: 9px;
+  top: 1px;
+}
+
+.bc-solution-box {
+  background: rgba(34, 197, 94, 0.08);
+  border-left: 3px solid #22c55e;
+  padding: 8px 10px;
+  border-radius: 0 6px 6px 0;
+  font-size: 11px;
+  color: #bbf7d0;
+  line-height: 1.4;
+}
+
+.bc-solution-box strong {
+  color: #4ade80;
+  display: block;
+  margin-bottom: 2px;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.bc-roi-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.bc-roi-item {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 8px;
+  border-radius: 6px;
+}
+
+.bc-roi-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.bc-roi-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sky);
+  margin-top: 2px;
+}
+
+.bc-roi-val.green {
+  color: #4ade80;
+}
+
 /* Activity Timeline */
 .activity-timeline {
   display: flex;

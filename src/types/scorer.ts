@@ -1,5 +1,30 @@
+export interface FunnelTechStack {
+  linkInBioTool?: string; // 'Linktree' | 'Beacons' | 'Bento' | 'Taplink' | 'Carrd' | 'Direct Website' | 'None'
+  bookingEngine?: string; // 'Octiv' | 'Fresha' | 'Dineplan' | 'Mindbody' | 'Calendly' | 'Acuity' | 'RecoMed' | 'Booksy' | 'Custom' | 'None'
+  leadCaptureChannels: string[]; // ['WhatsApp Direct', 'Instagram DM', 'Contact Form', 'Phone Call', 'Email']
+  paymentGateway?: string; // 'Yoco' | 'PayFast' | 'Ozow' | 'Paystack' | 'SnapScan' | 'Direct EFT'
+  analyticsRetargeting: string[]; // ['Meta Pixel', 'GA4', 'Google Tag Manager', 'TikTok Pixel']
+  currentArchitecture:
+    | 'fragmented_external_stack'
+    | 'manual_friction_heavy'
+    | 'isolated_website_silo'
+    | 'unified_optimized_hub';
+}
+
+export interface TailoredBusinessCase {
+  headline: string;
+  currentWorkflowSummary: string;
+  identifiedGaps: string[];
+  commercialFrictionPoints: string[];
+  proposedCentralizedSolution: string;
+  projectedMonthlyRecoveredLeads: string;
+  estimatedMonthlyRevenueImpactZAR: number;
+  paybackPeriodDays: number;
+  strategicPitchHook: string;
+}
+
 /**
- * Phase 2: Website Analysis Interfaces
+ * Phase 2 & 5: Website and Sales Funnel Analysis Interfaces
  */
 export interface TechnicalAudit {
   hasHttps: boolean;
@@ -29,6 +54,8 @@ export interface TechnicalAudit {
   metaDescription?: string;
   hasFavicon: boolean;
   hasResponsiveViewport: boolean;
+  funnelTechStack?: FunnelTechStack;
+  businessCase?: TailoredBusinessCase;
 }
 
 export interface WebsiteScoreResult {
@@ -80,6 +107,8 @@ export interface AIAuditOutput {
   estimatedProjectValueZAR: number;
   personalizedOutreachScript: string;
   multiChannelScripts?: MultiChannelScripts;
+  funnelTechStack?: FunnelTechStack;
+  businessCase?: TailoredBusinessCase;
   auditTimestamp: string;
   generatedBy?: 'llm' | 'deterministic_engine';
 }
