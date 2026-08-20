@@ -58,4 +58,89 @@ describe('SequenceEngine', () => {
       assert.ok(tp.title.length > 0);
     });
   });
+
+  it('generates tailor-made outbound scripts for distinct prospects based on their unique business cases', () => {
+    const fitnessLead: Business = {
+      id: 'lead-fc',
+      name: 'Fitness Cartel',
+      category: 'Fitness',
+      area: 'Umhlanga',
+      phone: '0315619900',
+      funnelStage: 'outreach',
+      scrapedAt: new Date().toISOString(),
+      source: 'pipeline',
+      funnelTechStack: {
+        linkInBioTool: 'Linktree',
+        bookingEngine: 'Octiv (BoxChamp)',
+        leadCaptureChannels: ['WhatsApp Direct', 'Instagram DM'],
+        currentArchitecture: 'fragmented_external_stack',
+      },
+      businessCase: {
+        headline: 'Centralized Touchpoint & Workflow Blueprint for Fitness Cartel',
+        currentWorkflowSummary: 'Instagram Bio ➔ Linktree ➔ Octiv & WhatsApp',
+        identifiedGaps: ['Linktree 40% bounce rate', 'Octiv external disconnect'],
+        commercialFrictionPoints: ['Loss of Meta Pixel retargeting'],
+        proposedCentralizedSolution: 'A single Branded Digital Hub unifying Octiv trial booking and WhatsApp intake.',
+        projectedMonthlyRecoveredLeads: '+18 to +32 monthly trial signups',
+        estimatedMonthlyRevenueImpactZAR: 33600,
+        paybackPeriodDays: 14,
+        strategicPitchHook: 'We noticed on Instagram that Fitness Cartel routes members through Linktree to Octiv...',
+      },
+    };
+
+    const dentalLead: Business = {
+      id: 'lead-dental',
+      name: 'Dr Naidoo Dental Care',
+      category: 'Healthcare & Dental',
+      area: 'Durban North',
+      phone: '0315632211',
+      funnelStage: 'new',
+      scrapedAt: new Date().toISOString(),
+      source: 'google_maps',
+      technicalAudit: {
+        hasHttps: true,
+        hasBookingSystem: false,
+        hasWhatsappLink: false,
+        hasResponsiveViewport: true,
+      },
+    };
+
+    const solarLead: Business = {
+      id: 'lead-solar',
+      name: 'Apex Solar Energy Solutions',
+      category: 'Solar & Trades',
+      area: 'Sandton',
+      phone: '0112345678',
+      funnelStage: 'new',
+      scrapedAt: new Date().toISOString(),
+      source: 'google_maps',
+      technicalAudit: {
+        hasHttps: false,
+        hasBookingSystem: false,
+        hasWhatsappLink: true,
+        hasResponsiveViewport: true,
+      },
+    };
+
+    const seqFitness = SequenceEngine.generateSequence(fitnessLead, 'omni_channel_blitz');
+    const seqDental = SequenceEngine.generateSequence(dentalLead, 'omni_channel_blitz');
+    const seqSolar = SequenceEngine.generateSequence(solarLead, 'omni_channel_blitz');
+
+    // Fitness Cartel assertions
+    assert.ok(seqFitness.touchpoints[0].body.includes('Fitness Cartel'));
+    assert.ok(seqFitness.touchpoints[0].body.includes('Linktree') || seqFitness.touchpoints[0].body.includes('Octiv'));
+
+    // Dental assertions
+    assert.ok(seqDental.touchpoints[0].body.includes('Dr Naidoo Dental Care'));
+    assert.ok(!seqDental.touchpoints[0].body.includes('Fitness Cartel'));
+    assert.ok(!seqDental.touchpoints[0].body.includes('Octiv'));
+    assert.ok(!seqDental.touchpoints[0].body.includes('Linktree'));
+    assert.ok(seqDental.touchpoints[0].body.includes('Patient') || seqDental.touchpoints[0].body.includes('consultation') || seqDental.touchpoints[0].body.includes('Dental'));
+
+    // Solar assertions
+    assert.ok(seqSolar.touchpoints[0].body.includes('Apex Solar Energy Solutions'));
+    assert.ok(!seqSolar.touchpoints[0].body.includes('Fitness Cartel'));
+    assert.ok(!seqSolar.touchpoints[0].body.includes('Dental'));
+    assert.ok(seqSolar.touchpoints[0].body.includes('SSL') || seqSolar.touchpoints[0].body.includes('Quote') || seqSolar.touchpoints[0].body.includes('Solar'));
+  });
 });

@@ -105,13 +105,32 @@ export class SequenceEngine {
     const audit = lead.technicalAudit;
     const estVal = lead.estimatedDealValue ? `R${lead.estimatedDealValue.toLocaleString()}` : 'R22,500';
 
+    const funnelStack = lead.funnelTechStack || lead.technicalAudit?.funnelTechStack;
+    const businessCase = lead.businessCase || lead.technicalAudit?.businessCase;
+
     // 1. Determine Technical Diagnostic Callout
     let auditCallout = 'our automated diagnostic identified conversion bottlenecks on your website.';
     let auditHeadline = 'Website Conversion Optimization';
     let primaryIssue = 'Missing automated lead capture funnel';
 
-    if (audit && !audit.hasHttps) {
-      auditCallout = 'we noticed your website lacks an SSL security certificate (displaying a "Not Secure" warning in browsers), which deters over 60% of potential clients.';
+    if (funnelStack?.linkInBioTool && funnelStack?.bookingEngine) {
+      auditCallout = `we noticed on Instagram that you route prospects through ${funnelStack.linkInBioTool} to ${funnelStack.bookingEngine}, creating a 40%+ drop-off barrier and losing Meta Pixel retargeting on non-converting visitors.`;
+      auditHeadline = `Centralized Touchpoint & Booking Funnel for ${name}`;
+      primaryIssue = `Fragmented Stack (${funnelStack.linkInBioTool} + ${funnelStack.bookingEngine})`;
+    } else if (funnelStack?.linkInBioTool) {
+      auditCallout = `we noticed ${name} routes social media traffic to ${funnelStack.linkInBioTool}, which causes 40%+ visitor drop-off on multi-link lists and lacks direct 1-click WhatsApp booking.`;
+      auditHeadline = `High-Converting Mobile Touchpoint for ${name}`;
+      primaryIssue = `Link-in-Bio Click Friction (${funnelStack.linkInBioTool})`;
+    } else if (funnelStack?.bookingEngine) {
+      auditCallout = `we saw ${name} uses ${funnelStack.bookingEngine}, but external redirects cause mobile visitor leakage and lack 1-click WhatsApp intake.`;
+      auditHeadline = `Optimizing ${funnelStack.bookingEngine} Lead Intake for ${name}`;
+      primaryIssue = `External ${funnelStack.bookingEngine} Portal Redirect`;
+    } else if (!lead.website || lead.website.trim() === '') {
+      auditCallout = `we noticed ${name} currently lacks a dedicated high-converting website, relying solely on directory listings while competitors capture Google search traffic in ${area}.`;
+      auditHeadline = `High-Converting Digital Storefront for ${name}`;
+      primaryIssue = `Missing Dedicated Website & Online Storefront`;
+    } else if (audit && !audit.hasHttps) {
+      auditCallout = `we noticed your website lacks an SSL security certificate (displaying a "Not Secure" warning in browsers), which deters over 60% of potential clients.`;
       auditHeadline = 'SSL Security & Trust Warning';
       primaryIssue = 'Insecure HTTP protocol connection';
     } else if (audit && audit.loadSpeedSeconds && audit.loadSpeedSeconds > 3.0) {
@@ -133,53 +152,67 @@ export class SequenceEngine {
     }
 
     // 2. Determine Niche-Specific Value Props
-    let nicheAngle = 'Automated Lead Intake & 24/7 Client Conversion';
+    let nicheAngle = businessCase?.headline || 'Automated Lead Intake & 24/7 Client Conversion';
     let painPoint = 'local clients searching for providers choose whoever responds fastest to web & WhatsApp inquiries';
-    let solution = 'an automated 24/7 WhatsApp & calendar lead intake funnel';
-    let caseProof = 'helped a nearby local business increase client bookings by 45% in 30 days';
-    let revenueLeak = 'R15,000 - R35,000 in missed monthly client retainers';
+    let solution = businessCase?.proposedCentralizedSolution || 'an automated 24/7 WhatsApp & calendar lead intake funnel';
+    let caseProof = businessCase?.projectedMonthlyRecoveredLeads
+      ? `projected to recover ${businessCase.projectedMonthlyRecoveredLeads}`
+      : 'helped a nearby local business increase client bookings by 45% in 30 days';
+    let revenueLeak = businessCase?.estimatedMonthlyRevenueImpactZAR
+      ? `+R${businessCase.estimatedMonthlyRevenueImpactZAR.toLocaleString()} in uncaptured monthly client revenue`
+      : 'R15,000 - R35,000 in missed monthly client retainers';
     let callDiscovery = `When potential clients find ${name} online after business hours, how quickly are you able to follow up?`;
     let callObjection = `I know you and your team are busy with existing clients! That's why this system qualifies inquiries and books appointments automatically 24/7.`;
 
     const catLower = category.toLowerCase();
     if (/health|dental|dentist|physio|chiro|medical|aesthetic/i.test(catLower)) {
-      nicheAngle = 'High-Value Patient Intake & Consultation Booking';
+      if (!businessCase) {
+        nicheAngle = 'High-Value Patient Intake & Consultation Booking';
+        solution = 'a POPIA-compliant patient intake portal with 1-click emergency WhatsApp routing and consultation booking';
+        caseProof = 'helped a private practice secure 19 high-ticket treatment consultations in their first 30 days';
+        revenueLeak = 'R30,000 - R75,000 in uncaptured specialized treatment bookings every month';
+      }
       painPoint = 'patients searching for specialized treatments bounce when they cannot book consultations or get instant WhatsApp answers';
-      solution = 'a POPIA-compliant patient intake portal with 1-click emergency WhatsApp routing and consultation booking';
-      caseProof = 'helped a private practice secure 19 high-ticket treatment consultations in their first 30 days';
-      revenueLeak = 'R30,000 - R75,000 in uncaptured specialized treatment bookings every month';
       callDiscovery = `When new patients search for specialized treatments online in ${area}, can they instantly schedule a consultation on your site?`;
       callObjection = `Medical practices love this because it integrates seamlessly with your front desk without disrupting existing PMS software.`;
     } else if (/solar|electrician|plumber|trades|contractor|hvac|roofing/i.test(catLower)) {
-      nicheAngle = '1-Tap Emergency Callouts & Instant Quote Requests';
+      if (!businessCase) {
+        nicheAngle = '1-Tap Emergency Callouts & Instant Quote Requests';
+        solution = 'an emergency 1-tap quote capture funnel with instant WhatsApp dispatch';
+        caseProof = 'increased weekly inbound service quote requests by 65% for a local contractor';
+        revenueLeak = 'R25,000 - R60,000 in unquoted installation and maintenance jobs each month';
+      }
       painPoint = 'homeowners and commercial property managers needing quotes choose the competitor with instant 1-tap WhatsApp quote dispatch';
-      solution = 'an emergency 1-tap quote capture funnel with instant WhatsApp dispatch';
-      caseProof = 'increased weekly inbound service quote requests by 65% for a local contractor';
-      revenueLeak = 'R25,000 - R60,000 in unquoted installation and maintenance jobs each month';
       callDiscovery = `When someone has an urgent repair or solar installation inquiry in ${area}, how easily can they send photos and get a quote via WhatsApp?`;
       callObjection = `I know you're on the tools all day! That's why the system collects job specs and photos automatically before you call.`;
     } else if (/beauty|hair|salon|spa|barber|laser/i.test(catLower)) {
-      nicheAngle = 'Eliminating No-Shows & Automating Salon Bookings';
+      if (!businessCase) {
+        nicheAngle = 'Eliminating No-Shows & Automating Salon Bookings';
+        solution = 'a 1-click WhatsApp & calendar booking portal with automated deposit collection';
+        caseProof = 'reduced appointment no-shows by 85% and added 34 new client bookings in month one';
+        revenueLeak = 'R12,000 - R28,000 lost monthly to empty appointment slots and no-shows';
+      }
       painPoint = 'clients want to book appointments instantly via WhatsApp late at night without waiting for manual DM replies';
-      solution = 'a 1-click WhatsApp & calendar booking portal with automated deposit collection';
-      caseProof = 'reduced appointment no-shows by 85% and added 34 new client bookings in month one';
-      revenueLeak = 'R12,000 - R28,000 lost monthly to empty appointment slots and no-shows';
       callDiscovery = `How much time does your team spend going back and forth on WhatsApp each day just to confirm calendar slots?`;
       callObjection = `Our automated assistant handles the calendar, takes deposits, and sends reminders automatically without staff intervention.`;
     } else if (/fitness|gym|crossfit|pilates|yoga/i.test(catLower)) {
-      nicheAngle = 'After-Hours Membership Inquiries & Free Trial Funnel';
+      if (!businessCase) {
+        nicheAngle = 'After-Hours Membership Inquiries & Free Trial Funnel';
+        solution = 'an automated 24/7 WhatsApp trial pass & class booking funnel';
+        caseProof = 'helped a fitness studio capture 28 new monthly trial signups in 3 weeks';
+        revenueLeak = 'R18,000 - R40,000 in lost recurring monthly membership revenue';
+      }
       painPoint = 'over 70% of gym membership searches happen after 6 PM when front desk staff is off';
-      solution = 'an automated 24/7 WhatsApp trial pass & class booking funnel';
-      caseProof = 'helped a fitness studio capture 28 new monthly trial signups in 3 weeks';
-      revenueLeak = 'R18,000 - R40,000 in lost recurring monthly membership revenue';
       callDiscovery = `How are you currently capturing membership inquiries that come in through your website after hours?`;
       callObjection = `Desk staff love this because it qualifies leads and confirms trial passes without staff needing to touch a phone.`;
     } else if (/real estate|property|estate agent/i.test(catLower)) {
-      nicheAngle = 'Instant Property Valuation Funnels & Buyer Pre-Qualification';
+      if (!businessCase) {
+        nicheAngle = 'Instant Property Valuation Funnels & Buyer Pre-Qualification';
+        solution = 'an instant property valuation calculator and WhatsApp automated buyer qualification funnel';
+        caseProof = 'delivered 15 exclusive listing valuation requests and 42 qualified buyer inquiries in 60 days';
+        revenueLeak = 'R50,000+ in missed seller listing commissions';
+      }
       painPoint = 'property sellers and buyers expect instant WhatsApp responses and virtual tour booking';
-      solution = 'an instant property valuation calculator and WhatsApp automated buyer qualification funnel';
-      caseProof = 'delivered 15 exclusive listing valuation requests and 42 qualified buyer inquiries in 60 days';
-      revenueLeak = 'R50,000+ in missed seller listing commissions';
       callDiscovery = `How quickly is your team able to follow up when a prospective seller requests a property valuation online?`;
       callObjection = `This pre-qualifies buyers by budget and location before passing them directly to your designated agent.`;
     }
