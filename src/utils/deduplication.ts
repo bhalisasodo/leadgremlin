@@ -10,12 +10,13 @@ export class Deduplicator {
 
   /**
    * Normalizes a business name for fuzzy comparison.
-   * e.g., "Better Bodies Gym (Pty) Ltd" -> "betterbodiesgym"
+   * e.g., "Better Bodies Gym (Pty) Ltd" -> "betterbodies"
    */
   public normalizeName(name: string): string {
     return name
       .toLowerCase()
-      .replace(/pty\s+ltd|inc|llc|cc|gym|fitness|center|centre/gi, '')
+      .replace(/[()[\]{}]/g, ' ')
+      .replace(/\b(pty\s+ltd|pty|ltd|inc|llc|cc|gym|fitness|center|centre|co|za)\b/gi, '')
       .replace(/[^a-z0-9]/g, '')
       .trim();
   }
@@ -25,9 +26,10 @@ export class Deduplicator {
    * e.g. "+27 (031) 555-1234" -> "0315551234"
    */
   public normalizePhone(phone: string): string {
-    const digits = phone.replace(/\D/g, '');
-    if (digits.startsWith('27') && digits.length === 11) {
-      return '0' + digits.slice(2);
+    let digits = phone.replace(/\D/g, '');
+    if (digits.startsWith('27')) {
+      const rest = digits.slice(2);
+      digits = rest.startsWith('0') ? rest : '0' + rest;
     }
     return digits;
   }

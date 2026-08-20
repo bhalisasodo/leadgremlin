@@ -14,6 +14,7 @@
     "enrich": "tsx src/enrichment/cli.ts",
     "audit": "tsx src/scoring/cli.ts",
     "sync": "tsx src/notion/sync.ts",
+    "test": "tsx --test test/*.test.ts",
     "build": "tsc && node scripts/sync-docs.js",
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write \"src/**/*.ts\""

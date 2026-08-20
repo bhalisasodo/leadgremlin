@@ -17,6 +17,34 @@ let currentSequenceArchetype = 'omni_channel_blitz';
 let activeSequenceData = null;
 let activeTouchpointIndex = 0;
 let currentPitchTone = 'consultative';
+let selectedLeadIds = new Set();
+
+/**
+ * Toggle Mobile Sidebar Drawer
+ */
+function toggleMobileSidebar(isOpen) {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  if (!sidebar) return;
+
+  if (isOpen === undefined) {
+    sidebar.classList.toggle('open');
+    if (backdrop) backdrop.classList.toggle('active');
+  } else if (isOpen) {
+    sidebar.classList.add('open');
+    if (backdrop) backdrop.classList.add('active');
+  } else {
+    sidebar.classList.remove('open');
+    if (backdrop) backdrop.classList.remove('active');
+  }
+}
+
+// Close mobile sidebar on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    toggleMobileSidebar(false);
+  }
+});
 
 /**
  * Resolves full API URL using centralized LEADGREMLIN_CONFIG
@@ -929,12 +957,14 @@ function renderTable(leads) {
   tbody.innerHTML = '';
 
   if (leads.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 28px; color: var(--text-dim);">No prospects match your current search & filter parameters.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; padding: 28px; color: var(--text-dim);">No prospects match your current search & filter parameters.</td></tr>`;
+    updateBulkToolbar();
     return;
   }
 
   leads.forEach((lead) => {
     const tr = document.createElement('tr');
+    const isChecked = selectedLeadIds.has(lead.id);
 
     const socialIcons = [];
     if (lead.socials?.instagram) socialIcons.push(`<a href="${lead.socials.instagram}" target="_blank" style="color:var(--sky);">IG</a>`);
@@ -946,6 +976,9 @@ function renderTable(leads) {
     ).join('');
 
     tr.innerHTML = `
+      <td style="text-align: center;">
+        <input type="checkbox" class="lead-select-cb" data-id="${lead.id}" ${isChecked ? 'checked' : ''} onchange="toggleSelectLead('${lead.id}', this.checked)">
+      </td>
       <td><strong>${escapeHtml(lead.name)}</strong></td>
       <td><span class="badge">${escapeHtml(lead.category)}</span></td>
       <td><span class="badge" style="background:rgba(14,165,233,0.15); color:var(--sky);">${escapeHtml(lead.area || 'South Africa')}</span></td>
@@ -978,6 +1011,187 @@ function renderTable(leads) {
     `;
     tbody.appendChild(tr);
   });
+
+  const selectAllCb = document.getElementById('select-all-leads-cb');
+  if (selectAllCb) {
+    selectAllCb.checked = leads.length > 0 && leads.every((l) => selectedLeadIds.has(l.id));
+    selectAllCb.indeterminate = !selectAllCb.checked && leads.some((l) => selectedLeadIds.has(l.id));
+  }
+
+  updateBulkToolbar();
+}
+
+/**
+ * Toggle Select All Leads
+ */
+function toggleSelectAllLeads(checked) {
+  const filtered = getFilteredLeads();
+  if (checked) {
+    filtered.forEach((l) => selectedLeadIds.add(l.id));
+  } else {
+    filtered.forEach((l) => selectedLeadIds.delete(l.id));
+  }
+  renderTable(filtered);
+  updateBulkToolbar();
+}
+
+/**
+ * Toggle Individual Lead Selection
+ */
+function toggleSelectLead(leadId, checked) {
+  if (checked) {
+    selectedLeadIds.add(leadId);
+  } else {
+    selectedLeadIds.delete(leadId);
+  }
+  const filtered = getFilteredLeads();
+  const selectAllCb = document.getElementById('select-all-leads-cb');
+  if (selectAllCb) {
+    selectAllCb.checked = filtered.length > 0 && filtered.every((l) => selectedLeadIds.has(l.id));
+    selectAllCb.indeterminate = !selectAllCb.checked && filtered.some((l) => selectedLeadIds.has(l.id));
+  }
+  updateBulkToolbar();
+}
+
+/**
+ * Clear All Selected Leads
+ */
+function clearLeadSelection() {
+  selectedLeadIds.clear();
+  const selectAllCb = document.getElementById('select-all-leads-cb');
+  if (selectAllCb) {
+    selectAllCb.checked = false;
+    selectAllCb.indeterminate = false;
+  }
+  const checkboxes = document.querySelectorAll('.lead-select-cb');
+  checkboxes.forEach((cb) => (cb.checked = false));
+  updateBulkToolbar();
+}
+
+/**
+ * Update Bulk Action Toolbar Visibility & Count
+ */
+function updateBulkToolbar() {
+  const bar = document.getElementById('bulk-actions-bar');
+  const countEl = document.getElementById('bulk-selected-count');
+  if (!bar || !countEl) return;
+
+  const count = selectedLeadIds.size;
+  countEl.innerText = count;
+  if (count > 0) {
+    bar.classList.remove('hidden');
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+
+/**
+ * Handle Bulk Stage Change
+ */
+function handleBulkStageChange(newStage) {
+  if (!newStage || selectedLeadIds.size === 0) return;
+
+  const count = selectedLeadIds.size;
+  let updatedCount = 0;
+
+  allLeads.forEach((lead) => {
+    if (selectedLeadIds.has(lead.id)) {
+      lead.funnelStage = newStage;
+      lead.lastContactedAt = new Date().toISOString();
+      updatedCount++;
+      if (!isStaticMode) {
+        fetch(getApiUrl(`/api/leads/${lead.id}`), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ funnelStage: newStage }),
+        }).catch(() => null);
+      }
+    }
+  });
+
+  saveLeadsLocally();
+  showToast(`✓ Updated ${updatedCount} leads to stage: ${newStage}`);
+  const selectEl = document.getElementById('bulk-stage-select');
+  if (selectEl) selectEl.value = '';
+  renderDashboard();
+}
+
+/**
+ * Handle Bulk Export (CSV / Instantly)
+ */
+function handleBulkExport(type) {
+  const targetLeads = selectedLeadIds.size > 0
+    ? allLeads.filter((l) => selectedLeadIds.has(l.id))
+    : allLeads;
+
+  if (targetLeads.length === 0) {
+    showToast('No leads available to export.');
+    return;
+  }
+
+  if (type === 'csv') {
+    const headers = ['ID', 'Name', 'Category', 'Area', 'Address', 'Phone', 'Email', 'Website', 'Instagram', 'Stage', 'Score', 'DealValue'];
+    const rows = targetLeads.map((l) => [
+      `"${l.id}"`,
+      `"${(l.name || '').replace(/"/g, '""')}"`,
+      `"${l.category || ''}"`,
+      `"${l.area || ''}"`,
+      `"${(l.address || '').replace(/"/g, '""')}"`,
+      `"${l.phone || ''}"`,
+      `"${l.email || ''}"`,
+      `"${l.website || ''}"`,
+      `"${l.socials?.instagram || ''}"`,
+      `"${l.funnelStage || ''}"`,
+      `"${l.opportunityScore || ''}"`,
+      `"${l.estimatedDealValue || 18500}"`,
+    ]);
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    triggerDownload(csvContent, `leadgremlin_selected_${targetLeads.length}_leads.csv`, 'text/csv');
+    showToast(`📥 Exported ${targetLeads.length} selected leads to CSV!`);
+  } else if (type === 'instantly') {
+    const headers = ['Company Name', 'Email', 'Phone', 'Website', 'City', 'Category', 'Opportunity Score', 'Email Subject', 'Email Body'];
+    const rows = targetLeads.map((l) => [
+      `"${(l.name || '').replace(/"/g, '""')}"`,
+      `"${l.email || ''}"`,
+      `"${l.phone || ''}"`,
+      `"${l.website || ''}"`,
+      `"${l.area || ''}"`,
+      `"${l.category || ''}"`,
+      `"${l.opportunityScore || 80}"`,
+      `"${(l.aiPitchScripts?.email?.subject || '').replace(/"/g, '""')}"`,
+      `"${(l.aiPitchScripts?.email?.body || '').replace(/"/g, '""').replace(/\n/g, '\\n')}"`,
+    ]);
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    triggerDownload(csvContent, `leadgremlin_selected_instantly_${targetLeads.length}.csv`, 'text/csv');
+    showToast(`⚡ Exported ${targetLeads.length} leads for Instantly.ai!`);
+  }
+}
+
+/**
+ * Handle Bulk Delete
+ */
+function handleBulkDelete() {
+  if (selectedLeadIds.size === 0) return;
+  const count = selectedLeadIds.size;
+
+  if (!confirm(`Are you sure you want to delete ${count} selected lead(s)?`)) {
+    return;
+  }
+
+  const idsToDelete = Array.from(selectedLeadIds);
+  allLeads = allLeads.filter((l) => !selectedLeadIds.has(l.id));
+  clearLeadSelection();
+  saveLeadsLocally();
+
+  if (!isStaticMode) {
+    idsToDelete.forEach((id) => {
+      fetch(getApiUrl(`/api/leads/${id}`), { method: 'DELETE' }).catch(() => null);
+    });
+    fetchStats();
+  }
+
+  showToast(`✓ Removed ${count} leads from pipeline.`);
+  renderDashboard();
 }
 
 /**

@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#070a12">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>LeadGremlin | AI Outbound Lead Engine & South Africa Search Universe</title>
   <meta name="description" content="AI Outbound Lead Engine & Sales Funnel Dashboard for South African business discovery across Durban, Sandton, Cape Town, and national metro hubs.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,14 +15,18 @@
 </head>
 <body>
   <div id="app" class="dashboard-layout">
+    <!-- Sidebar Backdrop for Mobile Drawer -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleMobileSidebar(false)"></div>
+
     <!-- Sidebar Navigation -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
       <div class="brand">
         <div class="logo-icon">⚡</div>
         <div class="brand-text">
           <h2>LeadGremlin</h2>
           <span class="version-badge">v2.5 SA Engine</span>
         </div>
+        <button class="sidebar-close-btn" onclick="toggleMobileSidebar(false)" aria-label="Close Sidebar">&times;</button>
       </div>
 
       <nav class="nav-menu">
@@ -75,6 +82,22 @@
 
     <!-- Main Workspace -->
     <main class="main-content">
+      <!-- Mobile Top Bar (Visible only on mobile/tablet) -->
+      <header class="mobile-top-bar">
+        <button class="mobile-menu-btn" onclick="toggleMobileSidebar(true)" aria-label="Open Navigation Menu">
+          <span class="menu-icon">☰</span>
+        </button>
+        <div class="mobile-brand">
+          <span class="mobile-logo">⚡</span>
+          <span class="mobile-title">LeadGremlin</span>
+        </div>
+        <div class="mobile-top-actions">
+          <button class="btn btn-sm btn-primary mobile-extract-quick" onclick="openExtractModal()">
+            <span>⚡ Extract</span>
+          </button>
+        </div>
+      </header>
+
       <!-- Top Live Extraction Progress Banner (Floating) -->
       <div class="live-extraction-banner hidden" id="live-extraction-banner">
         <div class="banner-content">
@@ -233,10 +256,40 @@
               <button class="btn btn-sm btn-outline" onclick="openAddLeadModal()">+ Add Prospect Manually</button>
             </div>
           </div>
+
+          <!-- Bulk Actions Floating Bar -->
+          <div class="bulk-actions-bar hidden" id="bulk-actions-bar">
+            <div class="bulk-selected-info">
+              <span class="bulk-selected-count" id="bulk-selected-count">0</span> leads selected
+            </div>
+            <div class="bulk-action-buttons">
+              <div class="bulk-stage-selector">
+                <span>Move to:</span>
+                <select id="bulk-stage-select" class="form-control-sm" onchange="handleBulkStageChange(this.value)">
+                  <option value="" disabled selected>Select Stage</option>
+                  <option value="new">New Lead</option>
+                  <option value="enriched">Enriched</option>
+                  <option value="outreach">Outreach Sent</option>
+                  <option value="meeting">Meeting Booked</option>
+                  <option value="proposal">Proposal Sent</option>
+                  <option value="won">Closed Won 🏆</option>
+                  <option value="lost">Closed Lost</option>
+                </select>
+              </div>
+              <button class="btn btn-sm btn-outline-light" onclick="handleBulkExport('csv')">📥 Export CSV</button>
+              <button class="btn btn-sm btn-outline-light" onclick="handleBulkExport('instantly')">⚡ Instantly CSV</button>
+              <button class="btn btn-sm btn-outline-danger" onclick="handleBulkDelete()">🗑️ Delete</button>
+              <button class="btn btn-sm btn-ghost" onclick="clearLeadSelection()">✕ Deselect</button>
+            </div>
+          </div>
+
           <div class="table-responsive">
             <table class="data-table">
               <thead>
                 <tr>
+                  <th style="width: 42px; text-align: center;">
+                    <input type="checkbox" id="select-all-leads-cb" onchange="toggleSelectAllLeads(this.checked)" title="Select All Prospects">
+                  </th>
                   <th onclick="toggleSort('name')" class="sortable">Business Name ↕</th>
                   <th onclick="toggleSort('category')" class="sortable">Category ↕</th>
                   <th>Area / Suburb</th>
