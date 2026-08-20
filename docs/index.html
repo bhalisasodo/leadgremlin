@@ -128,6 +128,10 @@
             <span>✨ Enrich Contacts</span>
           </button>
 
+          <button class="btn btn-outline" id="btn-scheduler" onclick="openSchedulerModal()">
+            <span>⏱️ Scheduler</span>
+          </button>
+
           <button class="btn btn-outline" id="btn-notion-sync" onclick="triggerNotionSync()">
             <span>🔗 Sync to Notion</span>
           </button>
@@ -231,6 +235,13 @@
           </div>
 
           <div class="filter-controls-right">
+            <div class="tag-selector">
+              <label>Tag:</label>
+              <select id="filter-tag-select" class="form-control-sm" onchange="applyFilters()">
+                <option value="ALL">All Tags</option>
+              </select>
+            </div>
+            
             <div class="area-selector">
               <label>SA Area:</label>
               <select id="filter-area-select" class="form-control-sm" onchange="applyFilters()">
@@ -589,6 +600,23 @@
             </div>
           </div>
 
+          <!-- Custom Prospect Tags Manager -->
+          <div class="detail-section">
+            <h4 class="section-title">Prospect Tags</h4>
+            <div class="lead-tags-container" id="detail-tags-list"></div>
+            <div class="tag-input-row">
+              <input type="text" id="new-tag-input" class="form-control-sm" placeholder="Add custom tag..." onkeydown="if(event.key==='Enter'){event.preventDefault();addTagFromInput();}">
+              <button type="button" class="btn btn-sm btn-outline" onclick="addTagFromInput()">+ Add</button>
+            </div>
+            <div class="tag-suggestion-chips">
+              <span class="tag-chip-sm" onclick="addTagPreset('VIP')">+ VIP</span>
+              <span class="tag-chip-sm" onclick="addTagPreset('High Intent')">+ High Intent</span>
+              <span class="tag-chip-sm" onclick="addTagPreset('No SSL')">+ No SSL</span>
+              <span class="tag-chip-sm" onclick="addTagPreset('Needs WhatsApp')">+ Needs WhatsApp</span>
+              <span class="tag-chip-sm" onclick="addTagPreset('Followup Scheduled')">+ Followup</span>
+            </div>
+          </div>
+
           <!-- Technical Website Audit Breakdown -->
           <div class="detail-section">
             <div class="section-title-row">
@@ -628,9 +656,17 @@
           </div>
 
           <div class="detail-section">
-            <h4 class="section-title">Notes & Activity Log</h4>
+            <h4 class="section-title">Notes</h4>
             <textarea id="detail-notes" class="form-control" rows="3" placeholder="Add notes about conversations or follow-up details..."></textarea>
             <button class="btn btn-sm btn-secondary mt-2" onclick="saveLeadNotes()">Save Notes</button>
+          </div>
+
+          <!-- Chronological Activity Timeline Log -->
+          <div class="detail-section">
+            <h4 class="section-title">Activity Timeline History</h4>
+            <div class="activity-timeline" id="detail-activity-timeline">
+              <!-- Dynamically populated via app.js -->
+            </div>
           </div>
 
           <!-- Multi-Channel AI Outreach Pitch Suite & Sequence Playbooks -->
@@ -767,6 +803,72 @@
             <button type="submit" class="btn btn-primary">Save Lead</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 4: AUTOMATED SCRAPER JOB SCHEDULER -->
+  <div class="modal-overlay" id="scheduler-modal">
+    <div class="modal-card glass-panel" style="max-width: 780px;">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span class="modal-icon">⏱️</span>
+          <div>
+            <h3>Automated Discovery Job Scheduler</h3>
+            <p>Configure recurring search universe scraping jobs across South Africa</p>
+          </div>
+        </div>
+        <button class="close-btn" onclick="closeSchedulerModal()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- New Scheduled Job Form -->
+        <div class="scheduler-create-card glass-panel mb-4">
+          <h4 style="font-size: 13px; font-weight: 700; color: var(--sky); margin-bottom: 10px;">➕ Create Scheduled Discovery Task</h4>
+          <form id="schedule-job-form" onsubmit="handleScheduleJobSubmit(event)">
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>Task Name *</label>
+                <input type="text" id="job-name" class="form-control" placeholder="e.g. Cape Town Dental Clinics" required>
+              </div>
+              <div class="form-group">
+                <label>Industry Niche *</label>
+                <select id="job-niche" class="form-control" required>
+                  <option value="Healthcare & Wellness">🩺 Healthcare & Dental</option>
+                  <option value="Fitness">🏋️ Fitness & Gyms</option>
+                  <option value="Beauty and Hair">💇 Beauty & Salons</option>
+                  <option value="Restaurant">🍽️ Restaurants & Cafes</option>
+                  <option value="Real Estate">🏠 Real Estate Agencies</option>
+                  <option value="Professional Services">⚖️ Professional Services</option>
+                  <option value="Automotive & Trades">🔧 Automotive & Trades</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>Target Suburbs (comma-separated) *</label>
+                <input type="text" id="job-suburbs" class="form-control" placeholder="e.g. Umhlanga, Durban North, Ballito" required>
+              </div>
+              <div class="form-group">
+                <label>Run Frequency *</label>
+                <select id="job-interval" class="form-control">
+                  <option value="daily">Daily (Every 24h)</option>
+                  <option value="weekly">Weekly (Every 7 days)</option>
+                  <option value="hourly">Hourly (Active scan)</option>
+                </select>
+              </div>
+            </div>
+            <div style="text-align: right; margin-top: 10px;">
+              <button type="submit" class="btn btn-sm btn-primary">➕ Schedule Job</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Active Jobs List -->
+        <h4 style="font-size: 13px; font-weight: 700; color: var(--text-main); margin-bottom: 12px;">Active Scheduled Tasks</h4>
+        <div class="scheduler-jobs-list" id="scheduler-jobs-list">
+          <!-- Dynamically populated via app.js -->
+        </div>
       </div>
     </div>
   </div>

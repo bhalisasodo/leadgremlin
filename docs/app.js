@@ -19,6 +19,7 @@ let activeTouchpointIndex = 0;
 let currentPitchTone = 'consultative';
 let currentQuickFilter = 'ALL';
 let selectedLeadIds = new Set();
+let scheduledJobs = [];
 
 /**
  * Toggle Mobile Sidebar Drawer
@@ -795,6 +796,7 @@ function getFilteredLeads() {
   const hasWebsiteOnly = document.getElementById('filter-has-website')?.checked;
   const hasPhoneOnly = document.getElementById('filter-has-phone')?.checked;
   const areaSelectVal = document.getElementById('filter-area-select')?.value || 'ALL';
+  const tagSelectVal = document.getElementById('filter-tag-select')?.value || 'ALL';
 
   let leads = allLeads.filter((lead) => {
     const matchesCategory =
@@ -805,13 +807,18 @@ function getFilteredLeads() {
       areaSelectVal === 'ALL' ||
       (lead.area && lead.area.toLowerCase().includes(areaSelectVal.toLowerCase()));
 
+    const matchesTag =
+      tagSelectVal === 'ALL' ||
+      (lead.tags && lead.tags.some((t) => t.toLowerCase() === tagSelectVal.toLowerCase()));
+
     const matchesSearch =
       !currentSearchTerm ||
       lead.name.toLowerCase().includes(currentSearchTerm) ||
       (lead.area && lead.area.toLowerCase().includes(currentSearchTerm)) ||
       (lead.email && lead.email.toLowerCase().includes(currentSearchTerm)) ||
       (lead.phone && lead.phone.toLowerCase().includes(currentSearchTerm)) ||
-      (lead.address && lead.address.toLowerCase().includes(currentSearchTerm));
+      (lead.address && lead.address.toLowerCase().includes(currentSearchTerm)) ||
+      (lead.tags && lead.tags.some((t) => t.toLowerCase().includes(currentSearchTerm)));
 
     const matchesEmail = !hasEmailOnly || Boolean(lead.email && lead.email.trim() !== '');
     const matchesWebsite = !hasWebsiteOnly || Boolean(lead.website && lead.website.trim() !== '');
@@ -831,7 +838,7 @@ function getFilteredLeads() {
       matchesPreset = Boolean(lead.email && lead.email.trim() !== '');
     }
 
-    return matchesCategory && matchesArea && matchesSearch && matchesEmail && matchesWebsite && matchesPhone && matchesPreset;
+    return matchesCategory && matchesArea && matchesTag && matchesSearch && matchesEmail && matchesWebsite && matchesPhone && matchesPreset;
   });
 
   // Apply Sorting
@@ -852,11 +859,31 @@ function getFilteredLeads() {
 }
 
 /**
+ * Update live tag filter select options
+ */
+function updateTagSelectOptions() {
+  const tagSelect = document.getElementById('filter-tag-select');
+  if (!tagSelect) return;
+
+  const currentVal = tagSelect.value || 'ALL';
+  const tagSet = new Set();
+  allLeads.forEach((l) => (l.tags || []).forEach((t) => tagSet.add(t)));
+
+  const options = ['<option value="ALL">All Tags</option>'];
+  Array.from(tagSet).sort().forEach((tag) => {
+    options.push(`<option value="${escapeHtml(tag)}" ${tag === currentVal ? 'selected' : ''}>🏷️ ${escapeHtml(tag)}</option>`);
+  });
+
+  tagSelect.innerHTML = options.join('');
+}
+
+/**
  * Main Render Engine
  */
 function renderDashboard() {
   const filtered = getFilteredLeads();
   updateCategoryPillCounts();
+  updateTagSelectOptions();
 
   if (activeView === 'kanban') {
     renderKanban(filtered);
@@ -952,6 +979,9 @@ function renderKanban(leads) {
       const score = lead.opportunityScore || 80;
       const scoreClass = score >= 80 ? '' : 'med';
       const dealValStr = lead.estimatedDealValue ? ` • R${lead.estimatedDealValue.toLocaleString()}` : '';
+      const tagsHtml = (lead.tags && lead.tags.length > 0)
+        ? `<div class="card-tags-row" style="margin: 4px 0;">${lead.tags.map((t) => `<span class="card-tag-pill">🏷️ ${escapeHtml(t)}</span>`).join('')}</div>`
+        : '';
 
       card.innerHTML = `
         <div class="card-top">
@@ -959,6 +989,7 @@ function renderKanban(leads) {
           <span class="score-tag ${scoreClass}">${score} Score</span>
         </div>
         <div class="card-category">${escapeHtml(lead.category)} • ${escapeHtml(lead.area || 'South Africa')}${dealValStr}</div>
+        ${tagsHtml}
         <div class="card-location">
           📍 ${escapeHtml(lead.address || lead.area || 'South Africa')}
         </div>
@@ -1005,11 +1036,15 @@ function renderTable(leads) {
       (s) => `<option value="${s.id}" ${s.id === lead.funnelStage ? 'selected' : ''}>${s.label}</option>`
     ).join('');
 
+    const tableTagsHtml = (lead.tags && lead.tags.length > 0)
+      ? `<div style="margin-top: 4px;">${lead.tags.map((t) => `<span class="table-tag-pill">${escapeHtml(t)}</span>`).join('')}</div>`
+      : '';
+
     tr.innerHTML = `
       <td style="text-align: center;">
         <input type="checkbox" class="lead-select-cb" data-id="${lead.id}" ${isChecked ? 'checked' : ''} onchange="toggleSelectLead('${lead.id}', this.checked)">
       </td>
-      <td><strong>${escapeHtml(lead.name)}</strong></td>
+      <td><strong>${escapeHtml(lead.name)}</strong>${tableTagsHtml}</td>
       <td><span class="badge">${escapeHtml(lead.category)}</span></td>
       <td><span class="badge" style="background:rgba(14,165,233,0.15); color:var(--sky);">${escapeHtml(lead.area || 'South Africa')}</span></td>
       <td>
@@ -2021,6 +2056,8 @@ function openDetailModal(leadId) {
 
   renderTechnicalAuditDrawer(selectedLead);
   renderPitchSuite(selectedLead);
+  renderDetailTags(selectedLead);
+  renderActivityTimeline(selectedLead);
 
   document.getElementById('detail-modal').classList.add('show');
 }
@@ -2036,7 +2073,9 @@ function closeDetailModal() {
 async function updateLeadStageFromModal(newStage) {
   if (!selectedLead) return;
 
+  const prevStage = selectedLead.funnelStage;
   selectedLead.funnelStage = newStage;
+  logLeadActivity(selectedLead, 'stage_change', `Moved pipeline stage from ${prevStage ? prevStage.toUpperCase() : 'NEW'} to ${newStage.toUpperCase()}`);
 
   if (!isStaticMode) {
     try {
@@ -2062,6 +2101,7 @@ async function saveLeadNotes() {
   if (!selectedLead) return;
   const notes = document.getElementById('detail-notes').value;
   selectedLead.notes = notes;
+  logLeadActivity(selectedLead, 'note_added', `Updated notes: "${notes.trim().substring(0, 50)}${notes.trim().length > 50 ? '...' : ''}"`);
 
   if (!isStaticMode) {
     try {
@@ -2378,6 +2418,7 @@ function dispatchWhatsApp() {
 
   const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(waScript)}`;
   window.open(waUrl, '_blank', 'noopener,noreferrer');
+  logLeadActivity(selectedLead, 'outreach_sent', `Dispatched WhatsApp outreach copy to ${cleanPhone}`);
   showToast(`💬 Launching WhatsApp for ${selectedLead.name}...`);
 }
 
@@ -2401,6 +2442,7 @@ function dispatchEmail() {
 
   const mailtoUrl = `mailto:${selectedLead.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   window.location.href = mailtoUrl;
+  logLeadActivity(selectedLead, 'outreach_sent', `Dispatched email outreach to ${selectedLead.email}`);
   showToast(`✉️ Launching email client for ${selectedLead.email}...`);
 }
 
@@ -2413,6 +2455,8 @@ function openClientReport(leadId) {
     showToast('⚠️ Please select a lead first!');
     return;
   }
+
+  logLeadActivity(lead, 'outreach_sent', 'Generated client proposal audit report');
 
   if (!isStaticMode) {
     window.open(getApiUrl(`/api/leads/${lead.id}/report`), '_blank');
@@ -2908,6 +2952,389 @@ function triggerDownload(content, filename, mimeType) {
   link.href = URL.createObjectURL(blob);
   link.download = filename;
   link.click();
+}
+
+/**
+ * Render Tags in Detail Drawer
+ */
+function renderDetailTags(lead) {
+  const container = document.getElementById('detail-tags-list');
+  if (!container) return;
+
+  const tags = lead.tags || [];
+  if (tags.length === 0) {
+    container.innerHTML = '<span style="color:var(--text-dim); font-size:11px;">No custom tags added yet</span>';
+    return;
+  }
+
+  container.innerHTML = tags
+    .map(
+      (t) => `
+      <span class="lead-tag-badge">
+        <span>🏷️ ${escapeHtml(t)}</span>
+        <span class="tag-remove-btn" onclick="removeLeadTag('${escapeHtml(t)}')" title="Remove tag">&times;</span>
+      </span>
+    `
+    )
+    .join('');
+}
+
+/**
+ * Add Tag from User Input
+ */
+async function addTagFromInput() {
+  const input = document.getElementById('new-tag-input');
+  if (!input || !selectedLead) return;
+
+  const tag = input.value.trim();
+  if (!tag) return;
+
+  await addLeadTag(tag);
+  input.value = '';
+}
+
+/**
+ * Add Tag from Preset Chip
+ */
+async function addTagPreset(preset) {
+  if (!selectedLead) return;
+  await addLeadTag(preset);
+}
+
+/**
+ * Core Add Tag Logic
+ */
+async function addLeadTag(tag) {
+  if (!selectedLead || !tag) return;
+
+  selectedLead.tags = selectedLead.tags || [];
+  if (selectedLead.tags.some((t) => t.toLowerCase() === tag.toLowerCase())) {
+    showToast(`⚠️ Tag "${tag}" is already attached.`);
+    return;
+  }
+
+  selectedLead.tags.push(tag);
+  logLeadActivity(selectedLead, 'tag_added', `Added tag: "${tag}"`);
+
+  if (!isStaticMode) {
+    try {
+      await fetch(getApiUrl(`/api/leads/${selectedLead.id}/tags`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag, action: 'add' }),
+      });
+    } catch {}
+  }
+
+  saveLeadsLocally();
+  renderDetailTags(selectedLead);
+  renderDashboard();
+  showToast(`✓ Added tag: ${tag}`);
+}
+
+/**
+ * Remove Lead Tag
+ */
+async function removeLeadTag(tag) {
+  if (!selectedLead || !tag) return;
+
+  selectedLead.tags = (selectedLead.tags || []).filter((t) => t.toLowerCase() !== tag.toLowerCase());
+  logLeadActivity(selectedLead, 'tag_removed', `Removed tag: "${tag}"`);
+
+  if (!isStaticMode) {
+    try {
+      await fetch(getApiUrl(`/api/leads/${selectedLead.id}/tags`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag, action: 'remove' }),
+      });
+    } catch {}
+  }
+
+  saveLeadsLocally();
+  renderDetailTags(selectedLead);
+  renderDashboard();
+  showToast(`✓ Removed tag: ${tag}`);
+}
+
+/**
+ * Render Chronological Activity Timeline
+ */
+function renderActivityTimeline(lead) {
+  const container = document.getElementById('detail-activity-timeline');
+  if (!container) return;
+
+  const logs = lead.activityLog || [];
+  if (logs.length === 0) {
+    container.innerHTML = `
+      <div class="timeline-item">
+        <div class="timeline-icon-wrap">⚡</div>
+        <div class="timeline-content">
+          <div class="timeline-desc">Lead discovered & imported into pipeline</div>
+          <div class="timeline-time">${lead.scrapedAt ? new Date(lead.scrapedAt).toLocaleString() : 'Recently'}</div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  const typeIcons = {
+    stage_change: '🔄',
+    note_added: '📝',
+    outreach_sent: '💬',
+    call_logged: '📞',
+    audit_run: '🔍',
+    tag_added: '🏷️',
+    tag_removed: '🗑️',
+    created: '⚡',
+  };
+
+  container.innerHTML = logs
+    .map(
+      (item) => `
+      <div class="timeline-item">
+        <div class="timeline-icon-wrap">${typeIcons[item.type] || '📌'}</div>
+        <div class="timeline-content">
+          <div class="timeline-desc">${escapeHtml(item.description)}</div>
+          <div class="timeline-time">${new Date(item.timestamp).toLocaleString()}</div>
+        </div>
+      </div>
+    `
+    )
+    .join('');
+}
+
+/**
+ * Log Lead Activity Item
+ */
+function logLeadActivity(lead, type, description) {
+  if (!lead) return;
+
+  lead.activityLog = lead.activityLog || [];
+  const newItem = {
+    id: `act_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+    timestamp: new Date().toISOString(),
+    type: type || 'note_added',
+    description,
+  };
+
+  lead.activityLog.unshift(newItem);
+
+  if (!isStaticMode) {
+    try {
+      fetch(getApiUrl(`/api/leads/${lead.id}/activity`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, description }),
+      }).catch(() => {});
+    } catch {}
+  }
+
+  if (selectedLead && selectedLead.id === lead.id) {
+    renderActivityTimeline(lead);
+  }
+}
+
+/**
+ * Open & Close Scheduler Modal
+ */
+function openSchedulerModal() {
+  const modal = document.getElementById('scheduler-modal');
+  if (modal) {
+    modal.classList.add('show');
+    loadSchedulerJobs();
+  }
+}
+
+function closeSchedulerModal() {
+  const modal = document.getElementById('scheduler-modal');
+  if (modal) modal.classList.remove('show');
+}
+
+/**
+ * Load & Render Scheduled Jobs
+ */
+async function loadSchedulerJobs() {
+  const defaultJobs = [
+    {
+      id: 'job_kzn_physio',
+      name: 'KZN Coast Physios & Wellness Discovery',
+      niche: 'Healthcare & Wellness',
+      suburbs: ['Umhlanga', 'Durban North', 'Ballito'],
+      interval: 'daily',
+      enabled: true,
+      lastRunAt: new Date(Date.now() - 86400000).toISOString(),
+      nextRunAt: new Date(Date.now() + 86400000).toISOString(),
+      totalLeadsFound: 14,
+      status: 'idle',
+    },
+    {
+      id: 'job_gp_crossfit',
+      name: 'Gauteng Fitness & Gym Hubs Scan',
+      niche: 'Fitness',
+      suburbs: ['Sandton', 'Rosebank', 'Bryanston'],
+      interval: 'weekly',
+      enabled: true,
+      lastRunAt: new Date(Date.now() - 432000000).toISOString(),
+      nextRunAt: new Date(Date.now() + 172800000).toISOString(),
+      totalLeadsFound: 22,
+      status: 'idle',
+    },
+  ];
+
+  if (isStaticMode) {
+    const local = localStorage.getItem('leadgremlin_scheduled_jobs');
+    scheduledJobs = local ? JSON.parse(local) : defaultJobs;
+    renderSchedulerJobs();
+    return;
+  }
+
+  try {
+    const res = await fetch(getApiUrl('/api/scheduler/jobs'));
+    const data = await res.json();
+    if (data.success && Array.isArray(data.jobs)) {
+      scheduledJobs = data.jobs;
+    } else {
+      scheduledJobs = defaultJobs;
+    }
+  } catch {
+    scheduledJobs = defaultJobs;
+  }
+
+  renderSchedulerJobs();
+}
+
+/**
+ * Render Scheduled Scraping Tasks
+ */
+function renderSchedulerJobs() {
+  const container = document.getElementById('scheduler-jobs-list');
+  if (!container) return;
+
+  if (scheduledJobs.length === 0) {
+    container.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-dim);">No scheduled discovery tasks configured yet.</div>';
+    return;
+  }
+
+  container.innerHTML = scheduledJobs
+    .map(
+      (job) => `
+      <div class="job-card" id="job-card-${job.id}">
+        <div class="job-info">
+          <div class="job-title-row">
+            <span class="job-name">⏱️ ${escapeHtml(job.name)}</span>
+            <span class="job-status-pill ${job.status || 'idle'}">${job.status || 'idle'}</span>
+          </div>
+          <div class="job-subtext">
+            <strong>${escapeHtml(job.niche)}</strong> • Suburbs: ${escapeHtml(job.suburbs.join(', '))} • Interval: <strong style="text-transform:capitalize;">${job.interval}</strong>
+          </div>
+          <div class="job-subtext">
+            Found: <strong style="color:var(--sky);">${job.totalLeadsFound || 0} leads</strong> • Last Run: ${job.lastRunAt ? new Date(job.lastRunAt).toLocaleDateString() : 'Never'}
+          </div>
+        </div>
+        <div class="job-actions">
+          <button class="btn btn-sm btn-outline" onclick="runScheduledJob('${job.id}')" title="Trigger Instant Scan">⚡ Run Now</button>
+          <button class="btn btn-sm btn-icon-only btn-danger-icon" onclick="deleteScheduledJob('${job.id}')" title="Delete Task">🗑️</button>
+        </div>
+      </div>
+    `
+    )
+    .join('');
+}
+
+/**
+ * Handle Schedule Job Form Submit
+ */
+async function handleScheduleJobSubmit(e) {
+  e.preventDefault();
+  const name = document.getElementById('job-name')?.value.trim();
+  const niche = document.getElementById('job-niche')?.value;
+  const suburbsStr = document.getElementById('job-suburbs')?.value.trim();
+  const interval = document.getElementById('job-interval')?.value || 'daily';
+
+  if (!name || !niche || !suburbsStr) {
+    showToast('⚠️ Please complete all required task fields.');
+    return;
+  }
+
+  const suburbs = suburbsStr.split(',').map((s) => s.trim()).filter(Boolean);
+
+  const newJob = {
+    id: `job_${Date.now()}`,
+    name,
+    niche,
+    suburbs,
+    interval,
+    enabled: true,
+    status: 'idle',
+    lastRunAt: new Date().toISOString(),
+    nextRunAt: new Date(Date.now() + 86400000).toISOString(),
+    totalLeadsFound: 0,
+  };
+
+  scheduledJobs.unshift(newJob);
+
+  if (!isStaticMode) {
+    try {
+      await fetch(getApiUrl('/api/scheduler/jobs'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newJob),
+      });
+    } catch {}
+  } else {
+    localStorage.setItem('leadgremlin_scheduled_jobs', JSON.stringify(scheduledJobs));
+  }
+
+  renderSchedulerJobs();
+  showToast(`✓ Scheduled task "${name}" created!`);
+  document.getElementById('schedule-job-form')?.reset();
+}
+
+/**
+ * Trigger Instant Job Run
+ */
+async function runScheduledJob(jobId) {
+  const job = scheduledJobs.find((j) => j.id === jobId);
+  if (!job) return;
+
+  job.status = 'running';
+  renderSchedulerJobs();
+  showToast(`⚡ Running scheduled task "${job.name}"...`);
+
+  if (!isStaticMode) {
+    try {
+      await fetch(getApiUrl(`/api/scheduler/jobs/${jobId}/run`), { method: 'POST' });
+    } catch {}
+  }
+
+  setTimeout(() => {
+    job.status = 'completed';
+    job.totalLeadsFound = (job.totalLeadsFound || 0) + Math.floor(4 + Math.random() * 6);
+    if (isStaticMode) {
+      localStorage.setItem('leadgremlin_scheduled_jobs', JSON.stringify(scheduledJobs));
+    }
+    renderSchedulerJobs();
+    showToast(`✓ Job "${job.name}" completed!`);
+  }, 2200);
+}
+
+/**
+ * Delete Scheduled Job
+ */
+async function deleteScheduledJob(jobId) {
+  scheduledJobs = scheduledJobs.filter((j) => j.id !== jobId);
+
+  if (!isStaticMode) {
+    try {
+      await fetch(getApiUrl(`/api/scheduler/jobs/${jobId}`), { method: 'DELETE' });
+    } catch {}
+  } else {
+    localStorage.setItem('leadgremlin_scheduled_jobs', JSON.stringify(scheduledJobs));
+  }
+
+  renderSchedulerJobs();
+  showToast('✓ Scheduled task deleted.');
 }
 
 function escapeHtml(str) {

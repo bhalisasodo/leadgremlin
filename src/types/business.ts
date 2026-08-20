@@ -20,6 +20,44 @@ export interface SocialLinks {
   youtube?: string;
 }
 
+export interface ActivityLogItem {
+  id: string;
+  timestamp: string;
+  type:
+    | 'stage_change'
+    | 'note_added'
+    | 'outreach_sent'
+    | 'call_logged'
+    | 'audit_run'
+    | 'tag_added'
+    | 'tag_removed'
+    | 'created';
+  description: string;
+  user?: string;
+}
+
+export interface CustomPipelineStage {
+  id: string;
+  label: string;
+  emoji?: string;
+  probability: number;
+  color?: string;
+  order: number;
+}
+
+export interface ScheduledJob {
+  id: string;
+  name: string;
+  niche: string;
+  suburbs: string[];
+  interval: 'hourly' | 'daily' | 'weekly' | 'manual';
+  enabled: boolean;
+  lastRunAt?: string;
+  nextRunAt?: string;
+  totalLeadsFound?: number;
+  status: 'idle' | 'running' | 'completed' | 'failed';
+}
+
 /**
  * Enhanced Business Lead Interface for Sales Funnel
  */
@@ -47,6 +85,8 @@ export interface Business {
   technicalAudit?: TechnicalAudit;
   aiPitchScripts?: MultiChannelScripts;
   outreachSequences?: Record<string, ComprehensiveSequence>;
+  tags?: string[];
+  activityLog?: ActivityLogItem[];
   notes?: string;
   lastContactedAt?: string;
   scrapedAt: string;

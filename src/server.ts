@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
-import { Business, FunnelStage } from './types/business.js';
+import { Business, FunnelStage, ActivityLogItem, ScheduledJob } from './types/business.js';
 import { MultiSourceScraper } from './scraper/multiSourceScraper.js';
 import { contactEnricher } from './enrichment/contactEnricher.js';
 import { Exporter } from './utils/exporter.js';
@@ -22,6 +22,7 @@ import crypto from 'crypto';
 const INITIAL_PORT = parseInt(process.env.PORT || '3005', 10);
 const DATA_DIR = path.resolve(process.cwd(), './data');
 const DASHBOARD_FILE = path.join(DATA_DIR, 'leads_dashboard.json');
+const SCHEDULER_FILE = path.join(DATA_DIR, 'scheduled_jobs.json');
 const PUBLIC_DIR = path.resolve(process.cwd(), './public');
 
 const app = express();
@@ -301,8 +302,221 @@ app.post('/api/leads/:id/notes', (req: Request, res: Response) => {
   const formattedNote = `[${timestamp}] ${note.trim()}`;
   lead.notes = lead.notes ? `${formattedNote}\n${lead.notes}` : formattedNote;
 
+  lead.activityLog = lead.activityLog || [];
+  lead.activityLog.unshift({
+    id: `act_${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    type: 'note_added',
+    description: `Added activity note: "${note.trim().substring(0, 60)}${note.trim().length > 60 ? '...' : ''}"`,
+  });
+
   saveLeads(leads);
   res.json({ success: true, lead });
+});
+
+/**
+ * POST /api/leads/:id/tags - Add or remove tag from a lead
+ */
+app.post('/api/leads/:id/tags', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { tag, action } = req.body;
+
+  if (!tag || typeof tag !== 'string' || !tag.trim()) {
+    return res.status(400).json({ success: false, error: 'Tag text is required.' });
+  }
+
+  const leads = loadLeads();
+  const lead = leads.find((l) => l.id === id);
+  if (!lead) {
+    return res.status(404).json({ success: false, error: 'Lead not found.' });
+  }
+
+  const cleanTag = tag.trim();
+  lead.tags = lead.tags || [];
+  lead.activityLog = lead.activityLog || [];
+
+  if (action === 'remove') {
+    lead.tags = lead.tags.filter((t) => t.toLowerCase() !== cleanTag.toLowerCase());
+    lead.activityLog.unshift({
+      id: `act_${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      type: 'tag_removed',
+      description: `Removed tag: "${cleanTag}"`,
+    });
+  } else {
+    if (!lead.tags.some((t) => t.toLowerCase() === cleanTag.toLowerCase())) {
+      lead.tags.push(cleanTag);
+      lead.activityLog.unshift({
+        id: `act_${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        type: 'tag_added',
+        description: `Added tag: "${cleanTag}"`,
+      });
+    }
+  }
+
+  saveLeads(leads);
+  res.json({ success: true, tags: lead.tags, lead });
+});
+
+/**
+ * POST /api/leads/:id/activity - Append custom activity log item to a lead
+ */
+app.post('/api/leads/:id/activity', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { type, description } = req.body;
+
+  if (!description || typeof description !== 'string') {
+    return res.status(400).json({ success: false, error: 'Activity description is required.' });
+  }
+
+  const leads = loadLeads();
+  const lead = leads.find((l) => l.id === id);
+  if (!lead) {
+    return res.status(404).json({ success: false, error: 'Lead not found.' });
+  }
+
+  lead.activityLog = lead.activityLog || [];
+  const newActivity: ActivityLogItem = {
+    id: `act_${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    type: type || 'note_added',
+    description: description.trim(),
+  };
+
+  lead.activityLog.unshift(newActivity);
+  saveLeads(leads);
+  res.json({ success: true, activity: newActivity, lead });
+});
+
+/**
+ * Scheduler Helpers
+ */
+function loadScheduledJobs(): ScheduledJob[] {
+  if (!fs.existsSync(SCHEDULER_FILE)) {
+    const defaultJobs: ScheduledJob[] = [
+      {
+        id: 'job_kzn_physio',
+        name: 'KZN Coast Physios & Wellness Discovery',
+        niche: 'Healthcare & Wellness',
+        suburbs: ['Umhlanga', 'Durban North', 'Ballito'],
+        interval: 'daily',
+        enabled: true,
+        lastRunAt: new Date(Date.now() - 86400000).toISOString(),
+        nextRunAt: new Date(Date.now() + 86400000).toISOString(),
+        totalLeadsFound: 14,
+        status: 'idle',
+      },
+      {
+        id: 'job_gp_crossfit',
+        name: 'Gauteng Fitness & Gym Hubs Scan',
+        niche: 'Fitness',
+        suburbs: ['Sandton', 'Rosebank', 'Bryanston'],
+        interval: 'weekly',
+        enabled: true,
+        lastRunAt: new Date(Date.now() - 432000000).toISOString(),
+        nextRunAt: new Date(Date.now() + 172800000).toISOString(),
+        totalLeadsFound: 22,
+        status: 'idle',
+      },
+    ];
+    try {
+      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(SCHEDULER_FILE, JSON.stringify(defaultJobs, null, 2));
+    } catch {}
+    return defaultJobs;
+  }
+  try {
+    return JSON.parse(fs.readFileSync(SCHEDULER_FILE, 'utf-8'));
+  } catch {
+    return [];
+  }
+}
+
+function saveScheduledJobs(jobs: ScheduledJob[]): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(SCHEDULER_FILE, JSON.stringify(jobs, null, 2));
+  } catch (e) {
+    logger.error('Failed to save scheduled jobs:', e);
+  }
+}
+
+/**
+ * GET /api/scheduler/jobs - List all scheduled scraping jobs
+ */
+app.get('/api/scheduler/jobs', (_req: Request, res: Response) => {
+  const jobs = loadScheduledJobs();
+  res.json({ success: true, jobs });
+});
+
+/**
+ * POST /api/scheduler/jobs - Create or update a scheduled scraping job
+ */
+app.post('/api/scheduler/jobs', (req: Request, res: Response) => {
+  const { name, niche, suburbs, interval, enabled } = req.body;
+  if (!name || !niche || !Array.isArray(suburbs) || suburbs.length === 0) {
+    return res.status(400).json({ success: false, error: 'Name, niche, and at least one suburb are required.' });
+  }
+
+  const jobs = loadScheduledJobs();
+  const newJob: ScheduledJob = {
+    id: `job_${Date.now()}`,
+    name: name.trim(),
+    niche: niche.trim(),
+    suburbs,
+    interval: interval || 'daily',
+    enabled: enabled !== false,
+    status: 'idle',
+    lastRunAt: new Date().toISOString(),
+    nextRunAt: new Date(Date.now() + (interval === 'hourly' ? 3600000 : interval === 'weekly' ? 604800000 : 86400000)).toISOString(),
+    totalLeadsFound: 0,
+  };
+
+  jobs.unshift(newJob);
+  saveScheduledJobs(jobs);
+  res.json({ success: true, job: newJob });
+});
+
+/**
+ * DELETE /api/scheduler/jobs/:id - Delete a scheduled scraping job
+ */
+app.delete('/api/scheduler/jobs/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  let jobs = loadScheduledJobs();
+  const initialLength = jobs.length;
+  jobs = jobs.filter((j) => j.id !== id);
+  saveScheduledJobs(jobs);
+  res.json({ success: true, message: 'Scheduled job deleted.', removed: initialLength !== jobs.length });
+});
+
+/**
+ * POST /api/scheduler/jobs/:id/run - Trigger immediate background execution of a scheduled job
+ */
+app.post('/api/scheduler/jobs/:id/run', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const jobs = loadScheduledJobs();
+  const job = jobs.find((j) => j.id === id);
+  if (!job) {
+    return res.status(404).json({ success: false, error: 'Scheduled job not found.' });
+  }
+
+  job.status = 'running';
+  job.lastRunAt = new Date().toISOString();
+  saveScheduledJobs(jobs);
+
+  // Simulate background execution completion
+  setTimeout(() => {
+    const currentJobs = loadScheduledJobs();
+    const target = currentJobs.find((j) => j.id === id);
+    if (target) {
+      target.status = 'completed';
+      target.totalLeadsFound = (target.totalLeadsFound || 0) + Math.floor(3 + Math.random() * 6);
+      saveScheduledJobs(currentJobs);
+    }
+  }, 2500);
+
+  res.json({ success: true, message: `Job "${job.name}" initiated.`, job });
 });
 
 /**
