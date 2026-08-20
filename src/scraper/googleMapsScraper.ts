@@ -14,6 +14,28 @@ export class GoogleMapsScraper {
     this.deduplicator = deduplicator || new Deduplicator();
   }
 
+  private static readonly USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  ];
+
+  /**
+   * Selects a random modern user agent string
+   */
+  private getRandomUserAgent(): string {
+    return GoogleMapsScraper.USER_AGENTS[Math.floor(Math.random() * GoogleMapsScraper.USER_AGENTS.length)];
+  }
+
+  /**
+   * Adds human-like randomized interaction delays
+   */
+  private async humanDelay(page: Page, minMs: number = 400, maxMs: number = 900): Promise<void> {
+    const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+    await page.waitForTimeout(delay);
+  }
+
   /**
    * Initializes Playwright Browser instance
    */
@@ -163,16 +185,58 @@ export class GoogleMapsScraper {
         }
       }
 
-      // Determine area
+      // Determine area dynamically from search term or address
       let area = 'Umhlanga';
+      if (searchTerm) {
+        const areaFromTerm = searchTerm
+          .replace(/best|top rated|specialist|emergency|private|clinic|services/gi, '')
+          .replace(/dentist|cosmetic dentist|dental|physiotherapist|chiropractor|doctor|aesthetic|solar|electrician|plumber|roofing|hvac|beauty salon|hair salon|med spa|barber|nail|gym|crossfit|pilates|yoga|restaurant|fine dining|steakhouse|law firm|attorney|accountant|real estate|estate agent|car detailing|mechanic/gi, '')
+          .trim();
+        if (areaFromTerm.length > 0) area = areaFromTerm;
+      }
       if (address) {
         if (/umhlanga rocks/i.test(address)) area = 'Umhlanga Rocks';
         else if (/umhlanga ridge/i.test(address)) area = 'Umhlanga Ridge';
         else if (/gateway/i.test(address)) area = 'Gateway, Umhlanga';
         else if (/la lucia/i.test(address)) area = 'La Lucia';
         else if (/durban north/i.test(address)) area = 'Durban North';
-        else if (/cornubia/i.test(address)) area = 'Cornubia';
-        else area = 'Umhlanga';
+        else if (/morningside/i.test(address)) area = 'Morningside';
+        else if (/berea/i.test(address)) area = 'Berea';
+        else if (/westville/i.test(address)) area = 'Westville';
+        else if (/pinetown/i.test(address)) area = 'Pinetown';
+        else if (/hillcrest/i.test(address)) area = 'Hillcrest';
+        else if (/ballito/i.test(address)) area = 'Ballito';
+        else if (/sandton/i.test(address)) area = 'Sandton';
+        else if (/bryanston/i.test(address)) area = 'Bryanston';
+        else if (/rosebank/i.test(address)) area = 'Rosebank';
+        else if (/fourways/i.test(address)) area = 'Fourways';
+        else if (/midrand/i.test(address)) area = 'Midrand';
+        else if (/centurion/i.test(address)) area = 'Centurion';
+        else if (/pretoria/i.test(address)) area = 'Pretoria';
+        else if (/sea point/i.test(address)) area = 'Sea Point';
+        else if (/camps bay/i.test(address)) area = 'Camps Bay';
+        else if (/waterfront/i.test(address)) area = 'Waterfront';
+        else if (/century city/i.test(address)) area = 'Century City';
+        else if (/constantia/i.test(address)) area = 'Constantia';
+        else if (/durbanville/i.test(address)) area = 'Durbanville';
+        else if (/stellenbosch/i.test(address)) area = 'Stellenbosch';
+        else if (/somerset west/i.test(address)) area = 'Somerset West';
+        else if (/gqeberha|port elizabeth/i.test(address)) area = 'Gqeberha';
+        else if (/east london/i.test(address)) area = 'East London';
+        else if (/bloemfontein/i.test(address)) area = 'Bloemfontein';
+        else if (/nelspruit|mbombela/i.test(address)) area = 'Nelspruit';
+        else if (/polokwane/i.test(address)) area = 'Polokwane';
+        else if (/rustenburg/i.test(address)) area = 'Rustenburg';
+        else if (/kimberley/i.test(address)) area = 'Kimberley';
+        else {
+          const addrParts = address.split(',').map((p) => p.trim()).filter(Boolean);
+          if (addrParts.length >= 2) {
+            const candidate = addrParts[addrParts.length - 2];
+            if (candidate && !/south africa|\d{4}/i.test(candidate)) {
+              area = candidate;
+            }
+          }
+        }
       }
 
       // Extract Phone
@@ -288,8 +352,7 @@ export class GoogleMapsScraper {
 
     const context = await this.browser!.newContext({
       viewport: { width: 1280, height: 900 },
-      userAgent:
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      userAgent: this.getRandomUserAgent(),
     });
 
     const page = await context.newPage();
@@ -301,6 +364,7 @@ export class GoogleMapsScraper {
       await page.waitForLoadState('domcontentloaded').catch(() => null);
 
       await this.handleConsent(page);
+      await this.humanDelay(page, 500, 1000);
 
       const feedSelector = 'div[role="feed"]';
       try {
@@ -320,7 +384,9 @@ export class GoogleMapsScraper {
       let noNewItemsCount = 0;
 
       while (businesses.length < maxResults && noNewItemsCount < 4) {
-        const listingCards = page.locator('div[role="feed"] a[href*="/maps/place"]');
+        const listingCards = page.locator(
+          'div[role="feed"] a[href*="/maps/place"], div.Nv2pk a[href*="/maps/place"], a.hfA208'
+        );
         const count = await listingCards.count();
 
         if (count === 0) {
@@ -354,7 +420,7 @@ export class GoogleMapsScraper {
 
             await card.scrollIntoViewIfNeeded().catch(() => null);
             await card.click({ force: true }).catch(() => null);
-            await page.waitForTimeout(1200);
+            await this.humanDelay(page, 800, 1400);
 
             const canonicalUrl = googleMapsParser.cleanMapsUrl(href) || href;
             const business = await this.extractDetailPane(

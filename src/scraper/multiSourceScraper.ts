@@ -1,5 +1,6 @@
 import { GoogleMapsScraper } from './googleMapsScraper.js';
 import { contactEnricher } from '../enrichment/contactEnricher.js';
+import { aiAuditor } from '../scoring/aiAuditor.js';
 import { Business, ScraperOptions } from '../types/business.js';
 import { Deduplicator } from '../utils/deduplication.js';
 import { logger } from '../utils/logger.js';
@@ -31,9 +32,20 @@ export class MultiSourceScraper {
     try {
       browser = await chromium.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-gpu',
+          '--disable-dev-shm-usage',
+          '--lang=en-US',
+        ],
       });
-      const page = await browser.newPage();
+      const context = await browser.newContext({
+        viewport: { width: 1280, height: 800 },
+        userAgent:
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      });
+      const page = await context.newPage();
 
       const query = `${searchTerm} ${area} South Africa website contact email phone`;
       const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
@@ -154,16 +166,48 @@ export class MultiSourceScraper {
 
       // 2. Web Search Engine Extraction (Extended beyond Google Maps)
       if (scraperOpts.includeWebSearch) {
-        const webLeads = await this.scrapeWebSearch(term, 'Umhlanga', Math.max(3, Math.floor(maxResultsPerTerm / 2)));
+        const areaFromTerm =
+          term
+            .replace(/best|top rated|specialist|emergency|private|clinic|services/gi, '')
+            .replace(/dentist|cosmetic dentist|dental|physiotherapist|chiropractor|doctor|aesthetic|solar|electrician|plumber|roofing|hvac|beauty salon|hair salon|med spa|barber|nail|gym|crossfit|pilates|yoga|restaurant|fine dining|steakhouse|law firm|attorney|accountant|real estate|estate agent|car detailing|mechanic/gi, '')
+            .trim() || 'Umhlanga';
+        const webLeads = await this.scrapeWebSearch(term, areaFromTerm, Math.max(3, Math.floor(maxResultsPerTerm / 2)));
         totalFound += webLeads.length;
         combinedForTerm.push(...webLeads);
       }
 
       // 3. Deep Contact Enrichment (Emails, Phone numbers, Websites, Social Links)
       if (scraperOpts.includeDeepCrawl && combinedForTerm.length > 0) {
-        logger.info(`🔎 Deep Crawling & Enriching ${combinedForTerm.length} leads for "${term}"...`);
-        const enriched = await contactEnricher.enrichBatch(combinedForTerm);
+        logger.info(`🔎 Deep Crawling & Enriching ${combinedForTerm.length} leads for "${term}" (Concurrency: ${options.concurrency || 3})...`);
+        const enriched = await contactEnricher.enrichBatch(combinedForTerm, options.concurrency || 3);
         combinedForTerm = enriched.enriched;
+      }
+
+      // 4. AI Audit & Pitch Script Generation
+      if (combinedForTerm.length > 0) {
+        logger.info(`🤖 Generating AI Multi-Channel Pitch Scripts for ${combinedForTerm.length} leads...`);
+        for (const lead of combinedForTerm) {
+          try {
+            const auditOutput = await aiAuditor.generateAudit({
+              businessName: lead.name,
+              websiteUrl: lead.website || '',
+              category: lead.category,
+              area: lead.area,
+              rating: lead.rating,
+              reviewCount: lead.reviewCount,
+              technicalAudit: lead.technicalAudit,
+              tone: 'consultative',
+            });
+
+            lead.aiPitchScripts = auditOutput.multiChannelScripts;
+            lead.estimatedDealValue = auditOutput.estimatedProjectValueZAR;
+            if (auditOutput.issues && auditOutput.issues.length > 0) {
+              lead.notes = `Audit: ${auditOutput.issues.join(' | ')}`;
+            }
+          } catch (auditErr) {
+            logger.warn(`AI Pitch generation skipped for ${lead.name}: ${String(auditErr)}`);
+          }
+        }
       }
 
       allLeads.push(...combinedForTerm);

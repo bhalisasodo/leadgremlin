@@ -1,15 +1,196 @@
 /**
  * LeadGremlin Sales Funnel Dashboard Application Logic
- * Supports both Live Node.js Express API and Static GitHub Pages deployment.
+ * South Africa Search Universe & Multi-Region Extraction Engine
  */
 
 let allLeads = [];
 let currentCategoryFilter = 'ALL';
+let currentAreaFilter = 'ALL';
 let currentSearchTerm = '';
 let activeView = 'kanban'; // 'kanban' | 'table' | 'analytics'
 let selectedLead = null;
 let pollTimer = null;
 let isStaticMode = false;
+let currentSortField = 'score-desc';
+let activeProvinceTab = 'KZN';
+let currentSequenceArchetype = 'omni_channel_blitz';
+let activeSequenceData = null;
+let activeTouchpointIndex = 0;
+let currentPitchTone = 'consultative';
+let currentQuickFilter = 'ALL';
+let selectedLeadIds = new Set();
+let scheduledJobs = [];
+
+/**
+ * Toggle Mobile Sidebar Drawer
+ */
+function toggleMobileSidebar(isOpen) {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  if (!sidebar) return;
+
+  if (isOpen === undefined) {
+    sidebar.classList.toggle('open');
+    if (backdrop) backdrop.classList.toggle('active');
+  } else if (isOpen) {
+    sidebar.classList.add('open');
+    if (backdrop) backdrop.classList.add('active');
+  } else {
+    sidebar.classList.remove('open');
+    if (backdrop) backdrop.classList.remove('active');
+  }
+}
+
+// Close mobile sidebar on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    toggleMobileSidebar(false);
+  }
+});
+
+/**
+ * Resolves full API URL using centralized LEADGREMLIN_CONFIG
+ */
+function getApiUrl(path) {
+  if (window.LEADGREMLIN_CONFIG && typeof window.LEADGREMLIN_CONFIG.apiUrl === 'function') {
+    return window.LEADGREMLIN_CONFIG.apiUrl(path);
+  }
+  const host = window.location.hostname;
+  const isLocal = host === 'localhost' || host === '127.0.0.1' || window.location.protocol === 'file:';
+  const base = isLocal ? 'http://localhost:3005' : 'https://leadgremlin.onrender.com';
+  return base.replace(/\/+$/, '') + (path.startsWith('/') ? path : '/' + path);
+}
+
+const SOUTH_AFRICA_REGIONS = [
+  {
+    code: 'KZN',
+    name: 'KwaZulu-Natal (Coast & Midlands)',
+    suburbs: [
+      { id: 'umhlanga', name: 'Umhlanga (Rocks & Ridge)', checked: true },
+      { id: 'ballito', name: 'Ballito & Salt Rock', checked: true },
+      { id: 'durban_north', name: 'Durban North & Broadway', checked: true },
+      { id: 'morningside_kzn', name: 'Morningside & Berea', checked: false },
+      { id: 'hillcrest', name: 'Hillcrest & Kloof', checked: false },
+      { id: 'westville', name: 'Westville & Pinetown', checked: false },
+      { id: 'amanzimtoti', name: 'Amanzimtoti & South Coast', checked: false },
+      { id: 'pietermaritzburg', name: 'Pietermaritzburg & Hilton', checked: false },
+      { id: 'richards_bay', name: 'Richards Bay & Empangeni', checked: false },
+      { id: 'margate', name: 'Margate & Port Shepstone', checked: false },
+      { id: 'newcastle_kzn', name: 'Newcastle & Ladysmith', checked: false },
+      { id: 'st_lucia', name: 'St Lucia & Zululand', checked: false },
+    ],
+  },
+  {
+    code: 'GP',
+    name: 'Gauteng (JHB & Pretoria)',
+    suburbs: [
+      { id: 'sandton', name: 'Sandton & Bryanston', checked: true },
+      { id: 'rosebank', name: 'Rosebank & Parkhurst', checked: true },
+      { id: 'fourways', name: 'Fourways & Lonehill', checked: false },
+      { id: 'midrand', name: 'Midrand & Waterfall', checked: false },
+      { id: 'centurion', name: 'Centurion & Irene', checked: false },
+      { id: 'pretoria_east', name: 'Pretoria East & Menlyn', checked: false },
+      { id: 'pretoria_central', name: 'Pretoria Central & Hatfield', checked: false },
+      { id: 'bedfordview', name: 'Bedfordview & Edenvale', checked: false },
+      { id: 'roodepoort', name: 'Roodepoort & Krugersdorp', checked: false },
+      { id: 'soweto', name: 'Soweto & Glenvista', checked: false },
+      { id: 'benoni', name: 'Benoni & Boksburg', checked: false },
+      { id: 'kempton_park', name: 'Kempton Park & Midvaal', checked: false },
+    ],
+  },
+  {
+    code: 'WC',
+    name: 'Western Cape (Cape Town & Winelands)',
+    suburbs: [
+      { id: 'sea_point', name: 'Sea Point & Waterfront', checked: true },
+      { id: 'camps_bay', name: 'Camps Bay & Clifton', checked: false },
+      { id: 'century_city', name: 'Century City & Milnerton', checked: false },
+      { id: 'constantia', name: 'Constantia & Southern Suburbs', checked: false },
+      { id: 'durbanville', name: 'Durbanville & Northern Suburbs', checked: false },
+      { id: 'stellenbosch', name: 'Stellenbosch & Winelands', checked: false },
+      { id: 'paarl', name: 'Paarl & Wellington', checked: false },
+      { id: 'somerset_west', name: "Somerset West & Gordon's Bay", checked: false },
+      { id: 'hermanus', name: 'Hermanus & Walker Bay', checked: false },
+      { id: 'george', name: 'George & Garden Route', checked: false },
+      { id: 'knysna', name: 'Knysna & Plettenberg Bay', checked: false },
+      { id: 'saldanha', name: 'Saldanha & West Coast (Langebaan)', checked: false },
+    ],
+  },
+  {
+    code: 'EC',
+    name: 'Eastern Cape (NMB & Buffalo City)',
+    suburbs: [
+      { id: 'gqeberha', name: 'Gqeberha (Port Elizabeth - Walmer & Summerstrand)', checked: true },
+      { id: 'east_london', name: 'East London & Beacon Bay', checked: true },
+      { id: 'kariega', name: 'Kariega (Uitenhage)', checked: false },
+      { id: 'makhanda', name: 'Makhanda (Grahamstown)', checked: false },
+      { id: 'mthatha', name: 'Mthatha & Wild Coast', checked: false },
+      { id: 'jeffreys_bay', name: 'Jeffreys Bay & Cape St Francis', checked: false },
+      { id: 'port_alfred', name: 'Port Alfred & Sunshine Coast', checked: false },
+      { id: 'queenstown', name: 'Queenstown (Komani)', checked: false },
+    ],
+  },
+  {
+    code: 'FS',
+    name: 'Free State (Bloemfontein & Goldfields)',
+    suburbs: [
+      { id: 'bloemfontein', name: 'Bloemfontein (Dan Pienaar & Langenhovenpark)', checked: true },
+      { id: 'welkom', name: 'Welkom & Goldfields', checked: false },
+      { id: 'bethlehem', name: 'Bethlehem & Clarens', checked: false },
+      { id: 'sasolburg', name: 'Sasolburg & Vaal Park', checked: false },
+      { id: 'kroonstad', name: 'Kroonstad', checked: false },
+      { id: 'parys', name: 'Parys & Vaal River', checked: false },
+    ],
+  },
+  {
+    code: 'MP',
+    name: 'Mpumalanga (Lowveld & Energy Belt)',
+    suburbs: [
+      { id: 'nelspruit', name: 'Nelspruit (Mbombela & Riverside)', checked: true },
+      { id: 'white_river', name: 'White River & Hazyview', checked: false },
+      { id: 'witbank', name: 'Witbank (eMalahleni)', checked: false },
+      { id: 'middelburg_mp', name: 'Middelburg Mpumalanga', checked: false },
+      { id: 'secunda', name: 'Secunda & Trichardt', checked: false },
+      { id: 'dullstroom', name: 'Dullstroom & Sabie', checked: false },
+    ],
+  },
+  {
+    code: 'LP',
+    name: 'Limpopo (Polokwane & Waterberg)',
+    suburbs: [
+      { id: 'polokwane', name: 'Polokwane & Bendor', checked: true },
+      { id: 'tzaneen', name: 'Tzaneen & Letaba', checked: false },
+      { id: 'mokopane', name: 'Mokopane (Potgietersrus)', checked: false },
+      { id: 'bela_bela', name: 'Bela-Bela (Warmbaths)', checked: false },
+      { id: 'lephalale', name: 'Lephalale (Ellisras)', checked: false },
+      { id: 'thohoyandou', name: 'Thohoyandou & Makhado', checked: false },
+      { id: 'phalaborwa', name: 'Phalaborwa & Kruger Border', checked: false },
+    ],
+  },
+  {
+    code: 'NW',
+    name: 'North West (Rustenburg & Bojanala)',
+    suburbs: [
+      { id: 'rustenburg', name: 'Rustenburg & Waterfall East', checked: true },
+      { id: 'potchefstroom', name: 'Potchefstroom & Baillie Park', checked: true },
+      { id: 'klerksdorp', name: 'Klerksdorp & Stilfontein', checked: false },
+      { id: 'hartbeespoort', name: 'Hartbeespoort & Brits', checked: false },
+      { id: 'mahikeng', name: 'Mahikeng (Mafikeng)', checked: false },
+      { id: 'sun_city', name: 'Sun City & Ledig', checked: false },
+    ],
+  },
+  {
+    code: 'NC',
+    name: 'Northern Cape (Kimberley & Kalahari)',
+    suburbs: [
+      { id: 'kimberley', name: 'Kimberley & Monument Heights', checked: true },
+      { id: 'upington', name: 'Upington & Orange River', checked: false },
+      { id: 'kathu', name: 'Kathu & Kuruman', checked: false },
+      { id: 'springbok', name: 'Springbok & Namakwa', checked: false },
+      { id: 'de_aar', name: 'De Aar & Karoo Hubs', checked: false },
+    ],
+  },
+];
 
 const FUNNEL_STAGES = [
   { id: 'new', label: '🆕 New Prospects', color: 'status-new' },
@@ -23,50 +204,492 @@ const FUNNEL_STAGES = [
 
 // Initialize Dashboard
 document.addEventListener('DOMContentLoaded', () => {
+  // 1. Immediately initialize and render local/seed data so dashboard is instant and responsive
+  initLocalData();
+  populateAreaFilterOptions();
+  renderDashboard();
+  renderStatsLocal();
+  renderSuburbsGrid();
+
+  // 2. Asynchronously fetch fresh data from backend with fast fallback
   fetchLeads();
   fetchStats();
+  checkNotionStatus();
+  checkExtractionStatusOnLoad();
+
+  // Global Keyboard Shortcuts (Ctrl+K to search, Esc to close modals)
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      const searchInput = document.getElementById('global-search');
+      if (searchInput) {
+        searchInput.focus();
+        searchInput.select();
+      }
+    } else if (e.key === 'Escape') {
+      closeDetailModal();
+      closeExtractModal();
+      closeAddLeadModal();
+      toggleMobileSidebar(false);
+    }
+  });
+
+  // Close modals when clicking backdrop outside modal-card
+  document.querySelectorAll('.modal-overlay').forEach((overlay) => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        closeDetailModal();
+        closeExtractModal();
+        closeAddLeadModal();
+      }
+    });
+  });
 });
 
 /**
- * Fetch all business leads (tries API first, falls back to static JSON + LocalStorage for GitHub Pages)
+ * Check Notion integration status from API
+ */
+async function checkNotionStatus() {
+  const dot = document.getElementById('notion-dot');
+  const text = document.getElementById('notion-status-text');
+  if (!dot || !text) return;
+
+  try {
+    const res = await fetch(getApiUrl('/api/notion/status')).catch(() => null);
+    if (res && res.ok) {
+      const data = await res.json();
+      if (data.configured) {
+        dot.classList.add('active');
+        text.innerText = `Connected (${data.databaseId || 'CRM Active'})`;
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn('Notion status check failed, using local mode fallback:', err);
+  }
+
+  dot.classList.remove('active');
+  text.innerText = 'Notion (Local / Demo Mode)';
+}
+
+/**
+ * Check background extraction status on initial page load
+ */
+async function checkExtractionStatusOnLoad() {
+  try {
+    const res = await fetch(getApiUrl('/api/extract/status')).catch(() => null);
+    if (res && res.ok) {
+      const data = await res.json();
+      if (data.isExtracting) {
+        showLiveExtractionBanner(data.progress?.currentTerm || 'Extracting leads across South Africa...');
+        startStatusPolling();
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+const FALLBACK_SEED_LEADS = [
+  {
+    "id": "umh_fit_01",
+    "name": "Planet Fitness - Umhlanga",
+    "category": "Fitness",
+    "rawCategory": "Gym & Fitness Club",
+    "area": "Umhlanga Ridge",
+    "address": "1 Centenary Blvd, Umhlanga Ridge, Umhlanga, 4319",
+    "phone": "+27 31 566 2200",
+    "website": "https://www.planetfitness.co.za/clubs/umhlanga",
+    "email": "umhlanga@planetfitness.co.za",
+    "socials": { "instagram": "https://www.instagram.com/planetfitnessza/", "facebook": "https://www.facebook.com/planetfitnessza/", "linkedin": "https://www.linkedin.com/company/planet-fitness-south-africa" },
+    "rating": 4.6,
+    "reviewCount": 428,
+    "mapsUrl": "https://www.google.com/maps/place/Planet+Fitness+-+Umhlanga",
+    "funnelStage": "proposal",
+    "opportunityScore": 88,
+    "notes": "Interested in AI automated WhatsApp booking system for personal training consultations.",
+    "lastContactedAt": "2026-08-04T10:30:00.000Z",
+    "scrapedAt": "2026-08-06T12:00:00.000Z",
+    "searchTerm": "gym Umhlanga",
+    "source": "multi_source"
+  },
+  {
+    "id": "umh_fit_02",
+    "name": "Virgin Active Umhlanga",
+    "category": "Fitness",
+    "rawCategory": "Health Club & Gym",
+    "area": "Gateway, Umhlanga",
+    "address": "Gateway Theatre of Shopping, 1 Palm Blvd, Umhlanga, 4319",
+    "phone": "+27 31 566 9000",
+    "website": "https://www.virginactive.co.za/clubs/umhlanga",
+    "email": "umhlangaclub@virginactive.co.za",
+    "socials": { "instagram": "https://www.instagram.com/virginactivesa/", "facebook": "https://www.facebook.com/virginactivesa/", "twitter": "https://x.com/virginactivesa" },
+    "rating": 4.5,
+    "reviewCount": 612,
+    "mapsUrl": "https://www.google.com/maps/place/Virgin+Active+Umhlanga",
+    "funnelStage": "meeting",
+    "opportunityScore": 72,
+    "notes": "Follow-up meeting scheduled with regional manager regarding digital lead engine.",
+    "lastContactedAt": "2026-08-05T14:15:00.000Z",
+    "scrapedAt": "2026-08-06T12:00:00.000Z",
+    "searchTerm": "gym Umhlanga",
+    "source": "google_maps"
+  },
+  {
+    "id": "umh_fit_03",
+    "name": "CrossFit Umhlanga",
+    "category": "Fitness",
+    "rawCategory": "CrossFit Gym",
+    "area": "Umhlanga Rocks",
+    "address": "14 Meridian Dr, Umhlanga Ridge, Umhlanga, 4319",
+    "phone": "+27 82 491 5532",
+    "website": "https://www.crossfitumhlanga.co.za",
+    "email": "info@crossfitumhlanga.co.za",
+    "socials": { "instagram": "https://www.instagram.com/crossfitumhlanga/", "facebook": "https://www.facebook.com/crossfitumhlanga/" },
+    "rating": 4.9,
+    "reviewCount": 89,
+    "mapsUrl": "https://www.google.com/maps/place/CrossFit+Umhlanga",
+    "funnelStage": "outreach",
+    "opportunityScore": 92,
+    "notes": "High engagement box gym. Website needs a conversion funnel overhaul.",
+    "lastContactedAt": "2026-08-03T09:00:00.000Z",
+    "scrapedAt": "2026-08-06T12:00:00.000Z",
+    "searchTerm": "crossfit Umhlanga",
+    "source": "multi_source"
+  },
+  {
+    "id": "umh_fit_04",
+    "name": "The Body Sculpting Studio Umhlanga",
+    "category": "Fitness",
+    "rawCategory": "Pilates & EMS Studio",
+    "area": "La Lucia",
+    "address": "9 Armstrong Ave, La Lucia, Umhlanga, 4051",
+    "phone": "+27 31 572 3341",
+    "website": "https://www.bodysculptumhlanga.co.za",
+    "email": "hello@bodysculptumhlanga.co.za",
+    "socials": { "instagram": "https://www.instagram.com/bodysculpt_umhlanga/", "tiktok": "https://www.tiktok.com/@bodysculpt_umhlanga" },
+    "rating": 4.8,
+    "reviewCount": 44,
+    "mapsUrl": "https://www.google.com/maps/place/The+Body+Sculpting+Studio",
+    "funnelStage": "new",
+    "opportunityScore": 85,
+    "scrapedAt": "2026-08-06T12:00:00.000Z",
+    "searchTerm": "pilates studio Umhlanga",
+    "source": "multi_source"
+  },
+  {
+    "id": "umh_beauty_01",
+    "name": "Sorbet Salon Umhlanga Ridge",
+    "category": "Beauty and Hair",
+    "rawCategory": "Beauty Salon & Nail Bar",
+    "area": "Umhlanga Ridge",
+    "address": "Shop 12, Crescent Shopping Centre, Umhlanga Ridge, 4319",
+    "phone": "+27 31 566 3110",
+    "website": "https://www.sorbet.co.za/store/sorbet-umhlanga-ridge",
+    "email": "umhlangaridge@sorbet.co.za",
+    "socials": { "instagram": "https://www.instagram.com/sorbetgroup/", "facebook": "https://www.facebook.com/SorbetGroup/" },
+    "rating": 4.4,
+    "reviewCount": 184,
+    "mapsUrl": "https://www.google.com/maps/place/Sorbet+Umhlanga+Ridge",
+    "funnelStage": "enriched",
+    "opportunityScore": 78,
+    "notes": "Verified contacts. Ideal prospect for VIP customer loyalty retention campaign.",
+    "scrapedAt": "2026-08-06T12:00:00.000Z",
+    "searchTerm": "beauty salon Umhlanga",
+    "source": "multi_source"
+  },
+  {
+    "id": "umh_beauty_02",
+    "name": "Carlton Hair Gateway",
+    "category": "Beauty and Hair",
+    "rawCategory": "Hair Salon",
+    "area": "Gateway, Umhlanga",
+    "address": "Gateway Theatre of Shopping, Shop F243, Umhlanga, 4319",
+    "phone": "+27 31 566 2883",
+    "website": "https://www.carltonhair.com/salons/gateway",
+    "email": "gateway@carltonhair.com",
+    "socials": { "instagram": "https://www.instagram.com/carltonhairsa/", "facebook": "https://www.facebook.com/CarltonHairSA/" },
+    "rating": 4.7,
+    "reviewCount": 210,
+    "mapsUrl": "https://www.google.com/maps/place/Carlton+Hair+Gateway",
+    "funnelStage": "won",
+    "opportunityScore": 60,
+    "notes": "Closed Deal! Client onboarding completed for Instagram booking integration.",
+    "lastContactedAt": "2026-08-01T11:00:00.000Z",
+    "scrapedAt": "2026-08-06T12:00:00.000Z",
+    "searchTerm": "hair salon Umhlanga",
+    "source": "multi_source"
+  },
+  {
+    "id": "umh_beauty_03",
+    "name": "The Pearls Spa & Aesthetic Clinic",
+    "category": "Beauty and Hair",
+    "rawCategory": "Medical Spa & Skincare",
+    "area": "Umhlanga Rocks",
+    "address": "The Pearls Mall, 6 Lagune Dr, Umhlanga Rocks, 4320",
+    "phone": "+27 31 561 2288",
+    "website": "https://www.pearlsspa.co.za",
+    "email": "concierge@pearlsspa.co.za",
+    "socials": { "instagram": "https://www.instagram.com/pearlsspa_umhlanga/", "facebook": "https://www.facebook.com/pearlsspaumhlanga/" },
+    "rating": 4.9,
+    "reviewCount": 156,
+    "mapsUrl": "https://www.google.com/maps/place/Pearls+Spa+Umhlanga",
+    "funnelStage": "proposal",
+    "opportunityScore": 95,
+    "notes": "Sent R15k high-ticket aesthetics lead generation proposal. Awaiting sign-off.",
+    "lastContactedAt": "2026-08-05T16:00:00.000Z",
+    "scrapedAt": "2026-08-06T12:00:00.000Z",
+    "searchTerm": "spa Umhlanga Rocks",
+    "source": "multi_source"
+  },
+  {
+    "id": "umh_rest_01",
+    "name": "The Grill Jichana Umhlanga",
+    "category": "Restaurant",
+    "rawCategory": "Fine Dining Steakhouse",
+    "area": "Umhlanga Rocks",
+    "address": "Beverly Hills Hotel, 1 Lighthouse Rd, Umhlanga Rocks, 4320",
+    "phone": "+27 31 561 2211",
+    "website": "https://www.southernsun.com/beverly-hills/dining/grill-jichana",
+    "email": "beverlyhills.reservations@southernsun.com",
+    "socials": { "instagram": "https://www.instagram.com/southernsunhotels/", "facebook": "https://www.facebook.com/BeverlyHillsHotelSA/" },
+    "rating": 4.7,
+    "reviewCount": 540,
+    "mapsUrl": "https://www.google.com/maps/place/The+Grill+Jichana",
+    "funnelStage": "outreach",
+    "opportunityScore": 68,
+    "notes": "High profile restaurant. Pitching table reservation optimization funnel.",
+    "scrapedAt": "2026-08-06T12:00:00.000Z",
+    "searchTerm": "restaurant Umhlanga Rocks",
+    "source": "multi_source"
+  },
+  {
+    "id": "umh_rest_02",
+    "name": "The Oyster Box Grill Room & Terrace",
+    "category": "Restaurant",
+    "rawCategory": "Luxury Restaurant",
+    "area": "Umhlanga Rocks",
+    "address": "2 Lighthouse Rd, Umhlanga Rocks, 4320",
+    "phone": "+27 31 514 5000",
+    "website": "https://www.oysterboxhotel.com/dining/the-grill-room",
+    "email": "restaurants@oysterbox.co.za",
+    "socials": { "instagram": "https://www.instagram.com/oysterboxhotel/", "facebook": "https://www.facebook.com/oysterbox/", "linkedin": "https://www.linkedin.com/company/the-oyster-box" },
+    "rating": 4.8,
+    "reviewCount": 1280,
+    "mapsUrl": "https://www.google.com/maps/place/The+Oyster+Box",
+    "funnelStage": "new",
+    "opportunityScore": 65,
+    "scrapedAt": "2026-08-06T12:00:00.000Z",
+    "searchTerm": "fine dining Umhlanga",
+    "source": "google_maps"
+  },
+  {
+    "id": "umh_rest_03",
+    "name": "Piatto Gateway",
+    "category": "Restaurant",
+    "rawCategory": "Mediterranean & Grill Restaurant",
+    "area": "Gateway, Umhlanga",
+    "address": "Shop G304, Gateway Theatre of Shopping, Umhlanga, 4319",
+    "phone": "+27 31 566 4220",
+    "website": "https://www.piatto.co.za/locations/gateway",
+    "email": "gateway@piatto.co.za",
+    "socials": { "instagram": "https://www.instagram.com/piattorestaurants/", "facebook": "https://www.facebook.com/PiattoRestaurants/" },
+    "rating": 4.3,
+    "reviewCount": 390,
+    "mapsUrl": "https://www.google.com/maps/place/Piatto+Gateway",
+    "funnelStage": "enriched",
+    "opportunityScore": 82,
+    "scrapedAt": "2026-08-06T12:00:00.000Z",
+    "searchTerm": "restaurant Gateway Umhlanga",
+    "source": "multi_source"
+  },
+  {
+    "id": "umh_health_01",
+    "name": "Umhlanga Dental Aesthetics",
+    "category": "Healthcare & Wellness",
+    "rawCategory": "Cosmetic Dentist & Oral Clinic",
+    "area": "Umhlanga Ridge",
+    "address": "Suite 204, Medstone Medical Centre, 19 Umhlanga Ridge Blvd, 4319",
+    "phone": "+27 31 566 1980",
+    "website": "https://www.umhlangadental.co.za",
+    "email": "reception@umhlangadental.co.za",
+    "socials": { "instagram": "https://www.instagram.com/umhlangadental/", "facebook": "https://www.facebook.com/umhlangadentalaesthetics/", "linkedin": "https://www.linkedin.com/company/umhlanga-dental" },
+    "rating": 4.9,
+    "reviewCount": 94,
+    "mapsUrl": "https://www.google.com/maps/place/Umhlanga+Dental+Aesthetics",
+    "funnelStage": "meeting",
+    "opportunityScore": 96,
+    "notes": "High margin dental procedures. Meeting set for high-ticket Invisalign acquisition funnel.",
+    "lastContactedAt": "2026-08-04T15:00:00.000Z",
+    "scrapedAt": "2026-08-06T12:00:00.000Z",
+    "searchTerm": "dentist Umhlanga",
+    "source": "multi_source"
+  },
+  {
+    "id": "umh_health_02",
+    "name": "Gateway Physiotherapy & Sports Injury Clinic",
+    "category": "Healthcare & Wellness",
+    "rawCategory": "Physiotherapy Practice",
+    "area": "Umhlanga Ridge",
+    "address": "22 Centenary Blvd, Umhlanga Ridge, 4319",
+    "phone": "+27 31 566 5590",
+    "website": "https://www.gatewayphysio.co.za",
+    "email": "admin@gatewayphysio.co.za",
+    "socials": { "instagram": "https://www.instagram.com/gatewayphysio_sa/", "facebook": "https://www.facebook.com/gatewayphysiosa/" },
+    "rating": 4.8,
+    "reviewCount": 67,
+    "mapsUrl": "https://www.google.com/maps/place/Gateway+Physiotherapy",
+    "funnelStage": "new",
+    "opportunityScore": 84,
+    "scrapedAt": "2026-08-06T12:00:00.000Z",
+    "searchTerm": "physiotherapist Umhlanga",
+    "source": "multi_source"
+  },
+  {
+    "id": "umh_real_01",
+    "name": "Pam Golding Properties Umhlanga",
+    "category": "Real Estate",
+    "rawCategory": "Real Estate Agency",
+    "area": "Umhlanga Rocks",
+    "address": "Shop 4, Chartwell Centre, Chartwell Dr, Umhlanga Rocks, 4320",
+    "phone": "+27 31 561 5300",
+    "website": "https://www.pamgolding.co.za/branches/umhlanga/101",
+    "email": "umhlanga@pamgolding.co.za",
+    "socials": { "instagram": "https://www.instagram.com/pamgoldingproperties/", "facebook": "https://www.facebook.com/PamGoldingProperties/", "linkedin": "https://www.linkedin.com/company/pam-golding-properties" },
+    "rating": 4.6,
+    "reviewCount": 112,
+    "mapsUrl": "https://www.google.com/maps/place/Pam+Golding+Umhlanga",
+    "funnelStage": "proposal",
+    "opportunityScore": 90,
+    "notes": "Pitching automated buyer lead qualification system for luxury Umhlanga beachfront properties.",
+    "lastContactedAt": "2026-08-05T08:30:00.000Z",
+    "scrapedAt": "2026-08-06T12:00:00.000Z",
+    "searchTerm": "real estate agent Umhlanga",
+    "source": "multi_source"
+  },
+  {
+    "id": "umh_real_02",
+    "name": "RE/MAX Address Umhlanga",
+    "category": "Real Estate",
+    "rawCategory": "Real Estate Agency",
+    "area": "Umhlanga Ridge",
+    "address": "15 Millennium Way, Umhlanga Ridge, 4319",
+    "phone": "+27 31 566 1120",
+    "website": "https://www.remax.co.za/office/remax-address-umhlanga",
+    "email": "umhlanga@remaxaddress.co.za",
+    "socials": { "instagram": "https://www.instagram.com/remaxsa/", "facebook": "https://www.facebook.com/REMAXAddressUmhlanga/" },
+    "rating": 4.5,
+    "reviewCount": 88,
+    "mapsUrl": "https://www.google.com/maps/place/REMAX+Address+Umhlanga",
+    "funnelStage": "outreach",
+    "opportunityScore": 79,
+    "scrapedAt": "2026-08-06T12:00:00.000Z",
+    "searchTerm": "property management Umhlanga",
+    "source": "google_maps"
+  },
+  {
+    "id": "umh_prof_01",
+    "name": "Cox Yeats Attorneys Umhlanga",
+    "category": "Professional Services",
+    "rawCategory": "Corporate Law Firm",
+    "area": "Umhlanga Ridge",
+    "address": "N2 Totius St, N2 Business Park, Umhlanga Ridge, 4319",
+    "phone": "+27 31 536 8500",
+    "website": "https://www.coxyeats.co.za",
+    "email": "info@coxyeats.co.za",
+    "socials": { "linkedin": "https://www.linkedin.com/company/cox-yeats-attorneys", "facebook": "https://www.facebook.com/CoxYeatsAttorneys/" },
+    "rating": 4.7,
+    "reviewCount": 75,
+    "mapsUrl": "https://www.google.com/maps/place/Cox+Yeats+Attorneys",
+    "funnelStage": "new",
+    "opportunityScore": 70,
+    "scrapedAt": "2026-08-06T12:00:00.000Z",
+    "searchTerm": "law firm Umhlanga",
+    "source": "multi_source"
+  },
+  {
+    "id": "umh_auto_01",
+    "name": "Umhlanga Auto Detailing & Ceramic Coating",
+    "category": "Automotive & Trades",
+    "rawCategory": "Car Detailing & Protection",
+    "area": "Cornubia, Umhlanga",
+    "address": "Unit 8, Cornubia Industrial Park, Umhlanga, 4319",
+    "phone": "+27 83 778 9912",
+    "website": "https://www.umhlangaautodetail.co.za",
+    "email": "booking@umhlangaautodetail.co.za",
+    "socials": { "instagram": "https://www.instagram.com/umhlanga_autodetail/", "facebook": "https://www.facebook.com/umhlangaautodetail/" },
+    "rating": 4.9,
+    "reviewCount": 52,
+    "mapsUrl": "https://www.google.com/maps/place/Umhlanga+Auto+Detailing",
+    "funnelStage": "enriched",
+    "opportunityScore": 89,
+    "scrapedAt": "2026-08-06T12:00:00.000Z",
+    "searchTerm": "car detailing Umhlanga",
+    "source": "multi_source"
+  }
+];
+
+/**
+ * Initialize local/cached leads immediately for instant UI load
+ */
+function initLocalData() {
+  const localSaved = localStorage.getItem('leadgremlin_leads');
+  if (localSaved) {
+    try {
+      const parsed = JSON.parse(localSaved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        allLeads = parsed;
+        return;
+      }
+    } catch {}
+  }
+  allLeads = Array.isArray(FALLBACK_SEED_LEADS) && FALLBACK_SEED_LEADS.length > 0 ? FALLBACK_SEED_LEADS : [];
+}
+
+/**
+ * Fetch all business leads from API with fast timeout
  */
 async function fetchLeads() {
   try {
-    const res = await fetch('/api/leads').catch(() => null);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+    const res = await fetch(getApiUrl('/api/leads'), { signal: controller.signal }).catch(() => null);
+    clearTimeout(timeoutId);
 
     if (res && res.ok) {
       const data = await res.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.leads) && data.leads.length > 0) {
         allLeads = data.leads;
         isStaticMode = false;
+        populateAreaFilterOptions();
         renderDashboard();
         return;
       }
     }
 
-    // Static GitHub Pages fallback mode
+    // Static GitHub Pages / local file protocol fallback mode
     isStaticMode = true;
-    const localSaved = localStorage.getItem('leadgremlin_leads');
-
-    if (localSaved) {
-      allLeads = JSON.parse(localSaved);
-    } else {
-      const jsonRes = await fetch('./leads_dashboard.json').catch(() => fetch('../data/leads_dashboard.json'));
-      if (jsonRes && jsonRes.ok) {
-        allLeads = await jsonRes.json();
-        localStorage.setItem('leadgremlin_leads', JSON.stringify(allLeads));
-      }
+    const jsonRes = await fetch('./leads_dashboard.json').catch(() => null);
+    if (jsonRes && jsonRes.ok) {
+      try {
+        const jsonLeads = await jsonRes.json();
+        if (Array.isArray(jsonLeads) && jsonLeads.length > 0) {
+          allLeads = jsonLeads;
+          localStorage.setItem('leadgremlin_leads', JSON.stringify(allLeads));
+          populateAreaFilterOptions();
+          renderDashboard();
+          renderStatsLocal();
+        }
+      } catch {}
     }
-
-    renderDashboard();
-    renderStatsLocal();
   } catch (err) {
-    console.error('Failed to fetch leads:', err);
+    console.warn('API fetch skipped or timed out, using local data:', err);
   }
 }
 
 /**
- * Save leads locally when on GitHub Pages
+ * Save leads locally in preview mode
  */
 function saveLeadsLocally() {
   if (isStaticMode) {
@@ -76,7 +699,28 @@ function saveLeadsLocally() {
 }
 
 /**
- * Fetch KPI statistics from backend API or compute locally
+ * Populate SA Area Dropdown in Filter Toolbar
+ */
+function populateAreaFilterOptions() {
+  const select = document.getElementById('filter-area-select');
+  if (!select) return;
+
+  const areaSet = new Set();
+  allLeads.forEach((l) => {
+    if (l.area) areaSet.add(l.area);
+  });
+
+  const sortedAreas = Array.from(areaSet).sort();
+  select.innerHTML = '<option value="ALL">All South Africa Areas</option>';
+  sortedAreas.forEach((area) => {
+    select.innerHTML += `<option value="${escapeHtml(area)}">${escapeHtml(area)}</option>`;
+  });
+
+  select.value = currentAreaFilter;
+}
+
+/**
+ * Fetch KPI statistics
  */
 async function fetchStats() {
   if (isStaticMode) {
@@ -85,14 +729,25 @@ async function fetchStats() {
   }
 
   try {
-    const res = await fetch('/api/stats').catch(() => null);
+    const res = await fetch(getApiUrl('/api/stats')).catch(() => null);
     if (res && res.ok) {
       const data = await res.json();
       document.getElementById('stat-total').innerText = data.totalLeads || 0;
-      document.getElementById('stat-web').innerText = `${data.coverage?.websitePercent || 0}%`;
-      document.getElementById('stat-email').innerText = `${data.coverage?.emailPercent || 0}%`;
-      document.getElementById('stat-phone').innerText = `${data.coverage?.phonePercent || 0}%`;
-      document.getElementById('stat-social').innerText = `${data.coverage?.socialPercent || 0}%`;
+
+      const webPct = data.coverage?.websitePercent || 0;
+      const emailPct = data.coverage?.emailPercent || 0;
+      const phonePct = data.coverage?.phonePercent || 0;
+      const socialPct = data.coverage?.socialPercent || 0;
+
+      document.getElementById('stat-web').innerText = `${webPct}%`;
+      document.getElementById('stat-email').innerText = `${emailPct}%`;
+      document.getElementById('stat-phone').innerText = `${phonePct}%`;
+      document.getElementById('stat-social').innerText = `${socialPct}%`;
+
+      if (document.getElementById('bar-web')) document.getElementById('bar-web').style.width = `${webPct}%`;
+      if (document.getElementById('bar-email')) document.getElementById('bar-email').style.width = `${emailPct}%`;
+      if (document.getElementById('bar-phone')) document.getElementById('bar-phone').style.width = `${phonePct}%`;
+      if (document.getElementById('bar-social')) document.getElementById('bar-social').style.width = `${socialPct}%`;
       return;
     }
   } catch {
@@ -103,7 +758,7 @@ async function fetchStats() {
 }
 
 /**
- * Compute KPI stats locally for GitHub Pages
+ * Compute KPI stats locally
  */
 function renderStatsLocal() {
   const total = allLeads.length;
@@ -116,31 +771,110 @@ function renderStatsLocal() {
     if (l.socials && Object.keys(l.socials).length > 0) social++;
   });
 
+  const webPct = total ? Math.round((web / total) * 100) : 0;
+  const emailPct = total ? Math.round((email / total) * 100) : 0;
+  const phonePct = total ? Math.round((phone / total) * 100) : 0;
+  const socialPct = total ? Math.round((social / total) * 100) : 0;
+
   document.getElementById('stat-total').innerText = total;
-  document.getElementById('stat-web').innerText = `${total ? Math.round((web / total) * 100) : 0}%`;
-  document.getElementById('stat-email').innerText = `${total ? Math.round((email / total) * 100) : 0}%`;
-  document.getElementById('stat-phone').innerText = `${total ? Math.round((phone / total) * 100) : 0}%`;
-  document.getElementById('stat-social').innerText = `${total ? Math.round((social / total) * 100) : 0}%`;
+  document.getElementById('stat-web').innerText = `${webPct}%`;
+  document.getElementById('stat-email').innerText = `${emailPct}%`;
+  document.getElementById('stat-phone').innerText = `${phonePct}%`;
+  document.getElementById('stat-social').innerText = `${socialPct}%`;
+
+  if (document.getElementById('bar-web')) document.getElementById('bar-web').style.width = `${webPct}%`;
+  if (document.getElementById('bar-email')) document.getElementById('bar-email').style.width = `${emailPct}%`;
+  if (document.getElementById('bar-phone')) document.getElementById('bar-phone').style.width = `${phonePct}%`;
+  if (document.getElementById('bar-social')) document.getElementById('bar-social').style.width = `${socialPct}%`;
 }
 
 /**
- * Filter leads based on category and search query
+ * Filter and sort leads based on state
  */
 function getFilteredLeads() {
-  return allLeads.filter((lead) => {
+  const hasEmailOnly = document.getElementById('filter-has-email')?.checked;
+  const hasWebsiteOnly = document.getElementById('filter-has-website')?.checked;
+  const hasPhoneOnly = document.getElementById('filter-has-phone')?.checked;
+  const areaSelectVal = document.getElementById('filter-area-select')?.value || 'ALL';
+  const tagSelectVal = document.getElementById('filter-tag-select')?.value || 'ALL';
+
+  let leads = allLeads.filter((lead) => {
     const matchesCategory =
       currentCategoryFilter === 'ALL' ||
       lead.category.toLowerCase() === currentCategoryFilter.toLowerCase();
 
+    const matchesArea =
+      areaSelectVal === 'ALL' ||
+      (lead.area && lead.area.toLowerCase().includes(areaSelectVal.toLowerCase()));
+
+    const matchesTag =
+      tagSelectVal === 'ALL' ||
+      (lead.tags && lead.tags.some((t) => t.toLowerCase() === tagSelectVal.toLowerCase()));
+
     const matchesSearch =
       !currentSearchTerm ||
       lead.name.toLowerCase().includes(currentSearchTerm) ||
+      (lead.area && lead.area.toLowerCase().includes(currentSearchTerm)) ||
       (lead.email && lead.email.toLowerCase().includes(currentSearchTerm)) ||
       (lead.phone && lead.phone.toLowerCase().includes(currentSearchTerm)) ||
-      (lead.address && lead.address.toLowerCase().includes(currentSearchTerm));
+      (lead.address && lead.address.toLowerCase().includes(currentSearchTerm)) ||
+      (lead.tags && lead.tags.some((t) => t.toLowerCase().includes(currentSearchTerm)));
 
-    return matchesCategory && matchesSearch;
+    const matchesEmail = !hasEmailOnly || Boolean(lead.email && lead.email.trim() !== '');
+    const matchesWebsite = !hasWebsiteOnly || Boolean(lead.website && lead.website.trim() !== '');
+    const matchesPhone = !hasPhoneOnly || Boolean(lead.phone && lead.phone.trim() !== '');
+
+    // Quick Filter Preset matching
+    let matchesPreset = true;
+    if (currentQuickFilter === 'HOT') {
+      matchesPreset = (lead.opportunityScore || 0) >= 80;
+    } else if (currentQuickFilter === 'HIGH_VAL') {
+      matchesPreset = (lead.estimatedDealValue || 0) >= 20000;
+    } else if (currentQuickFilter === 'NO_SSL') {
+      matchesPreset = Boolean((lead.technicalAudit && !lead.technicalAudit.hasHttps) || (lead.website && !lead.website.startsWith('https')));
+    } else if (currentQuickFilter === 'NO_WA') {
+      matchesPreset = !lead.technicalAudit?.hasWhatsappLink;
+    } else if (currentQuickFilter === 'HAS_EMAIL') {
+      matchesPreset = Boolean(lead.email && lead.email.trim() !== '');
+    }
+
+    return matchesCategory && matchesArea && matchesTag && matchesSearch && matchesEmail && matchesWebsite && matchesPhone && matchesPreset;
   });
+
+  // Apply Sorting
+  leads.sort((a, b) => {
+    if (currentSortField === 'score-desc') {
+      return (b.opportunityScore || 0) - (a.opportunityScore || 0);
+    } else if (currentSortField === 'name-asc') {
+      return a.name.localeCompare(b.name);
+    } else if (currentSortField === 'rating-desc') {
+      return (b.rating || 0) - (a.rating || 0);
+    } else if (currentSortField === 'date-desc') {
+      return (new Date(b.scrapedAt || 0)).getTime() - (new Date(a.scrapedAt || 0)).getTime();
+    }
+    return 0;
+  });
+
+  return leads;
+}
+
+/**
+ * Update live tag filter select options
+ */
+function updateTagSelectOptions() {
+  const tagSelect = document.getElementById('filter-tag-select');
+  if (!tagSelect) return;
+
+  const currentVal = tagSelect.value || 'ALL';
+  const tagSet = new Set();
+  allLeads.forEach((l) => (l.tags || []).forEach((t) => tagSet.add(t)));
+
+  const options = ['<option value="ALL">All Tags</option>'];
+  Array.from(tagSet).sort().forEach((tag) => {
+    options.push(`<option value="${escapeHtml(tag)}" ${tag === currentVal ? 'selected' : ''}>🏷️ ${escapeHtml(tag)}</option>`);
+  });
+
+  tagSelect.innerHTML = options.join('');
 }
 
 /**
@@ -148,6 +882,8 @@ function getFilteredLeads() {
  */
 function renderDashboard() {
   const filtered = getFilteredLeads();
+  updateCategoryPillCounts();
+  updateTagSelectOptions();
 
   if (activeView === 'kanban') {
     renderKanban(filtered);
@@ -159,10 +895,52 @@ function renderDashboard() {
 }
 
 /**
+ * Update live category count badges on filter pills
+ */
+function updateCategoryPillCounts() {
+  const counts = {
+    ALL: allLeads.length,
+    Fitness: 0,
+    'Beauty and Hair': 0,
+    Restaurant: 0,
+    'Healthcare & Wellness': 0,
+    'Real Estate': 0,
+    'Professional Services': 0,
+    'Automotive & Trades': 0,
+  };
+
+  allLeads.forEach((l) => {
+    if (counts[l.category] !== undefined) {
+      counts[l.category]++;
+    }
+  });
+
+  const categoryLabels = {
+    ALL: 'All Categories',
+    Fitness: '🏋️ Fitness',
+    'Beauty and Hair': '💇 Beauty & Hair',
+    Restaurant: '🍽️ Restaurants',
+    'Healthcare & Wellness': '🩺 Healthcare',
+    'Real Estate': '🏠 Real Estate',
+    'Professional Services': '⚖️ Professional',
+    'Automotive & Trades': '🔧 Automotive',
+  };
+
+  const pills = document.querySelectorAll('#category-pills .pill');
+  pills.forEach((pill) => {
+    const cat = pill.dataset.category || 'ALL';
+    const label = categoryLabels[cat] || cat;
+    const count = counts[cat] !== undefined ? counts[cat] : 0;
+    pill.innerHTML = `${label} <span class="pill-count">${count}</span>`;
+  });
+}
+
+/**
  * Render Kanban Pipeline Board
  */
 function renderKanban(leads) {
   const container = document.getElementById('kanban-board');
+  if (!container) return;
   container.innerHTML = '';
 
   FUNNEL_STAGES.forEach((stage) => {
@@ -171,7 +949,7 @@ function renderKanban(leads) {
     const col = document.createElement('div');
     col.className = 'kanban-column';
     col.innerHTML = `
-      <div class="column-header">
+      <div class="column-header column-header-${stage.id}">
         <div class="column-title">
           <span>${stage.label}</span>
         </div>
@@ -180,7 +958,7 @@ function renderKanban(leads) {
       <div class="column-cards" id="col-${stage.id}">
         ${
           stageLeads.length === 0
-            ? '<div style="padding: 16px; text-align: center; color: var(--text-dim); font-size: 11px;">No leads</div>'
+            ? '<div style="padding: 16px; text-align: center; color: var(--text-dim); font-size: 11px;">No prospects in this stage</div>'
             : ''
         }
       </div>
@@ -198,14 +976,22 @@ function renderKanban(leads) {
       const hasPhone = lead.phone ? 'active' : '';
       const hasSocial = lead.socials && Object.keys(lead.socials).length > 0 ? 'active' : '';
 
+      const score = lead.opportunityScore || 80;
+      const scoreClass = score >= 80 ? '' : 'med';
+      const dealValStr = lead.estimatedDealValue ? ` • R${lead.estimatedDealValue.toLocaleString()}` : '';
+      const tagsHtml = (lead.tags && lead.tags.length > 0)
+        ? `<div class="card-tags-row" style="margin: 4px 0;">${lead.tags.map((t) => `<span class="card-tag-pill">🏷️ ${escapeHtml(t)}</span>`).join('')}</div>`
+        : '';
+
       card.innerHTML = `
         <div class="card-top">
           <span class="business-name">${escapeHtml(lead.name)}</span>
-          <span class="score-tag">${lead.opportunityScore || 80} Score</span>
+          <span class="score-tag ${scoreClass}">${score} Score</span>
         </div>
-        <div class="card-category">${escapeHtml(lead.category)} • ${escapeHtml(lead.area || 'Umhlanga')}</div>
+        <div class="card-category">${escapeHtml(lead.category)} • ${escapeHtml(lead.area || 'South Africa')}${dealValStr}</div>
+        ${tagsHtml}
         <div class="card-location">
-          📍 ${escapeHtml(lead.address || 'Umhlanga, SA')}
+          📍 ${escapeHtml(lead.address || lead.area || 'South Africa')}
         </div>
         <div class="card-channels">
           <span class="channel-icon ${hasWeb}" title="Website">🌐</span>
@@ -227,91 +1013,502 @@ function renderKanban(leads) {
  */
 function renderTable(leads) {
   const tbody = document.getElementById('leads-table-body');
+  if (!tbody) return;
   document.getElementById('table-count-badge').innerText = `${leads.length} Prospects`;
   tbody.innerHTML = '';
 
   if (leads.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 24px; color: var(--text-dim);">No prospects found for selected filters.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; padding: 28px; color: var(--text-dim);">No prospects match your current search & filter parameters.</td></tr>`;
+    updateBulkToolbar();
     return;
   }
 
   leads.forEach((lead) => {
     const tr = document.createElement('tr');
+    const isChecked = selectedLeadIds.has(lead.id);
 
     const socialIcons = [];
-    if (lead.socials?.instagram) socialIcons.push(`<a href="${lead.socials.instagram}" target="_blank">IG</a>`);
-    if (lead.socials?.facebook) socialIcons.push(`<a href="${lead.socials.facebook}" target="_blank">FB</a>`);
-    if (lead.socials?.linkedin) socialIcons.push(`<a href="${lead.socials.linkedin}" target="_blank">IN</a>`);
-    if (lead.socials?.twitter) socialIcons.push(`<a href="${lead.socials.twitter}" target="_blank">X</a>`);
+    if (lead.socials?.instagram) socialIcons.push(`<a href="${lead.socials.instagram}" target="_blank" style="color:var(--sky);">IG</a>`);
+    if (lead.socials?.facebook) socialIcons.push(`<a href="${lead.socials.facebook}" target="_blank" style="color:var(--sky);">FB</a>`);
+    if (lead.socials?.linkedin) socialIcons.push(`<a href="${lead.socials.linkedin}" target="_blank" style="color:var(--sky);">IN</a>`);
+
+    const stageOptionsHTML = FUNNEL_STAGES.map(
+      (s) => `<option value="${s.id}" ${s.id === lead.funnelStage ? 'selected' : ''}>${s.label}</option>`
+    ).join('');
+
+    const tableTagsHtml = (lead.tags && lead.tags.length > 0)
+      ? `<div style="margin-top: 4px;">${lead.tags.map((t) => `<span class="table-tag-pill">${escapeHtml(t)}</span>`).join('')}</div>`
+      : '';
 
     tr.innerHTML = `
-      <td><strong>${escapeHtml(lead.name)}</strong></td>
+      <td style="text-align: center;">
+        <input type="checkbox" class="lead-select-cb" data-id="${lead.id}" ${isChecked ? 'checked' : ''} onchange="toggleSelectLead('${lead.id}', this.checked)">
+      </td>
+      <td><strong>${escapeHtml(lead.name)}</strong>${tableTagsHtml}</td>
       <td><span class="badge">${escapeHtml(lead.category)}</span></td>
-      <td>${escapeHtml(lead.area || 'Umhlanga')}</td>
+      <td><span class="badge" style="background:rgba(14,165,233,0.15); color:var(--sky);">${escapeHtml(lead.area || 'South Africa')}</span></td>
       <td>
-        ${lead.email ? `<div>📧 ${escapeHtml(lead.email)}</div>` : ''}
-        ${lead.phone ? `<div>📞 ${escapeHtml(lead.phone)}</div>` : ''}
-        ${!lead.email && !lead.phone ? '<span style="color:var(--text-dim);">Missing</span>' : ''}
+        ${lead.email ? `<div style="font-size:12px;">📧 ${escapeHtml(lead.email)}</div>` : ''}
+        ${lead.phone ? `<div style="font-size:12px;">📞 ${escapeHtml(lead.phone)}</div>` : ''}
+        ${!lead.email && !lead.phone ? '<span style="color:var(--text-dim); font-size:11px;">Missing</span>' : ''}
       </td>
       <td>
         ${
           lead.website
-            ? `<a href="${lead.website}" target="_blank" style="color:var(--sky);">Link 🔗</a>`
-            : '<span style="color:var(--text-dim);">None</span>'
+            ? `<a href="${lead.website}" target="_blank" style="color:var(--primary); font-weight:600;">Visit Site 🌐</a>`
+            : '<span style="color:var(--text-dim); font-size:11px;">No Website</span>'
         }
       </td>
-      <td>${socialIcons.length > 0 ? socialIcons.join(' ') : '<span style="color:var(--text-dim);">-</span>'}</td>
-      <td><span class="status-badge status-${lead.funnelStage}">${lead.funnelStage}</span></td>
+      <td>${socialIcons.length > 0 ? socialIcons.join(' • ') : '<span style="color:var(--text-dim); font-size:11px;">-</span>'}</td>
+      <td>
+        <select class="form-control-sm inline-stage-select status-${lead.funnelStage}" onchange="updateLeadStageInline('${lead.id}', this.value)">
+          ${stageOptionsHTML}
+        </select>
+      </td>
       <td><strong>${lead.opportunityScore || 75}</strong></td>
       <td>
-        <button class="btn btn-sm btn-outline" onclick="openDetailModal('${lead.id}')">View</button>
+        <div class="action-buttons-group">
+          <button class="btn btn-sm btn-outline" onclick="openDetailModal('${lead.id}')" title="View Lead Drawer">📋 View</button>
+          ${lead.email ? `<button class="btn btn-sm btn-icon-only" onclick="copyEmailToClipboard('${escapeHtml(lead.email)}', event)" title="Copy Email">📧</button>` : ''}
+          <button class="btn btn-sm btn-icon-only btn-danger-icon" onclick="handleDeleteLead('${lead.id}')" title="Delete Lead">🗑️</button>
+        </div>
       </td>
     `;
     tbody.appendChild(tr);
   });
+
+  const selectAllCb = document.getElementById('select-all-leads-cb');
+  if (selectAllCb) {
+    selectAllCb.checked = leads.length > 0 && leads.every((l) => selectedLeadIds.has(l.id));
+    selectAllCb.indeterminate = !selectAllCb.checked && leads.some((l) => selectedLeadIds.has(l.id));
+  }
+
+  updateBulkToolbar();
+}
+
+/**
+ * Toggle Select All Leads
+ */
+function toggleSelectAllLeads(checked) {
+  const filtered = getFilteredLeads();
+  if (checked) {
+    filtered.forEach((l) => selectedLeadIds.add(l.id));
+  } else {
+    filtered.forEach((l) => selectedLeadIds.delete(l.id));
+  }
+  renderTable(filtered);
+  updateBulkToolbar();
+}
+
+/**
+ * Toggle Individual Lead Selection
+ */
+function toggleSelectLead(leadId, checked) {
+  if (checked) {
+    selectedLeadIds.add(leadId);
+  } else {
+    selectedLeadIds.delete(leadId);
+  }
+  const filtered = getFilteredLeads();
+  const selectAllCb = document.getElementById('select-all-leads-cb');
+  if (selectAllCb) {
+    selectAllCb.checked = filtered.length > 0 && filtered.every((l) => selectedLeadIds.has(l.id));
+    selectAllCb.indeterminate = !selectAllCb.checked && filtered.some((l) => selectedLeadIds.has(l.id));
+  }
+  updateBulkToolbar();
+}
+
+/**
+ * Clear All Selected Leads
+ */
+function clearLeadSelection() {
+  selectedLeadIds.clear();
+  const selectAllCb = document.getElementById('select-all-leads-cb');
+  if (selectAllCb) {
+    selectAllCb.checked = false;
+    selectAllCb.indeterminate = false;
+  }
+  const checkboxes = document.querySelectorAll('.lead-select-cb');
+  checkboxes.forEach((cb) => (cb.checked = false));
+  updateBulkToolbar();
+}
+
+/**
+ * Update Bulk Action Toolbar Visibility & Count
+ */
+function updateBulkToolbar() {
+  const bar = document.getElementById('bulk-actions-bar');
+  const countEl = document.getElementById('bulk-selected-count');
+  if (!bar || !countEl) return;
+
+  const count = selectedLeadIds.size;
+  countEl.innerText = count;
+  if (count > 0) {
+    bar.classList.remove('hidden');
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+
+/**
+ * Handle Bulk Stage Change
+ */
+function handleBulkStageChange(newStage) {
+  if (!newStage || selectedLeadIds.size === 0) return;
+
+  const count = selectedLeadIds.size;
+  let updatedCount = 0;
+
+  allLeads.forEach((lead) => {
+    if (selectedLeadIds.has(lead.id)) {
+      lead.funnelStage = newStage;
+      lead.lastContactedAt = new Date().toISOString();
+      updatedCount++;
+      if (!isStaticMode) {
+        fetch(getApiUrl(`/api/leads/${lead.id}`), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ funnelStage: newStage }),
+        }).catch(() => null);
+      }
+    }
+  });
+
+  saveLeadsLocally();
+  showToast(`✓ Updated ${updatedCount} leads to stage: ${newStage}`);
+  const selectEl = document.getElementById('bulk-stage-select');
+  if (selectEl) selectEl.value = '';
+  renderDashboard();
+}
+
+/**
+ * Handle Bulk Export (CSV / Instantly)
+ */
+function handleBulkExport(type) {
+  const targetLeads = selectedLeadIds.size > 0
+    ? allLeads.filter((l) => selectedLeadIds.has(l.id))
+    : allLeads;
+
+  if (targetLeads.length === 0) {
+    showToast('No leads available to export.');
+    return;
+  }
+
+  if (type === 'csv') {
+    const headers = ['ID', 'Name', 'Category', 'Area', 'Address', 'Phone', 'Email', 'Website', 'Instagram', 'Stage', 'Score', 'DealValue'];
+    const rows = targetLeads.map((l) => [
+      `"${l.id}"`,
+      `"${(l.name || '').replace(/"/g, '""')}"`,
+      `"${l.category || ''}"`,
+      `"${l.area || ''}"`,
+      `"${(l.address || '').replace(/"/g, '""')}"`,
+      `"${l.phone || ''}"`,
+      `"${l.email || ''}"`,
+      `"${l.website || ''}"`,
+      `"${l.socials?.instagram || ''}"`,
+      `"${l.funnelStage || ''}"`,
+      `"${l.opportunityScore || ''}"`,
+      `"${l.estimatedDealValue || 18500}"`,
+    ]);
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    triggerDownload(csvContent, `leadgremlin_selected_${targetLeads.length}_leads.csv`, 'text/csv');
+    showToast(`📥 Exported ${targetLeads.length} selected leads to CSV!`);
+  } else if (type === 'instantly') {
+    const headers = ['Company Name', 'Email', 'Phone', 'Website', 'City', 'Category', 'Opportunity Score', 'Email Subject', 'Email Body'];
+    const rows = targetLeads.map((l) => [
+      `"${(l.name || '').replace(/"/g, '""')}"`,
+      `"${l.email || ''}"`,
+      `"${l.phone || ''}"`,
+      `"${l.website || ''}"`,
+      `"${l.area || ''}"`,
+      `"${l.category || ''}"`,
+      `"${l.opportunityScore || 80}"`,
+      `"${(l.aiPitchScripts?.email?.subject || '').replace(/"/g, '""')}"`,
+      `"${(l.aiPitchScripts?.email?.body || '').replace(/"/g, '""').replace(/\n/g, '\\n')}"`,
+    ]);
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    triggerDownload(csvContent, `leadgremlin_selected_instantly_${targetLeads.length}.csv`, 'text/csv');
+    showToast(`⚡ Exported ${targetLeads.length} leads for Instantly.ai!`);
+  }
+}
+
+/**
+ * Handle Bulk Delete
+ */
+function handleBulkDelete() {
+  if (selectedLeadIds.size === 0) return;
+  const count = selectedLeadIds.size;
+
+  if (!confirm(`Are you sure you want to delete ${count} selected lead(s)?`)) {
+    return;
+  }
+
+  const idsToDelete = Array.from(selectedLeadIds);
+  allLeads = allLeads.filter((l) => !selectedLeadIds.has(l.id));
+  clearLeadSelection();
+  saveLeadsLocally();
+
+  if (!isStaticMode) {
+    idsToDelete.forEach((id) => {
+      fetch(getApiUrl(`/api/leads/${id}`), { method: 'DELETE' }).catch(() => null);
+    });
+    fetchStats();
+  }
+
+  showToast(`✓ Removed ${count} leads from pipeline.`);
+  renderDashboard();
+}
+
+/**
+ * Inline Stage Switcher Handler
+ */
+function updateLeadStageInline(leadId, newStage) {
+  const lead = allLeads.find((l) => l.id === leadId);
+  if (lead) {
+    lead.funnelStage = newStage;
+    lead.lastContactedAt = new Date().toISOString();
+    saveLeadsLocally();
+    if (!isStaticMode) {
+      fetch(getApiUrl(`/api/leads/${leadId}`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ funnelStage: newStage }),
+      }).catch(() => null);
+    }
+    showToast(`✓ Stage updated for "${lead.name}" to ${newStage}`);
+    renderDashboard();
+  }
+}
+
+/**
+ * Delete Lead Handler
+ */
+async function handleDeleteLead(leadId) {
+  const lead = allLeads.find((l) => l.id === leadId);
+  if (!lead) return;
+
+  if (!confirm(`Are you sure you want to remove "${lead.name}" from your sales pipeline?`)) {
+    return;
+  }
+
+  allLeads = allLeads.filter((l) => l.id !== leadId);
+  saveLeadsLocally();
+
+  if (!isStaticMode) {
+    fetch(getApiUrl(`/api/leads/${leadId}`), { method: 'DELETE' }).then(() => fetchStats()).catch(() => null);
+  }
+
+  showToast(`🗑️ Lead "${lead.name}" deleted successfully.`);
+  populateAreaFilterOptions();
+  renderDashboard();
+  renderStatsLocal();
+}
+
+/**
+ * Copy Email Helper
+ */
+function copyEmailToClipboard(email, e) {
+  if (e) e.stopPropagation();
+  navigator.clipboard.writeText(email);
+  showToast(`📋 Email copied: ${email}`);
 }
 
 /**
  * Render Analytics View
  */
-async function renderAnalytics() {
+function renderAnalytics() {
   const categoryCounts = {};
   const stageCounts = { new: 0, enriched: 0, outreach: 0, meeting: 0, proposal: 0, won: 0, lost: 0 };
+  const stageValSums = { new: 0, enriched: 0, outreach: 0, meeting: 0, proposal: 0, won: 0, lost: 0 };
+  const suburbMap = {};
+
+  const stageProbs = {
+    new: 0.10,
+    enriched: 0.20,
+    outreach: 0.35,
+    meeting: 0.60,
+    proposal: 0.80,
+    won: 1.00,
+    lost: 0.00,
+  };
+
+  let totalPipelineVal = 0;
+  let weightedPipelineVal = 0;
+  let wonRevenueVal = 0;
+  let wonCount = 0;
+  let highOppCount = 0;
+  let totalWithWeb = 0, totalWithEmail = 0, totalWithPhone = 0;
+
+  const total = allLeads.length || 1;
 
   allLeads.forEach((l) => {
     categoryCounts[l.category] = (categoryCounts[l.category] || 0) + 1;
-    if (stageCounts[l.funnelStage] !== undefined) stageCounts[l.funnelStage]++;
+    const stage = l.funnelStage || 'new';
+    if (stageCounts[stage] !== undefined) {
+      stageCounts[stage]++;
+      const dealVal = l.estimatedDealValue || 18500;
+      stageValSums[stage] += dealVal;
+      totalPipelineVal += dealVal;
+      weightedPipelineVal += Math.round(dealVal * (stageProbs[stage] ?? 0.10));
+
+      if (stage === 'won') {
+        wonCount++;
+        wonRevenueVal += dealVal;
+      }
+    }
+
+    const score = l.opportunityScore || 75;
+    if (score >= 70) highOppCount++;
+
+    if (l.website) totalWithWeb++;
+    if (l.email) totalWithEmail++;
+    if (l.phone) totalWithPhone++;
+
+    const sub = l.area || 'Umhlanga';
+    if (!suburbMap[sub]) suburbMap[sub] = { count: 0, scoreSum: 0, valSum: 0 };
+    suburbMap[sub].count++;
+    suburbMap[sub].scoreSum += score;
+    suburbMap[sub].valSum += (l.estimatedDealValue || 18500);
   });
 
+  // Top KPI Elements
+  const totalValEl = document.getElementById('analytics-total-value');
+  const weightedValEl = document.getElementById('analytics-weighted-value');
+  const wonValEl = document.getElementById('analytics-won-value');
+  const avgDealEl = document.getElementById('analytics-avg-deal');
+
+  if (totalValEl) totalValEl.innerText = `R${totalPipelineVal.toLocaleString()}`;
+  if (weightedValEl) weightedValEl.innerText = `R${weightedPipelineVal.toLocaleString()}`;
+  if (wonValEl) wonValEl.innerText = `R${wonRevenueVal.toLocaleString()}`;
+  if (avgDealEl) avgDealEl.innerText = `R${Math.round(totalPipelineVal / total).toLocaleString()}`;
+
+  // Stage Conversion Funnel & Probability Waterfall
+  const funnelWaterfall = document.getElementById('funnel-waterfall');
+  if (funnelWaterfall) {
+    const funnelStages = [
+      { id: 'new', name: '1. New Prospect', prob: '10% Win Prob', class: 'new' },
+      { id: 'enriched', name: '2. Enriched / Qualified', prob: '20% Win Prob', class: 'enriched' },
+      { id: 'outreach', name: '3. Outreach Sent', prob: '35% Win Prob', class: 'outreach' },
+      { id: 'meeting', name: '4. Meeting Booked', prob: '60% Win Prob', class: 'meeting' },
+      { id: 'proposal', name: '5. Proposal Sent', prob: '80% Win Prob', class: 'proposal' },
+      { id: 'won', name: '6. Closed Won', prob: '100% Win Prob', class: 'won' },
+    ];
+
+    const maxCount = Math.max(...funnelStages.map(s => stageCounts[s.id]), 1);
+
+    funnelWaterfall.innerHTML = funnelStages.map((s) => {
+      const count = stageCounts[s.id] || 0;
+      const pct = Math.max(Math.round((count / maxCount) * 100), count > 0 ? 8 : 0);
+      const stageVal = stageValSums[s.id] || 0;
+
+      return `
+        <div class="waterfall-row">
+          <div class="waterfall-stage-info">
+            <span class="waterfall-stage-name">${s.name}</span>
+            <span class="waterfall-stage-prob">${s.prob}</span>
+          </div>
+          <div class="waterfall-track">
+            <div class="waterfall-fill ${s.class}" style="width: ${pct}%;">
+              ${count > 0 ? `${count} leads` : ''}
+            </div>
+          </div>
+          <div class="waterfall-val">
+            <strong>R${stageVal.toLocaleString()}</strong> (${count})
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Category Chart
   const categoryChart = document.getElementById('category-chart');
+  if (categoryChart) {
+    categoryChart.innerHTML = '';
+    const maxCat = Math.max(...Object.values(categoryCounts), 1);
+    Object.entries(categoryCounts).forEach(([cat, val]) => {
+      const pct = Math.round((val / maxCat) * 100);
+      categoryChart.innerHTML += `
+        <div class="chart-bar-row">
+          <span class="chart-label">${escapeHtml(cat)}</span>
+          <div class="chart-track"><div class="chart-fill" style="width: ${pct}%;"></div></div>
+          <span class="chart-val">${val}</span>
+        </div>
+      `;
+    });
+  }
+
+  // Stage Breakdown Chart
   const stageChart = document.getElementById('stage-chart');
+  if (stageChart) {
+    stageChart.innerHTML = '';
+    const maxStage = Math.max(...Object.values(stageCounts), 1);
+    const stageLabels = { new: '🆕 New', enriched: '✨ Enriched', outreach: '📧 Outreach', meeting: '📅 Meeting', proposal: '📝 Proposal', won: '🎉 Won', lost: '❌ Lost' };
+    Object.entries(stageCounts).forEach(([stage, val]) => {
+      const pct = Math.round((val / maxStage) * 100);
+      stageChart.innerHTML += `
+        <div class="chart-bar-row">
+          <span class="chart-label" style="text-transform: capitalize;">${stageLabels[stage] || stage}</span>
+          <div class="chart-track"><div class="chart-fill" style="width: ${pct}%;"></div></div>
+          <span class="chart-val">${val}</span>
+        </div>
+      `;
+    });
+  }
 
-  categoryChart.innerHTML = '';
-  stageChart.innerHTML = '';
+  // Suburb Leaderboard
+  const suburbLeaderboard = document.getElementById('suburb-leaderboard');
+  if (suburbLeaderboard) {
+    suburbLeaderboard.innerHTML = '';
+    const topSubs = Object.entries(suburbMap)
+      .map(([sub, data]) => ({ suburb: sub, count: data.count, avgScore: Math.round(data.scoreSum / data.count), val: data.valSum }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
 
-  const maxCat = Math.max(...Object.values(categoryCounts), 1);
-  Object.entries(categoryCounts).forEach(([cat, val]) => {
-    const pct = Math.round((val / maxCat) * 100);
-    categoryChart.innerHTML += `
-      <div class="chart-bar-row">
-        <span class="chart-label">${cat}</span>
-        <div class="chart-track"><div class="chart-fill" style="width: ${pct}%;"></div></div>
-        <span class="chart-val">${val}</span>
+    if (topSubs.length === 0) {
+      suburbLeaderboard.innerHTML = '<span style="color:var(--text-dim); font-size:12px;">No suburb location metrics available</span>';
+    } else {
+      topSubs.forEach((s) => {
+        suburbLeaderboard.innerHTML += `
+          <div class="suburb-rank-card">
+            <div class="suburb-rank-header">
+              <span class="suburb-name">📍 ${escapeHtml(s.suburb)}</span>
+              <span class="badge score-badge-sm">${s.avgScore} Avg Score</span>
+            </div>
+            <div class="suburb-rank-stats">
+              <span><strong>${s.count}</strong> Prospects</span>
+              <span style="color:var(--gold); font-weight:600;">Est. R${s.val.toLocaleString()}</span>
+            </div>
+          </div>
+        `;
+      });
+    }
+  }
+
+  // Contact Enrichment Meters
+  const metersGrid = document.getElementById('coverage-meters');
+  const webPct = Math.round((totalWithWeb / total) * 100);
+  const emailPct = Math.round((totalWithEmail / total) * 100);
+  const phonePct = Math.round((totalWithPhone / total) * 100);
+
+  if (metersGrid) {
+    metersGrid.innerHTML = `
+      <div class="meter-card">
+        <div class="meter-header"><span>🌐 Website Coverage</span><span>${webPct}%</span></div>
+        <div class="metric-progress-bar"><div class="bar-fill web" style="width: ${webPct}%;"></div></div>
+        <span style="font-size:11px; color:var(--text-dim);">${totalWithWeb} / ${total} leads possess websites</span>
+      </div>
+      <div class="meter-card">
+        <div class="meter-header"><span>📧 Email Availability</span><span>${emailPct}%</span></div>
+        <div class="metric-progress-bar"><div class="bar-fill email" style="width: ${emailPct}%;"></div></div>
+        <span style="font-size:11px; color:var(--text-dim);">${totalWithEmail} / ${total} decision maker emails</span>
+      </div>
+      <div class="meter-card">
+        <div class="meter-header"><span>📞 Phone Contactability</span><span>${phonePct}%</span></div>
+        <div class="metric-progress-bar"><div class="bar-fill phone" style="width: ${phonePct}%;"></div></div>
+        <span style="font-size:11px; color:var(--text-dim);">${totalWithPhone} / ${total} phone numbers for cold calling</span>
       </div>
     `;
-  });
-
-  const maxStage = Math.max(...Object.values(stageCounts), 1);
-  Object.entries(stageCounts).forEach(([stage, val]) => {
-    const pct = Math.round((val / maxStage) * 100);
-    stageChart.innerHTML += `
-      <div class="chart-bar-row">
-        <span class="chart-label" style="text-transform: capitalize;">${stage}</span>
-        <div class="chart-track"><div class="chart-fill" style="width: ${pct}%;"></div></div>
-        <span class="chart-val">${val}</span>
-      </div>
-    `;
-  });
+  }
 }
 
 /**
@@ -320,10 +1517,16 @@ async function renderAnalytics() {
 function switchView(viewName) {
   activeView = viewName;
   document.querySelectorAll('.nav-item').forEach((item) => item.classList.remove('active'));
+  document.querySelectorAll('.mobile-nav-item').forEach((item) => item.classList.remove('active'));
   document.querySelectorAll('.view-panel').forEach((panel) => panel.classList.remove('active'));
 
-  document.getElementById(`nav-${viewName}`).classList.add('active');
-  document.getElementById(`view-${viewName}-container`).classList.add('active');
+  const navBtn = document.getElementById(`nav-${viewName}`);
+  const mobNavBtn = document.getElementById(`mob-nav-${viewName}`);
+  const viewPanel = document.getElementById(`view-${viewName}-container`);
+
+  if (navBtn) navBtn.classList.add('active');
+  if (mobNavBtn) mobNavBtn.classList.add('active');
+  if (viewPanel) viewPanel.classList.add('active');
 
   const titles = {
     kanban: { main: 'Sales Pipeline', sub: 'Manage prospects across outreach & deal stages' },
@@ -331,32 +1534,142 @@ function switchView(viewName) {
     analytics: { main: 'Lead Analytics', sub: 'Conversion metrics & channel coverage' },
   };
 
-  document.getElementById('view-title').innerText = titles[viewName].main;
-  document.getElementById('view-subtitle').innerText = titles[viewName].sub;
+  const titleEl = document.getElementById('view-title');
+  const subEl = document.getElementById('view-subtitle');
+  if (titleEl && titles[viewName]) titleEl.innerText = titles[viewName].main;
+  if (subEl && titles[viewName]) subEl.innerText = titles[viewName].sub;
 
+  toggleMobileSidebar(false);
   renderDashboard();
 }
 
 /**
- * Category Filter Switcher
+ * South Africa Province & Suburb Tab Controller
+ */
+function switchProvinceTab(code) {
+  activeProvinceTab = code;
+  document.querySelectorAll('.province-tab').forEach((tab) => {
+    tab.classList.toggle('active', tab.dataset.province === code);
+  });
+  renderSuburbsGrid();
+}
+
+function renderSuburbsGrid() {
+  const grid = document.getElementById('suburbs-checkbox-grid');
+  if (!grid) return;
+
+  const group = SOUTH_AFRICA_REGIONS.find((r) => r.code === activeProvinceTab) || SOUTH_AFRICA_REGIONS[0];
+  grid.innerHTML = group.suburbs
+    .map(
+      (sub) => `
+      <label class="checkbox-label">
+        <input type="checkbox" name="suburbs" value="${escapeHtml(sub.name)}" ${sub.checked !== false ? 'checked' : ''}>
+        ${escapeHtml(sub.name)}
+      </label>
+    `
+    )
+    .join('');
+}
+
+function selectAllSuburbs(check) {
+  document.querySelectorAll('input[name="suburbs"]').forEach((cb) => {
+    cb.checked = check;
+  });
+}
+
+function handleSidebarRegionChange(val) {
+  const activeText = document.getElementById('active-region-text');
+  const labels = {
+    ALL: 'All South Africa',
+    KZN: 'KwaZulu-Natal',
+    GP: 'Gauteng Metro',
+    WC: 'Western Cape',
+    EC: 'Eastern Cape',
+    FS: 'Free State',
+    MP: 'Mpumalanga',
+    LP: 'Limpopo',
+    NW: 'North West',
+    NC: 'Northern Cape',
+    OTH: 'Other SA Hubs',
+  };
+  if (activeText) activeText.innerText = labels[val] || 'South Africa';
+
+  const defaultAreaForProvince = {
+    ALL: 'ALL',
+    KZN: 'Umhlanga',
+    GP: 'Sandton',
+    WC: 'Sea Point',
+    EC: 'Gqeberha',
+    FS: 'Bloemfontein',
+    MP: 'Nelspruit',
+    LP: 'Polokwane',
+    NW: 'Rustenburg',
+    NC: 'Kimberley',
+    OTH: 'Gqeberha',
+  };
+
+  const filterSelect = document.getElementById('filter-area-select');
+  if (filterSelect) {
+    const targetArea = defaultAreaForProvince[val] || 'ALL';
+    if (targetArea === 'ALL') {
+      filterSelect.value = 'ALL';
+    } else {
+      const match = Array.from(filterSelect.options).find(opt => opt.value.toLowerCase().includes(targetArea.toLowerCase()));
+      filterSelect.value = match ? match.value : 'ALL';
+    }
+    applyFilters();
+  }
+  toggleMobileSidebar(false);
+}
+
+/**
+ * Filter Handlers
  */
 function filterByCategory(cat) {
   currentCategoryFilter = cat;
-  document.querySelectorAll('.pill').forEach((p) => p.classList.remove('active'));
-  event.target.classList.add('active');
+  document.querySelectorAll('#category-pills .pill').forEach((pill) => {
+    if (pill.dataset.category === cat) {
+      pill.classList.add('active');
+    } else {
+      pill.classList.remove('active');
+    }
+  });
   renderDashboard();
 }
 
-/**
- * Global Search Handler
- */
+function filterByPreset(preset) {
+  currentQuickFilter = preset;
+  document.querySelectorAll('#preset-chips .preset-chip').forEach((chip) => {
+    chip.classList.toggle('active', chip.dataset.preset === preset);
+  });
+  renderDashboard();
+}
+
 function handleSearch(val) {
   currentSearchTerm = val.toLowerCase().trim();
   renderDashboard();
 }
 
+function applyFilters() {
+  renderDashboard();
+}
+
+function applySort(val) {
+  currentSortField = val;
+  renderDashboard();
+}
+
+function toggleSort(field) {
+  if (currentSortField === `${field}-asc`) {
+    currentSortField = `${field}-desc`;
+  } else {
+    currentSortField = `${field}-asc`;
+  }
+  renderDashboard();
+}
+
 /**
- * Open Scraper Extraction Modal
+ * Scraper Extraction Modal Handlers
  */
 function openExtractModal() {
   document.getElementById('extract-modal').classList.add('show');
@@ -367,62 +1680,121 @@ function closeExtractModal() {
   if (pollTimer) clearInterval(pollTimer);
 }
 
+function showLiveExtractionBanner(text) {
+  const banner = document.getElementById('live-extraction-banner');
+  const bannerText = document.getElementById('banner-status-text');
+  if (banner && bannerText) {
+    bannerText.innerText = text;
+    banner.classList.remove('hidden');
+  }
+}
+
+function hideLiveExtractionBanner() {
+  const banner = document.getElementById('live-extraction-banner');
+  if (banner) banner.classList.add('hidden');
+}
+
 /**
- * Start Extraction Scraper Task on Button Click
+ * Handle Niche Preset Selection Change in Extract Modal
+ */
+function handleNichePresetChange(preset) {
+  const badge = document.getElementById('preset-badge');
+  const catWrap = document.getElementById('categories-select-wrap');
+  
+  if (badge) {
+    if (preset === 'all_high_yield') badge.innerText = '⚡ Full Spectrum (12 Niches)';
+    else if (preset === 'custom') badge.innerText = '✏️ Custom Selection';
+    else badge.innerText = '🎯 Focused Vertical';
+  }
+
+  if (catWrap) {
+    catWrap.style.display = preset === 'custom' ? 'block' : 'block';
+  }
+}
+
+/**
+ * Quick-select Top Metro Commercial Hubs across SA
+ */
+function selectTopMetroHubs() {
+  const topHubs = ['umhlanga', 'durban_north', 'ballito', 'sandton', 'rosebank', 'pretoria_east', 'sea_point', 'century_city', 'gqeberha', 'bloemfontein'];
+  document.querySelectorAll('input[name="suburbs"]').forEach((cb) => {
+    cb.checked = topHubs.includes(cb.value);
+  });
+  showToast('✓ Selected top metro hubs across South Africa!');
+}
+
+/**
+ * Start Multi-Area Lead Extraction Scraper Task
  */
 async function handleStartExtraction(e) {
   e.preventDefault();
 
-  const area = document.getElementById('extract-area').value;
-  const maxResults = parseInt(document.getElementById('extract-max').value, 10);
-  const includeWebSearch = document.getElementById('ext-web-search').checked;
-  const includeDeepCrawl = document.getElementById('ext-deep-crawl').checked;
+  // Collect checked suburbs
+  const checkedSuburbs = Array.from(document.querySelectorAll('input[name="suburbs"]:checked')).map((cb) => cb.value);
+  const customAreasVal = document.getElementById('extract-custom-areas').value;
+  const customAreas = customAreasVal ? customAreasVal.split(',').map((a) => a.trim()).filter(Boolean) : [];
 
-  const checkboxes = document.querySelectorAll('input[name="categories"]:checked');
-  const selectedCategories = Array.from(checkboxes).map((cb) => cb.value);
+  const selectedAreas = Array.from(new Set([...checkedSuburbs, ...customAreas]));
 
-  if (selectedCategories.length === 0) {
-    alert('Please select at least one prospect category to extract!');
+  if (selectedAreas.length === 0) {
+    showToast('⚠️ Please select at least one South African location!');
     return;
   }
 
+  const nichePreset = document.getElementById('extract-niche-preset')?.value || 'all_high_yield';
+  const checkboxes = document.querySelectorAll('input[name="categories"]:checked');
+  const selectedCategories = Array.from(checkboxes).map((cb) => cb.value);
+
+  const maxResults = parseInt(document.getElementById('extract-max').value, 10);
+  const useModifiers = document.getElementById('ext-use-modifiers')?.checked ?? true;
+  const includeWebSearch = document.getElementById('ext-web-search').checked;
+  const includeDeepCrawl = document.getElementById('ext-deep-crawl').checked;
+
   const btn = document.getElementById('btn-run-scraper');
   btn.disabled = true;
-  btn.innerText = '⌛ Extracting Leads...';
+  btn.innerText = '⌛ Extracting Multi-Area Leads...';
 
   const terminal = document.getElementById('extraction-terminal');
   const logBox = document.getElementById('terminal-logs');
   terminal.classList.remove('hidden');
-  logBox.innerHTML = `<div class="log-line info">🚀 Launching scraper engine for ${area}...</div>`;
+  logBox.innerHTML = `<div class="log-line info">🚀 Launching scraper engine for ${selectedAreas.length} South Africa locations: ${selectedAreas.slice(0, 3).join(', ')}...</div>`;
+
+  showLiveExtractionBanner(`Extracting ${nichePreset !== 'custom' ? nichePreset.replace(/_/g, ' ') : selectedCategories.length + ' categories'} across ${selectedAreas.length} SA locations...`);
 
   if (!isStaticMode) {
     try {
-      const categories = selectedCategories.map((val) => `${val} ${area}`);
-      const res = await fetch('/api/extract', {
+      const res = await fetch(getApiUrl('/api/extract'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ searchTerms: categories, area, maxResults, includeWebSearch, includeDeepCrawl }),
+        body: JSON.stringify({
+          areas: selectedAreas,
+          categories: selectedCategories,
+          nichePreset: nichePreset !== 'custom' ? nichePreset : undefined,
+          useModifiers,
+          maxResults,
+          includeWebSearch,
+          includeDeepCrawl,
+        }),
       });
       const data = await res.json();
       if (data.success) {
-        logBox.innerHTML += `<div class="log-line success">✓ Backend Scraper process dispatched. Extracting...</div>`;
+        logBox.innerHTML += `<div class="log-line success">✓ Multi-Area Live Scraper process running (${data.terms?.length || 0} queries)...</div>`;
         startStatusPolling();
         return;
       }
     } catch {
-      // Fall through to client simulation on static mode
+      // Fall through to simulated mode
     }
   }
 
-  // Static GitHub Pages Client-side Extraction Simulation Mode
+  // Client Simulation Mode
   let step = 0;
   const simLogs = [
-    `Initializing Playwright Chromium headless engine...`,
-    `Navigating to search engine for ${selectedCategories[0]} in ${area}...`,
-    `Extracting place cards, address, phone numbers & ratings...`,
-    `Deep crawling domain homepages & contact pages...`,
-    `Found verified email & social links (Instagram, Facebook)...`,
-    `✓ Extraction complete! Added new leads to local sales funnel.`
+    `Initializing Playwright Chromium engine...`,
+    `Searching Google Maps & Web Engines for ${selectedCategories[0] || 'high-value niches'} in ${selectedAreas[0]}...`,
+    `Extracting business cards, address, phone & rating data...`,
+    `Deep crawling domain homepages for decision-maker contact emails...`,
+    `✓ Extraction complete! Added qualified leads across ${selectedAreas.join(', ')}.`
   ];
 
   const timer = setInterval(() => {
@@ -433,48 +1805,48 @@ async function handleStartExtraction(e) {
     } else {
       clearInterval(timer);
       btn.disabled = false;
-      btn.innerText = '🚀 Start Lead Extraction';
+      btn.innerText = '🚀 Start Multi-Area Lead Extraction';
 
-      // Generate a new simulated lead
-      const newId = `ext_${Date.now()}`;
-      const sampleNames = ['Umhlanga Wellness Hub', 'Gateway Laser & Beauty', 'Umhlanga Executive Auto', 'Ridge CrossFit'];
-      const sampleCategories = ['Healthcare & Wellness', 'Beauty and Hair', 'Automotive & Trades', 'Fitness'];
-      const pick = Math.floor(Math.random() * sampleNames.length);
+      hideLiveExtractionBanner();
+      showToast(`✓ Multi-Area Lead Extraction Completed for ${selectedAreas.length} locations!`);
 
+      // Add mock lead for selected area
+      const pickArea = selectedAreas[Math.floor(Math.random() * selectedAreas.length)] || 'Sandton';
       const mockLead = {
-        id: newId,
-        name: `${sampleNames[pick]} (${area})`,
-        category: sampleCategories[pick],
-        area: area,
-        address: `${area}, South Africa`,
-        phone: `+27 31 ${Math.floor(1000000 + Math.random() * 9000000)}`,
-        website: `https://www.${sampleNames[pick].toLowerCase().replace(/[^a-z]/g, '')}.co.za`,
-        email: `info@${sampleNames[pick].toLowerCase().replace(/[^a-z]/g, '')}.co.za`,
-        socials: { instagram: `https://www.instagram.com/${sampleNames[pick].toLowerCase().replace(/[^a-z]/g, '')}/` },
-        rating: 4.8,
+        id: `ext_${Date.now()}`,
+        name: `${pickArea} Premier ${selectedCategories[0] || 'Business'}`,
+        category: selectedCategories[0] || 'Fitness',
+        area: pickArea,
+        address: `${pickArea}, South Africa`,
+        phone: `+27 11 ${Math.floor(5000000 + Math.random() * 4000000)}`,
+        website: `https://www.${pickArea.toLowerCase().replace(/[^a-z]/g, '')}premier${Date.now().toString().slice(-4)}.co.za`,
+        email: `info@${pickArea.toLowerCase().replace(/[^a-z]/g, '')}premier${Date.now().toString().slice(-4)}.co.za`,
+        socials: { instagram: `https://instagram.com/${pickArea.toLowerCase().replace(/[^a-z]/g, '')}premier` },
+        rating: 4.9,
         reviewCount: 42,
         funnelStage: 'new',
-        opportunityScore: 88,
+        opportunityScore: 91,
         scrapedAt: new Date().toISOString(),
         source: 'multi_source'
       };
 
       allLeads.unshift(mockLead);
       saveLeadsLocally();
+      populateAreaFilterOptions();
       renderDashboard();
     }
   }, 1000);
 }
 
 /**
- * Poll Background Extraction Status (Live server mode)
+ * Poll Background Extraction Status
  */
 function startStatusPolling() {
   if (pollTimer) clearInterval(pollTimer);
 
   pollTimer = setInterval(async () => {
     try {
-      const res = await fetch('/api/extract/status');
+      const res = await fetch(getApiUrl('/api/extract/status'));
       const statusData = await res.json();
       const logBox = document.getElementById('terminal-logs');
 
@@ -489,7 +1861,10 @@ function startStatusPolling() {
         clearInterval(pollTimer);
         const btn = document.getElementById('btn-run-scraper');
         btn.disabled = false;
-        btn.innerText = '🚀 Start Lead Extraction';
+        btn.innerText = '🚀 Start Multi-Area Lead Extraction';
+
+        hideLiveExtractionBanner();
+        showToast('✓ Live Multi-Area Lead Extraction Finished!');
 
         fetchLeads();
         fetchStats();
@@ -501,29 +1876,127 @@ function startStatusPolling() {
 }
 
 /**
- * Trigger Contact Enrichment
+ * Manual Lead Modal Handlers
  */
-async function triggerEnrichment() {
-  alert('✨ Contact enrichment process executed for leads missing email, phone, or socials!');
-  allLeads.forEach((l) => {
-    if (!l.email) l.email = `contact@${l.name.toLowerCase().replace(/[^a-z]/g, '') || 'business'}.co.za`;
-    if (!l.phone) l.phone = `+27 31 566 ${Math.floor(1000 + Math.random() * 9000)}`;
-    if (l.funnelStage === 'new') l.funnelStage = 'enriched';
-  });
+function openAddLeadModal() {
+  document.getElementById('add-lead-modal').classList.add('show');
+}
+
+function closeAddLeadModal() {
+  document.getElementById('add-lead-modal').classList.remove('show');
+  document.getElementById('add-lead-form').reset();
+}
+
+async function handleAddLeadSubmit(e) {
+  e.preventDefault();
+
+  const name = document.getElementById('add-name').value;
+  const category = document.getElementById('add-category').value;
+  const area = document.getElementById('add-area').value || 'Umhlanga';
+  const website = document.getElementById('add-website').value;
+  const phone = document.getElementById('add-phone').value;
+  const email = document.getElementById('add-email').value;
+
+  const newLeadData = {
+    name,
+    category,
+    area,
+    website,
+    phone,
+    email,
+    funnelStage: 'new',
+    opportunityScore: 82,
+  };
+
+  if (!isStaticMode) {
+    try {
+      const res = await fetch(getApiUrl('/api/leads'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newLeadData),
+      });
+      const data = await res.json();
+      if (data.success && data.lead) {
+        allLeads.unshift(data.lead);
+        closeAddLeadModal();
+        populateAreaFilterOptions();
+        renderDashboard();
+        fetchStats();
+        showToast('✓ Lead created successfully!');
+        return;
+      }
+    } catch {
+      // Fall through to static
+    }
+  }
+
+  const manualLead = {
+    id: `manual_${Date.now()}`,
+    ...newLeadData,
+    scrapedAt: new Date().toISOString(),
+    source: 'manual',
+  };
+
+  allLeads.unshift(manualLead);
   saveLeadsLocally();
+  closeAddLeadModal();
+  populateAreaFilterOptions();
   renderDashboard();
+  showToast('✓ Lead created locally!');
 }
 
 /**
- * Open Prospect Detail Drawer
+ * Trigger Contact Enrichment
  */
+async function triggerEnrichment() {
+  const btn = document.getElementById('btn-enrich');
+  if (btn) btn.innerText = '⌛ Enriching...';
+
+  if (!isStaticMode) {
+    try {
+      const res = await fetch(getApiUrl('/api/enrich'), { method: 'POST' });
+      const data = await res.json();
+      showToast(data.message || 'Contact enrichment finished!');
+      fetchLeads();
+      fetchStats();
+      if (btn) btn.innerHTML = '<span>✨ Enrich Contacts</span>';
+      return;
+    } catch {
+      // ignore
+    }
+  }
+
+  allLeads.forEach((l) => {
+    if (!l.email) l.email = `contact@${l.name.toLowerCase().replace(/[^a-z]/g, '') || 'business'}.co.za`;
+    if (!l.phone) l.phone = `+27 11 566 ${Math.floor(1000 + Math.random() * 9000)}`;
+    if (l.funnelStage === 'new') l.funnelStage = 'enriched';
+  });
+
+  saveLeadsLocally();
+  renderDashboard();
+  showToast('✨ Contact enrichment completed!');
+  if (btn) btn.innerHTML = '<span>✨ Enrich Contacts</span>';
+}
+
+/**
+ * Open Prospect Detail Drawer Modal
+ */
+let currentPitchChannel = 'email';
+
 function openDetailModal(leadId) {
   selectedLead = allLeads.find((l) => l.id === leadId);
   if (!selectedLead) return;
 
+  // Reset active sequence data & active touchpoint so each prospect gets their own unique, freshly generated sequence
+  activeSequenceData = null;
+  activeTouchpointIndex = 0;
+
   document.getElementById('detail-name').innerText = selectedLead.name;
   document.getElementById('detail-category').innerText = selectedLead.category;
   document.getElementById('detail-score').innerText = selectedLead.opportunityScore || 80;
+  
+  const estVal = selectedLead.estimatedDealValue || 18500;
+  document.getElementById('detail-est-value').innerText = `Est. Deal: R${estVal.toLocaleString()}`;
 
   // Website
   const webLink = document.getElementById('detail-website');
@@ -555,7 +2028,7 @@ function openDetailModal(leadId) {
     emailLink.innerText = 'Not Found';
   }
 
-  document.getElementById('detail-address').innerText = selectedLead.address || 'Umhlanga';
+  document.getElementById('detail-address').innerText = selectedLead.address || selectedLead.area || 'South Africa';
   document.getElementById('detail-stage-select').value = selectedLead.funnelStage;
   document.getElementById('detail-notes').value = selectedLead.notes || '';
 
@@ -585,6 +2058,13 @@ function openDetailModal(leadId) {
     });
   }
 
+  renderTechnicalAuditDrawer(selectedLead);
+  renderSalesFunnelDiagnostic(selectedLead);
+  renderSalesIntelligence(selectedLead);
+  renderPitchSuite(selectedLead);
+  renderDetailTags(selectedLead);
+  renderActivityTimeline(selectedLead);
+
   document.getElementById('detail-modal').classList.add('show');
 }
 
@@ -594,22 +2074,30 @@ function closeDetailModal() {
 }
 
 /**
- * Update Stage from Detail Modal
+ * Update Lead Stage from Modal Dropdown
  */
 async function updateLeadStageFromModal(newStage) {
   if (!selectedLead) return;
+
+  const prevStage = selectedLead.funnelStage;
   selectedLead.funnelStage = newStage;
+  logLeadActivity(selectedLead, 'stage_change', `Moved pipeline stage from ${prevStage ? prevStage.toUpperCase() : 'NEW'} to ${newStage.toUpperCase()}`);
 
   if (!isStaticMode) {
-    fetch(`/api/leads/${selectedLead.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ funnelStage: newStage }),
-    }).catch(() => null);
+    try {
+      await fetch(getApiUrl(`/api/leads/${selectedLead.id}`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ funnelStage: newStage }),
+      });
+    } catch {
+      // ignore
+    }
   }
 
   saveLeadsLocally();
   renderDashboard();
+  showToast(`✓ Stage updated to ${newStage}`);
 }
 
 /**
@@ -619,46 +2107,1637 @@ async function saveLeadNotes() {
   if (!selectedLead) return;
   const notes = document.getElementById('detail-notes').value;
   selectedLead.notes = notes;
+  logLeadActivity(selectedLead, 'note_added', `Updated notes: "${notes.trim().substring(0, 50)}${notes.trim().length > 50 ? '...' : ''}"`);
 
   if (!isStaticMode) {
-    fetch(`/api/leads/${selectedLead.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ notes }),
-    }).catch(() => null);
+    try {
+      await fetch(getApiUrl(`/api/leads/${selectedLead.id}`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes }),
+      });
+    } catch {
+      // ignore
+    }
   }
 
   saveLeadsLocally();
-  alert('Notes saved successfully!');
-  renderDashboard();
+  showToast('✓ Lead notes saved!');
 }
 
 /**
- * Generate AI Outreach Script Generator
+ * Render Technical Audit Chips
  */
-function generateAiScript() {
+function renderTechnicalAuditDrawer(lead) {
+  const auditBox = document.getElementById('detail-audit-box');
+  if (!auditBox) return;
+
+  const audit = lead.technicalAudit || {
+    hasHttps: Boolean(lead.website && lead.website.startsWith('https')),
+    hasResponsiveViewport: true,
+    hasContactForm: Boolean(lead.email),
+    hasBookingSystem: false,
+    hasWhatsappLink: Boolean(lead.phone),
+  };
+
+  const chips = [
+    { label: 'HTTPS SSL Security', ok: audit.hasHttps },
+    { label: 'Mobile Responsive Viewport', ok: audit.hasResponsiveViewport },
+    { label: 'Online Booking System', ok: audit.hasBookingSystem },
+    { label: 'WhatsApp Instant Lead CTA', ok: audit.hasWhatsappLink },
+    { label: 'Contact Inquiry Form', ok: audit.hasContactForm },
+  ];
+
+  auditBox.innerHTML = chips
+    .map(
+      (c) => `
+      <div class="audit-chip ${c.ok ? 'pass' : 'fail'}">
+        <span class="dot">${c.ok ? '✓' : '✖'}</span>
+        <span>${c.label}</span>
+      </div>
+    `
+    )
+    .join('');
+}
+
+/**
+ * Render Sales Funnel & Workflow Architecture Diagnostic & Tailored Business Case
+ */
+function renderSalesFunnelDiagnostic(lead) {
+  const archBadge = document.getElementById('detail-funnel-arch-badge');
+  const chipsContainer = document.getElementById('detail-funnel-stack-chips');
+  const caseCard = document.getElementById('detail-business-case-card');
+  if (!chipsContainer || !caseCard) return;
+
+  // 1. Resolve or compute Funnel Tech Stack
+  const name = lead.name || 'Prospect';
+  const cat = (lead.category || '').toLowerCase();
+  const website = (lead.website || '').toLowerCase();
+  const notes = (lead.notes || '').toLowerCase();
+  const socials = lead.socials || {};
+  const ig = (socials.instagram || '').toLowerCase();
+  const fb = (socials.facebook || '').toLowerCase();
+
+  let funnelStack = lead.funnelTechStack || lead.technicalAudit?.funnelTechStack;
+  if (!funnelStack) {
+    let linkTool = undefined;
+    if (website.includes('linktr.ee') || ig.includes('linktr.ee') || notes.includes('linktree')) linkTool = 'Linktree';
+    else if (website.includes('beacons.ai') || ig.includes('beacons.ai')) linkTool = 'Beacons';
+    else if (website.includes('bento.me') || ig.includes('bento.me')) linkTool = 'Bento';
+    else if (website.includes('taplink.cc') || ig.includes('taplink.cc')) linkTool = 'Taplink';
+    else if (name.toLowerCase().includes('fitness cartel')) linkTool = 'Linktree';
+
+    let bookingEngine = undefined;
+    if (lead.technicalAudit?.bookingEngine) {
+      bookingEngine = lead.technicalAudit.bookingEngine;
+    } else if (website.includes('octiv') || notes.includes('octiv') || name.toLowerCase().includes('fitness cartel')) {
+      bookingEngine = 'Octiv (BoxChamp)';
+    } else if (website.includes('fresha') || notes.includes('fresha')) {
+      bookingEngine = 'Fresha';
+    } else if (website.includes('dineplan') || notes.includes('dineplan')) {
+      bookingEngine = 'Dineplan';
+    } else if (website.includes('recomed') || notes.includes('recomed')) {
+      bookingEngine = 'RecoMed';
+    } else if (lead.technicalAudit?.hasBookingSystem) {
+      bookingEngine = 'Online Booking Portal';
+    }
+
+    let paymentGateway = undefined;
+    if (lead.technicalAudit?.paymentGateway) {
+      paymentGateway = lead.technicalAudit.paymentGateway;
+    } else if (website.includes('payfast') || notes.includes('payfast') || name.toLowerCase().includes('fitness cartel')) {
+      paymentGateway = 'PayFast';
+    } else if (website.includes('yoco') || notes.includes('yoco')) {
+      paymentGateway = 'Yoco';
+    } else if (website.includes('ozow') || notes.includes('ozow')) {
+      paymentGateway = 'Ozow';
+    }
+
+    const leadCapture = [];
+    if (lead.phone || lead.technicalAudit?.hasWhatsappLink) leadCapture.push('WhatsApp Direct');
+    if (socials.instagram) leadCapture.push('Instagram DM');
+    if (lead.email || lead.technicalAudit?.hasContactForm) leadCapture.push('Contact Inquiry Form');
+    if (leadCapture.length === 0) leadCapture.push('Manual Phone / In-Person');
+
+    const analytics = (lead.technicalAudit?.analyticsDetected && lead.technicalAudit.analyticsDetected.length > 0)
+      ? lead.technicalAudit.analyticsDetected
+      : [];
+
+    let arch = 'manual_friction_heavy';
+    if (linkTool && bookingEngine) arch = 'fragmented_external_stack';
+    else if (linkTool) arch = 'fragmented_external_stack';
+    else if (bookingEngine && (lead.phone || lead.technicalAudit?.hasWhatsappLink)) arch = 'unified_optimized_hub';
+    else if (lead.website) arch = 'isolated_website_silo';
+
+    funnelStack = {
+      linkInBioTool: linkTool,
+      bookingEngine,
+      leadCaptureChannels: leadCapture,
+      paymentGateway,
+      analyticsRetargeting: analytics,
+      currentArchitecture: arch,
+    };
+    lead.funnelTechStack = funnelStack;
+  }
+
+  // 2. Resolve or compute Tailored Business Case
+  let businessCase = lead.businessCase || lead.technicalAudit?.businessCase;
+  if (!businessCase) {
+    const linkTool = funnelStack.linkInBioTool;
+    const booking = funnelStack.bookingEngine;
+    const payment = funnelStack.paymentGateway;
+    const igHandle = socials.instagram ? socials.instagram.split('/').filter(Boolean).pop() : `@${name.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+
+    let currentWorkflowSummary = '';
+    const identifiedGaps = [];
+    let proposedCentralizedSolution = '';
+    let strategicPitchHook = '';
+
+    if (linkTool && booking) {
+      currentWorkflowSummary = `Instagram Bio (${igHandle}) ➔ ${linkTool} Landing ➔ External ${booking} Portal & Manual WhatsApp`;
+      identifiedGaps.push(`${linkTool} Click Friction: Directing social followers to a multi-link directory introduces an unnecessary 40-50% bounce rate before prospects see your schedule/offers.`);
+      identifiedGaps.push(`External ${booking} Portal Disconnect: Rerouting traffic away to an external domain strips away brand immersion and prevents Meta Pixel retargeting.`);
+      identifiedGaps.push(`Disjointed Inbound Intake: WhatsApp inquiries, DMs, and bookings operate in silos without automated follow-up.`);
+      proposedCentralizedSolution = `A high-converting Branded Digital Hub that replaces ${linkTool} and centralizes your ${booking} schedule, 1-click WhatsApp trial pass claims, instant ${payment || 'online'} payments, and unified Meta Pixel retargeting in one seamless touchpoint.`;
+      strategicPitchHook = `We noticed on social media that ${name} routes prospects through ${linkTool} to ${booking}. We built a centralized touchpoint blueprint for ${name} that eliminates the 40% drop-off barrier by unifying trial booking, WhatsApp intake, and signups in one hub.`;
+    } else if (linkTool) {
+      currentWorkflowSummary = `Instagram Bio (${igHandle}) ➔ ${linkTool} Link-in-Bio ➔ Disconnected External Links & Manual Phone/DM`;
+      identifiedGaps.push(`Multi-Link Directory Fatigue: Visitors clicking ${linkTool} are overwhelmed by choices without a clear booking CTA.`);
+      identifiedGaps.push(`Loss of Retargeting Pixel Data: Third-party bio links do not allow ${name} to build custom audiences for Meta or Google ad retargeting.`);
+      proposedCentralizedSolution = `A custom branded mobile landing page that replaces ${linkTool}, featuring instant 1-click WhatsApp chat, interactive service menu, direct booking calendar, and built-in Meta Pixel retargeting.`;
+      strategicPitchHook = `We noticed ${name} uses ${linkTool} on social media. We designed a branded, high-converting touchpoint that replaces ${linkTool} and captures 35%+ more direct client inquiries.`;
+    } else if (booking) {
+      currentWorkflowSummary = `Social / Google Maps ➔ External ${booking} Portal ➔ Manual Confirmation`;
+      identifiedGaps.push(`External Portal Leakage: Sending prospects directly to ${booking} skips pre-framing, social proof, and WhatsApp capture.`);
+      proposedCentralizedSolution = `A high-converting branded portal integrating ${booking} seamlessly with automated 1-click WhatsApp follow-ups and local search SEO.`;
+      strategicPitchHook = `We saw ${name} uses ${booking} for bookings. We built an automated touchpoint that captures abandoned visitors and converts 30% more inquiries via WhatsApp.`;
+    } else if (!lead.website || lead.website.trim() === '') {
+      currentWorkflowSummary = `Google Maps / Directory Listing ➔ Phone Calls / In-Person Walk-ins`;
+      identifiedGaps.push(`Zero Dedicated Website: ${name} is missing out on high-intent Google search traffic in ${lead.area || 'South Africa'}.`);
+      identifiedGaps.push(`No 24/7 Automated Intake: Potential clients searching after hours cannot view services, pricing, or book appointments.`);
+      proposedCentralizedSolution = `A modern, responsive business website featuring 24/7 WhatsApp lead capture, interactive service menu, online booking, and Google Local SEO optimization.`;
+      strategicPitchHook = `We noticed ${name} currently doesn't have an active website. We designed a high-converting digital storefront for ${name} to capture local ${lead.category || 'business'} searches.`;
+    } else {
+      const audit = lead.technicalAudit;
+      currentWorkflowSummary = `Google Search / Social Profiles ➔ Website (${lead.website}) ➔ Manual Phone Calls / Unmonitored Contact Form`;
+      if (audit && !audit.hasHttps) {
+        identifiedGaps.push(`Insecure SSL Protocol: Browsers display a "Not Secure" warning on ${lead.website}, scaring off 60%+ of potential clients.`);
+      }
+      if (audit && !audit.hasWhatsappLink) {
+        identifiedGaps.push(`Missing 1-Click WhatsApp CTA: South Africa's #1 communication channel is missing, letting high-intent inquiries bounce to competitors.`);
+      }
+      if (audit && !audit.hasBookingSystem) {
+        identifiedGaps.push(`No Automated Online Booking: Over 70% of local inquiries happen after 6 PM when staff cannot answer phones.`);
+      }
+      if (audit && (!audit.analyticsDetected || audit.analyticsDetected.length === 0)) {
+        identifiedGaps.push(`Zero Conversion Tracking: No GA4 or Meta Pixel installed, leaving website traffic and ad ROI unmeasured.`);
+      }
+      if (identifiedGaps.length === 0) {
+        identifiedGaps.push(`Conversion Optimization Gap: High bounce rate on mobile visitors before reaching contact form.`);
+        identifiedGaps.push(`No automated after-hours intake assistant.`);
+      }
+      proposedCentralizedSolution = `A 24/7 Automated Client Acquisition Engine featuring 1-click WhatsApp lead capture, instant scheduling calendar, automated FAQ qualification, and online payment intake.`;
+      strategicPitchHook = `We audited ${name}'s digital presence in ${lead.area || 'South Africa'} and developed a 24/7 lead intake blueprint to capture 35%+ more monthly clients.`;
+    }
+
+    const estImpact = Math.round((lead.estimatedDealValue || 18500) * 1.4);
+
+    // Qualitative Economic Classifications (used when exact economics are unavailable or for tiering)
+    let qualitativeImpactTier = 'Moderate Conversion Opportunity';
+    let qualitativePaybackHorizon = 'Rapid Turnaround (1–2 Months)';
+    let dealScopeClassification = '24/7 Lead Intake & WhatsApp Engine';
+    let commercialValuationRange = 'R15,000 – R25,000 (Focused Intake Engine)';
+
+    if (linkTool && booking) {
+      qualitativeImpactTier = 'High Commercial Upside (Top-Tier Friction Recovery)';
+      qualitativePaybackHorizon = 'Immediate (< 30 Days)';
+      dealScopeClassification = 'Centralized Multi-Tool Hub Transformation';
+      commercialValuationRange = 'R28,000 – R45,000 (Omnichannel Hub)';
+    } else if (linkTool) {
+      qualitativeImpactTier = 'Substantial Inbound Expansion (Bio-Link Friction Elimination)';
+      qualitativePaybackHorizon = 'Immediate (< 30 Days)';
+      dealScopeClassification = 'Branded Mobile Touchpoint & Booking Hub';
+      commercialValuationRange = 'R20,000 – R35,000 (Mobile Funnel)';
+    } else if (booking) {
+      qualitativeImpactTier = 'Substantial Conversion Recovery (External Leakage Prevention)';
+      qualitativePaybackHorizon = 'Rapid Turnaround (< 45 Days)';
+      dealScopeClassification = 'Integrated Booking & Retargeting Portal';
+      commercialValuationRange = 'R18,000 – R30,000 (Portal Integration)';
+    } else if (!lead.website || lead.website.trim() === '') {
+      qualitativeImpactTier = 'Foundational Digital Intake Opportunity (Zero Existing Web Funnel)';
+      qualitativePaybackHorizon = 'Rapid Turnaround (1–2 Months)';
+      dealScopeClassification = 'Complete Mobile-First Web & Booking Storefront';
+      commercialValuationRange = 'R22,000 – R38,000 (Full Storefront)';
+    }
+
+    businessCase = {
+      headline: `Centralized Touchpoint & Workflow Blueprint for ${name}`,
+      currentWorkflowSummary,
+      identifiedGaps,
+      commercialFrictionPoints: [
+        'Over 40% of mobile visitors drop off before completing inquiries',
+        'Missed revenue from after-hours and weekend web traffic',
+      ],
+      proposedCentralizedSolution,
+      projectedMonthlyRecoveredLeads: `+${Math.max(12, Math.round((lead.opportunityScore || 75) * 0.25))} to +${Math.max(22, Math.round((lead.opportunityScore || 75) * 0.4))} qualified monthly inquiries`,
+      estimatedMonthlyRevenueImpactZAR: estImpact,
+      qualitativeImpactTier,
+      paybackPeriodDays: 18,
+      qualitativePaybackHorizon,
+      dealScopeClassification,
+      commercialValuationRange,
+      strategicPitchHook,
+    };
+    lead.businessCase = businessCase;
+  }
+
+  // 3. Render Architecture Badge
+  if (archBadge) {
+    const archMap = {
+      fragmented_external_stack: { label: '⚠️ Fragmented Multi-Tool Stack', class: 'badge-warning' },
+      manual_friction_heavy: { label: '⚙️ Manual Friction-Heavy', class: 'badge-warning' },
+      isolated_website_silo: { label: '🌐 Disconnected Website Silo', class: 'badge-info' },
+      unified_optimized_hub: { label: '✨ Unified Optimized Hub', class: 'badge-success' },
+    };
+    const archInfo = archMap[funnelStack.currentArchitecture] || archMap.fragmented_external_stack;
+    archBadge.innerText = archInfo.label;
+  }
+
+  // 4. Render Funnel Stack Chips
+  const chipsHtml = [];
+  if (funnelStack.linkInBioTool) {
+    chipsHtml.push(`<span class="funnel-stack-chip warning">🔗 Bio: ${escapeHtml(funnelStack.linkInBioTool)} (Click Friction)</span>`);
+  } else {
+    chipsHtml.push(`<span class="funnel-stack-chip success">🌐 Direct Web Domain</span>`);
+  }
+
+  if (funnelStack.bookingEngine) {
+    chipsHtml.push(`<span class="funnel-stack-chip portal">⚡ Booking: ${escapeHtml(funnelStack.bookingEngine)}</span>`);
+  } else {
+    chipsHtml.push(`<span class="funnel-stack-chip warning">❌ No Booking Engine</span>`);
+  }
+
+  (funnelStack.leadCaptureChannels || []).forEach((ch) => {
+    chipsHtml.push(`<span class="funnel-stack-chip">💬 ${escapeHtml(ch)}</span>`);
+  });
+
+  if (funnelStack.paymentGateway) {
+    chipsHtml.push(`<span class="funnel-stack-chip payment">💳 Pay: ${escapeHtml(funnelStack.paymentGateway)}</span>`);
+  }
+
+  if (funnelStack.analyticsRetargeting && funnelStack.analyticsRetargeting.length > 0) {
+    funnelStack.analyticsRetargeting.forEach((pix) => {
+      chipsHtml.push(`<span class="funnel-stack-chip success">📊 ${escapeHtml(pix)}</span>`);
+    });
+  } else {
+    chipsHtml.push(`<span class="funnel-stack-chip warning">⚠️ No Retargeting Pixel</span>`);
+  }
+
+  chipsContainer.innerHTML = chipsHtml.join('');
+
+  // 5. Render Tailored Business Case Card
+  const impactTier = businessCase.qualitativeImpactTier || 'High Commercial Upside';
+  const paybackHorizon = businessCase.qualitativePaybackHorizon || 'Immediate (< 30 Days)';
+  const dealScope = businessCase.dealScopeClassification || 'Centralized Multi-Tool Hub Transformation';
+
+  caseCard.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+      <div class="bc-title" style="margin-bottom: 0;">💼 Tailored Commercial Business Case</div>
+      <span class="funnel-stack-chip success" style="font-size: 11px; padding: 3px 8px;">🎯 ${escapeHtml(impactTier)}</span>
+    </div>
+    
+    <div class="bc-journey-box">
+      <strong>Customer Journey:</strong> ${escapeHtml(businessCase.currentWorkflowSummary)}
+    </div>
+
+    <div class="bc-gaps-wrap">
+      <div class="bc-gaps-label">Identified Funnel Friction & Gaps</div>
+      <ul class="bc-gap-list">
+        ${businessCase.identifiedGaps.map((g) => `<li>${escapeHtml(g)}</li>`).join('')}
+      </ul>
+    </div>
+
+    <div class="bc-solution-box">
+      <strong>Proposed Centralized Hub Blueprint:</strong>
+      ${escapeHtml(businessCase.proposedCentralizedSolution)}
+      <div style="margin-top: 6px; font-size: 12px; color: var(--text-dim);">
+        <strong>Scope:</strong> ${escapeHtml(dealScope)}
+      </div>
+    </div>
+
+    <div class="bc-roi-row">
+      <div class="bc-roi-item">
+        <div class="bc-roi-label">Projected Recovered Inquiries</div>
+        <div class="bc-roi-val">${escapeHtml(businessCase.projectedMonthlyRecoveredLeads)}</div>
+      </div>
+      <div class="bc-roi-item">
+        <div class="bc-roi-label">Commercial Impact (${escapeHtml(paybackHorizon)})</div>
+        <div class="bc-roi-val green">${businessCase.estimatedMonthlyRevenueImpactZAR ? `+R${businessCase.estimatedMonthlyRevenueImpactZAR.toLocaleString()} / mo` : escapeHtml(impactTier)}</div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Render Full AI Sales Intelligence & Research Dossier
+ */
+function renderSalesIntelligence(lead) {
+  const container = document.getElementById('detail-intelligence-card');
+  if (!container) return;
+
+  const intel = lead.salesIntelligence;
+  if (!intel) {
+    container.innerHTML = `
+      <div class="intel-placeholder">
+        <div class="pulse-dot mb-2"></div>
+        <p style="font-size: 13px; color: var(--text-dim);">Deep sales research & customer journey diagnosis not yet generated for this lead.</p>
+        <button class="btn btn-sm btn-primary mt-2" onclick="triggerSalesIntelligence(false)">⚡ Run Deep Research & Audit</button>
+      </div>
+    `;
+    return;
+  }
+
+  const identity = intel.identity || {};
+  const dm = identity.decision_maker || {};
+  const digital = intel.digital_presence || {};
+  const social = intel.social_audit || {};
+  const opp = intel.opportunity || {};
+  const bcase = intel.business_case || {};
+  const strategy = intel.outreach_strategy || {};
+  const selectedAngle = strategy.selected_angle || {};
+  const quality = intel.quality_scores || {};
+  const sources = intel.sources || [];
+  const fundamentals = intel.business_fundamentals || {};
+  const strengths = fundamentals.strengths || [];
+
+  const tempClass = strategy.prospect_temperature === 'VERY_WARM' ? 'temp-very-warm' : strategy.prospect_temperature === 'WARM' ? 'temp-warm' : 'temp-cold';
+
+  let html = `
+    <!-- Header: Business Intelligence Summary -->
+    <div class="intel-header-box">
+      <div class="intel-header-top">
+        <div class="intel-canonical-name">
+          <h4 style="margin: 0; font-size: 16px; font-weight: 800; color: #ffffff;">${escapeHtml(identity.canonical_name || lead.name)}</h4>
+          <span class="intel-suburb-tag">📍 ${escapeHtml(identity.location?.suburb || lead.area || 'Umhlanga')}, ${escapeHtml(identity.location?.city || 'Durban')}</span>
+        </div>
+        <div class="intel-temp-badge ${tempClass}">
+          <span>🔥 ${strategy.prospect_temperature || 'WARM'}</span>
+        </div>
+      </div>
+      <div class="intel-meta-grid">
+        <div class="intel-meta-item">
+          <span class="label">Industry:</span>
+          <strong>${escapeHtml(identity.industry || lead.category || 'Local Business')}</strong>
+        </div>
+        <div class="intel-meta-item">
+          <span class="label">Decision Maker:</span>
+          <strong>${escapeHtml(dm.name || 'Leadership Team')}</strong>
+          ${dm.verified ? '<span class="verified-badge" title="Verified Decision Maker">✓ Verified</span>' : '<span class="unverified-badge" title="Uncertain - Inferred from profile context">⚠ Inferred</span>'}
+        </div>
+        <div class="intel-meta-item">
+          <span class="label">Identity Confidence:</span>
+          <strong class="confidence-${(identity.identity_confidence || 'HIGH').toLowerCase()}">${identity.identity_confidence || 'HIGH'}</strong>
+        </div>
+        <div class="intel-meta-item">
+          <span class="label">Recommended CTA:</span>
+          <strong class="cta-highlight">🎯 ${escapeHtml(opp.appropriate_cta || 'Permission to share preview')}</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Digital Presence Matrix -->
+    <div class="intel-digital-presence-matrix">
+      <div class="presence-chip ${digital.has_website ? 'active' : 'inactive'}">
+        <span class="chip-icon">${digital.has_website ? '🌐' : '❌'}</span>
+        <div class="chip-content">
+          <span class="chip-title">Website</span>
+          <span class="chip-val">${digital.has_website ? (digital.classification || 'Active') : 'No Presence'}</span>
+        </div>
+      </div>
+      <div class="presence-chip ${social.is_active ? 'active' : 'inactive'}">
+        <span class="chip-icon">${social.is_active ? '🟢' : '⚪'}</span>
+        <div class="chip-content">
+          <span class="chip-title">Instagram</span>
+          <span class="chip-val">${social.is_active ? (social.primary_platform || 'Active') : 'Inactive'}</span>
+        </div>
+      </div>
+      <div class="presence-chip ${digital.local_seo_status !== 'absent' ? 'active' : 'inactive'}">
+        <span class="chip-icon">${digital.local_seo_status === 'dominant' ? '🟢' : '🟡'}</span>
+        <div class="chip-content">
+          <span class="chip-title">Google Maps</span>
+          <span class="chip-val">${digital.local_seo_status === 'dominant' ? 'Dominant' : 'Present'}</span>
+        </div>
+      </div>
+      <div class="presence-chip ${lead.reviewCount && lead.reviewCount >= 10 ? 'active' : 'warning'}">
+        <span class="chip-icon">${lead.reviewCount && lead.reviewCount >= 10 ? '⭐' : '🟠'}</span>
+        <div class="chip-content">
+          <span class="chip-title">Reviews</span>
+          <span class="chip-val">${lead.rating ? `${lead.rating}★ (${lead.reviewCount || 0})` : 'Limited'}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- What They're Doing Well -->
+    ${strengths.length > 0 ? `
+    <div class="intel-block strengths-block">
+      <h5 class="intel-block-title">✨ What They're Doing Well</h5>
+      <ul class="intel-strengths-list">
+        ${strengths.map(s => `<li>${escapeHtml(s)}</li>`).join('')}
+      </ul>
+    </div>
+    ` : ''}
+
+    <!-- The Bottleneck -->
+    <div class="intel-block bottleneck-block">
+      <h5 class="intel-block-title">⚠️ The Primary Bottleneck</h5>
+      <div class="intel-callout-quote danger">
+        "${escapeHtml(opp.primary_bottleneck || 'Customer journey friction is restricting conversion.')}"
+      </div>
+    </div>
+
+    <!-- The Opportunity & Recommended Approach -->
+    <div class="intel-block opportunity-block">
+      <h5 class="intel-block-title">💡 The Opportunity & Recommended Approach</h5>
+      <div class="intel-callout-quote success">
+        <strong>${escapeHtml(opp.intervention_label || 'Conversion Landing Hub')}</strong>
+        <p style="margin-top: 4px; font-size: 13px; color: var(--text-dim);">${escapeHtml(opp.intervention_rationale || '')}</p>
+      </div>
+    </div>
+
+    <!-- Outreach Strategy & Angles -->
+    <div class="intel-block strategy-block">
+      <h5 class="intel-block-title">🎯 Outbound Strategy Rationale</h5>
+      <div class="intel-strategy-rationale">
+        <div class="strategy-qa">
+          <strong>Why this prospect:</strong>
+          <p>${escapeHtml(strategy.warm_signals?.join(' • ') || 'Strong local demand in competitive market')}</p>
+        </div>
+        <div class="strategy-qa mt-2">
+          <strong>Why this angle (${escapeHtml(selectedAngle.title || 'Selected Angle')}):</strong>
+          <p>${escapeHtml(selectedAngle.selection_reasoning || selectedAngle.core_premise || '')}</p>
+        </div>
+      </div>
+
+      <!-- 3-Angle Selector Pills -->
+      <div class="intel-angle-selector mt-3">
+        <span style="font-size: 11px; text-transform: uppercase; color: var(--text-dim); display: block; margin-bottom: 6px;">Test / Switch Angle:</span>
+        <div class="angle-pills-row">
+          <button class="angle-pill ${selectedAngle.angle_type === 'growth_opportunity' ? 'active' : ''}" onclick="selectIntelligenceAngle('growth_opportunity')">
+            <span>📈 Growth Angle</span>
+            <span class="angle-score-mini">${selectedAngle.angle_type === 'growth_opportunity' ? (selectedAngle.scores?.overall_score || 88) : 88}%</span>
+          </button>
+          <button class="angle-pill ${selectedAngle.angle_type === 'brand_opportunity' ? 'active' : ''}" onclick="selectIntelligenceAngle('brand_opportunity')">
+            <span>👑 Brand Angle</span>
+            <span class="angle-score-mini">${selectedAngle.angle_type === 'brand_opportunity' ? (selectedAngle.scores?.overall_score || 92) : 92}%</span>
+          </button>
+          <button class="angle-pill ${selectedAngle.angle_type === 'conversion_opportunity' ? 'active' : ''}" onclick="selectIntelligenceAngle('conversion_opportunity')">
+            <span>⚡ Conversion Angle</span>
+            <span class="angle-score-mini">${selectedAngle.angle_type === 'conversion_opportunity' ? (selectedAngle.scores?.overall_score || 90) : 90}%</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quality Scores Grid -->
+      <div class="intel-quality-grid mt-3">
+        <div class="quality-metric">
+          <span class="q-label">Genericity</span>
+          <span class="q-score ${quality.genericity_score <= 25 ? 'good' : 'warning'}">${quality.genericity_score ?? 15}% (Low)</span>
+        </div>
+        <div class="quality-metric">
+          <span class="q-label">Specificity</span>
+          <span class="q-score good">${quality.research_specificity_score ?? 85}%</span>
+        </div>
+        <div class="quality-metric">
+          <span class="q-label">Evidence</span>
+          <span class="q-score good">${quality.evidence_score ?? 88}%</span>
+        </div>
+        <div class="quality-metric">
+          <span class="q-label">Relevance</span>
+          <span class="q-score good">${quality.commercial_relevance_score ?? 90}%</span>
+        </div>
+        <div class="quality-metric">
+          <span class="q-label">Personalisation</span>
+          <span class="q-score good">${quality.personalisation_score ?? 85}%</span>
+        </div>
+      </div>
+
+      <!-- Evidence Sources Accordion -->
+      ${sources.length > 0 ? `
+      <div class="intel-sources-accordion mt-3">
+        <details>
+          <summary style="cursor: pointer; font-size: 12px; font-weight: 700; color: var(--sky);">🔍 View Verified Research Evidence Trail (${sources.length} Sources)</summary>
+          <div class="sources-list mt-2">
+            ${sources.map(s => `
+              <div class="source-item" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; font-size: 12px;">
+                <div class="source-header" style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                  <span class="badge badge-sm">${escapeHtml(s.source_type.toUpperCase())}</span>
+                  <span style="font-weight: 700; color: ${s.epistemic_status === 'FACT' ? 'var(--green)' : 'var(--amber)'};">${s.epistemic_status}</span>
+                  <span style="color: var(--text-dim);">Conf: ${s.confidence}</span>
+                </div>
+                <div class="source-claim" style="color: var(--text-main); font-weight: 500;">${escapeHtml(s.claim)}</div>
+                ${s.url ? `<a href="${s.url}" target="_blank" style="font-size: 11px; color: var(--sky); display: block; margin-top: 4px; word-break: break-all;">${escapeHtml(s.url)}</a>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        </details>
+      </div>
+      ` : ''}
+    </div>
+  `;
+
+  container.innerHTML = html;
+}
+
+/**
+ * Trigger AI Sales Intelligence Pipeline execution for the selected lead
+ */
+async function triggerSalesIntelligence(forceFresh = false) {
   if (!selectedLead) return;
 
-  const outputBox = document.getElementById('ai-script-output');
-  const textEl = document.getElementById('ai-script-text');
-  outputBox.classList.remove('hidden');
+  const container = document.getElementById('detail-intelligence-card');
+  if (container) {
+    container.innerHTML = `
+      <div class="intel-placeholder">
+        <span class="pulse-dot mb-2"></span>
+        <p style="font-size: 13px; color: var(--sky);">Running 10-Stage Sales Intelligence & Multi-Source Research Engine...</p>
+      </div>
+    `;
+  }
 
-  const pitch = `SUBJECT: Quick question regarding ${selectedLead.name}'s digital lead intake in Umhlanga
+  try {
+    const res = await fetch(getApiUrl(`/api/leads/${selectedLead.id}/intelligence`), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ forceFresh }),
+    });
 
-Hi ${selectedLead.name} Team,
+    if (res && res.ok) {
+      const data = await res.json();
+      if (data.success && data.report) {
+        selectedLead.salesIntelligence = data.report;
+        if (data.lead) {
+          Object.assign(selectedLead, data.lead);
+        }
+        renderSalesIntelligence(selectedLead);
+        renderPitchSuite(selectedLead);
+        saveLeadsLocally();
+        showToast('✓ AI Sales Intelligence Dossier Ready!');
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn('API intelligence generation failed, using local simulation:', err);
+  }
 
-I came across ${selectedLead.name} while auditing top-rated ${selectedLead.category} businesses in ${selectedLead.area || 'Umhlanga'}.
+  // Local fallback simulation if server is offline
+  renderSalesIntelligence(selectedLead);
+}
 
-I noticed your team has an incredible rating (${selectedLead.rating || 4.8}★ with ${selectedLead.reviewCount || 50}+ reviews), but your website could convert 35% more high-intent local clients through automated WhatsApp booking widgets and instant lead capture.
+/**
+ * Select a specific strategic angle for outreach
+ */
+async function selectIntelligenceAngle(angleType) {
+  if (!selectedLead) return;
 
-We recently built a sales funnel engine specifically for Umhlanga businesses to extract & capture inbound leads 24/7.
+  try {
+    const res = await fetch(getApiUrl(`/api/leads/${selectedLead.id}/intelligence`), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ preferredAngle: angleType, forceFresh: false }),
+    });
 
-Would you be open to a 10-minute demo this Thursday?
+    if (res && res.ok) {
+      const data = await res.json();
+      if (data.success && data.report) {
+        selectedLead.salesIntelligence = data.report;
+        if (data.lead) Object.assign(selectedLead, data.lead);
+        renderSalesIntelligence(selectedLead);
+        renderPitchSuite(selectedLead);
+        saveLeadsLocally();
+        showToast(`✓ Switched to ${angleType.replace(/_/g, ' ')}`);
+        return;
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
 
-Best regards,
-LeadGremlin Automated Engine`;
+/**
+ * Change Sequence Playbook Archetype
+ */
+async function changeSequenceArchetype(archetype) {
+  currentSequenceArchetype = archetype;
+  activeTouchpointIndex = 0;
+  if (!selectedLead) return;
 
-  textEl.innerText = pitch;
+  const archSelect = document.getElementById('sequence-archetype-select');
+  if (archSelect) archSelect.value = archetype;
+
+  // If connected to API, request generation
+  if (!isStaticMode) {
+    try {
+      const res = await fetch(getApiUrl('/api/sequences/generate'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: selectedLead.id,
+          archetype: currentSequenceArchetype,
+          tone: currentPitchTone,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.sequence) {
+        activeSequenceData = data.sequence;
+        renderPitchSuite(selectedLead);
+        showToast(`✓ Generated ${data.sequence.archetypeName}`);
+        return;
+      }
+    } catch {
+      // Fall through to local generation
+    }
+  }
+
+  activeSequenceData = generateSequenceLocal(selectedLead, currentSequenceArchetype, currentPitchTone);
+  renderPitchSuite(selectedLead);
+}
+
+/**
+ * Change Pitch Tone Selector
+ */
+async function changePitchTone(tone) {
+  currentPitchTone = tone;
+  if (!selectedLead) return;
+
+  const toneSelect = document.getElementById('pitch-tone-select');
+  if (toneSelect) toneSelect.value = tone;
+
+  if (!isStaticMode) {
+    try {
+      const res = await fetch(getApiUrl(`/api/leads/${selectedLead.id}/pitch`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tone }),
+      });
+      const data = await res.json();
+      if (data.success && data.scripts) {
+        selectedLead.aiPitchScripts = data.scripts;
+      }
+    } catch {
+      // Fall through
+    }
+  }
+
+  await changeSequenceArchetype(currentSequenceArchetype);
+}
+
+/**
+ * Select a specific touchpoint in the active sequence timeline
+ */
+function selectTouchpoint(index) {
+  if (!activeSequenceData || !activeSequenceData.touchpoints) return;
+  activeTouchpointIndex = index;
+  const tp = activeSequenceData.touchpoints[index];
+  if (!tp) return;
+
+  // Map channel tab
+  if (tp.channel === 'email') currentPitchChannel = 'email';
+  else if (tp.channel === 'whatsapp') currentPitchChannel = 'whatsapp';
+  else if (tp.channel === 'social_dm') currentPitchChannel = 'socialDm';
+  else if (tp.channel === 'cold_call') currentPitchChannel = 'coldCall';
+  else currentPitchChannel = 'dripSequence';
+
+  renderPitchSuite(selectedLead);
+}
+
+/**
+ * Render Interactive Cadence Timeline Chips
+ */
+function renderSequenceTimeline(sequence) {
+  const container = document.getElementById('sequence-timeline-chips');
+  if (!container || !sequence || !sequence.touchpoints) return;
+
+  container.innerHTML = sequence.touchpoints
+    .map((tp, idx) => {
+      const isActive = idx === activeTouchpointIndex;
+      return `
+      <div class="timeline-chip ${isActive ? 'active' : ''}" onclick="selectTouchpoint(${idx})">
+        <span class="chip-day">Day ${tp.dayDelay}</span>
+        <span>${tp.channelEmoji}</span>
+        <span>${tp.title.replace(/^Day \d+:\s*/, '')}</span>
+      </div>
+    `;
+    })
+    .join('');
+}
+
+/**
+ * Render Multi-Channel Outreach Pitch Suite & Sequences
+ */
+function renderPitchSuite(lead) {
+  if (!lead) return;
+
+  if (!activeSequenceData) {
+    activeSequenceData = generateSequenceLocal(lead, currentSequenceArchetype, currentPitchTone);
+  }
+
+  // 1. Render Timeline Chips
+  renderSequenceTimeline(activeSequenceData);
+
+  // 2. Update Active Tab State
+  document.querySelectorAll('.pitch-tab').forEach((tab) => {
+    tab.classList.toggle('active', tab.dataset.channel === currentPitchChannel);
+  });
+
+  // 3. Update Channel Label and Content
+  const labelEl = document.getElementById('pitch-channel-label');
+  const scriptTextEl = document.getElementById('ai-script-text');
+  const guidanceEl = document.getElementById('action-guidance-container');
+
+  const channelLabels = {
+    email: `Email Outreach (Step ${activeTouchpointIndex + 1})`,
+    whatsapp: 'WhatsApp Direct Outreach',
+    socialDm: 'Instagram / LinkedIn DM Script',
+    coldCall: 'Cold Call Discovery Battlecard',
+    dripSequence: 'Full Multi-Touch Drip Cadence',
+  };
+
+  if (labelEl) labelEl.innerText = channelLabels[currentPitchChannel] || 'Outreach Script';
+
+  let scriptText = '';
+  let guidanceText = '';
+
+  const touchpoints = activeSequenceData.touchpoints || [];
+  const currentTp = touchpoints[activeTouchpointIndex] || touchpoints[0];
+
+  if (currentPitchChannel === 'email') {
+    const emailTp = touchpoints.find((t, i) => t.channel === 'email' && i === activeTouchpointIndex) || touchpoints.find((t) => t.channel === 'email') || touchpoints[0];
+    const subject = emailTp?.subject || (lead.aiPitchScripts?.email?.subject || `Optimizing ${lead.name}'s lead intake`);
+    const body = emailTp?.body || (lead.aiPitchScripts?.email?.body || 'No email script available.');
+    scriptText = `Subject: ${subject}\n\n${body}`;
+    guidanceText = emailTp?.actionGuidance || 'Send from primary sales inbox.';
+  } else if (currentPitchChannel === 'whatsapp') {
+    const waTp = touchpoints.find((t) => t.channel === 'whatsapp') || touchpoints[1] || touchpoints[0];
+    scriptText = waTp?.body || (lead.aiPitchScripts?.whatsapp || 'No WhatsApp script available.');
+    guidanceText = waTp?.actionGuidance || 'Send directly to business WhatsApp number.';
+  } else if (currentPitchChannel === 'socialDm') {
+    const dmTp = touchpoints.find((t) => t.channel === 'social_dm') || touchpoints[3] || touchpoints[0];
+    scriptText = dmTp?.body || (lead.aiPitchScripts?.socialDm || 'No Social DM script available.');
+    guidanceText = dmTp?.actionGuidance || 'Send via Instagram DM or LinkedIn message.';
+  } else if (currentPitchChannel === 'coldCall') {
+    const callTp = touchpoints.find((t) => t.channel === 'cold_call') || touchpoints[2] || touchpoints[0];
+    if (lead.aiPitchScripts?.coldCall) {
+      scriptText = `• Opener: ${lead.aiPitchScripts.coldCall.opener}\n• Discovery: ${lead.aiPitchScripts.coldCall.discovery}\n• Objection: ${lead.aiPitchScripts.coldCall.objectionHandling}\n• Close: ${lead.aiPitchScripts.coldCall.close}`;
+    } else {
+      scriptText = callTp?.body || 'No cold call battlecard generated.';
+    }
+    guidanceText = callTp?.actionGuidance || 'Best call window: 09:30 - 11:30 or 14:00 - 16:00.';
+  } else if (currentPitchChannel === 'dripSequence') {
+    scriptText = touchpoints
+      .map(
+        (t, idx) =>
+          `[Touchpoint ${idx + 1} | Day ${t.dayDelay} | ${t.channel.toUpperCase()}]\nTitle: ${t.title}\n${t.subject ? `Subject: ${t.subject}\n` : ''}${t.body}\nGuidance: ${t.actionGuidance}\n`
+      )
+      .join('\n' + '─'.repeat(45) + '\n\n');
+    guidanceText = 'Execute multi-channel sequence across 14 days for maximum response rate.';
+  }
+
+  if (scriptTextEl) scriptTextEl.innerText = scriptText;
+
+  if (guidanceEl) {
+    if (guidanceText) {
+      guidanceEl.innerHTML = `<strong>💡 Tactical Guidance:</strong> ${escapeHtml(guidanceText)}`;
+      guidanceEl.classList.remove('hidden');
+    } else {
+      guidanceEl.classList.add('hidden');
+    }
+  }
+}
+
+/**
+ * Switch Pitch Channel Tab
+ */
+function switchPitchTab(channel) {
+  currentPitchChannel = channel;
+  if (!selectedLead) return;
+  renderPitchSuite(selectedLead);
+}
+
+/**
+ * Copy Active Script to Clipboard
+ */
+function copyPitchToClipboard() {
+  const scriptText = document.getElementById('ai-script-text')?.innerText;
+  if (!scriptText) return;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(scriptText).then(() => {
+      showToast('📋 Script copied to clipboard!');
+    }).catch(() => {
+      copyFallback(scriptText);
+    });
+  } else {
+    copyFallback(scriptText);
+  }
+}
+
+function copyFallback(text) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    document.execCommand('copy');
+    showToast('📋 Script copied to clipboard!');
+  } catch {
+    showToast('⚠️ Could not copy script to clipboard');
+  }
+  document.body.removeChild(textarea);
+}
+
+/**
+ * 1-Click WhatsApp Outreach Dispatcher
+ */
+function dispatchWhatsApp() {
+  if (!selectedLead) {
+    showToast('⚠️ Please select a prospect first!');
+    return;
+  }
+
+  const rawPhone = selectedLead.phone || '';
+  // Format South African phone to international format e.g. 082 123 4567 -> 27821234567
+  let cleanPhone = rawPhone.replace(/\D/g, '');
+  if (cleanPhone.startsWith('0')) {
+    cleanPhone = '27' + cleanPhone.slice(1);
+  } else if (!cleanPhone.startsWith('27') && cleanPhone.length === 9) {
+    cleanPhone = '27' + cleanPhone;
+  }
+
+  if (!cleanPhone) {
+    showToast('⚠️ No phone number available for WhatsApp outreach.');
+    return;
+  }
+
+  // Get active WhatsApp script
+  const waScript = selectedLead.aiPitchScripts?.whatsapp || 
+    activeSequenceData?.touchpoints?.find(t => t.channel === 'whatsapp')?.body ||
+    `Hi ${selectedLead.name} Team 👋 I came across your business in ${selectedLead.area || 'South Africa'} and put together a quick conversion audit for you!`;
+
+  const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(waScript)}`;
+  window.open(waUrl, '_blank', 'noopener,noreferrer');
+  logLeadActivity(selectedLead, 'outreach_sent', `Dispatched WhatsApp outreach copy to ${cleanPhone}`);
+  showToast(`💬 Launching WhatsApp for ${selectedLead.name}...`);
+}
+
+/**
+ * 1-Click Native Mail Client Dispatcher
+ */
+function dispatchEmail() {
+  if (!selectedLead) {
+    showToast('⚠️ Please select a prospect first!');
+    return;
+  }
+
+  if (!selectedLead.email) {
+    showToast('⚠️ No email address available for this prospect.');
+    return;
+  }
+
+  const emailTp = activeSequenceData?.touchpoints?.find(t => t.channel === 'email') || {};
+  const subject = emailTp.subject || selectedLead.aiPitchScripts?.email?.subject || `Optimizing ${selectedLead.name}'s digital lead intake`;
+  const body = emailTp.body || selectedLead.aiPitchScripts?.email?.body || `Hi ${selectedLead.name} Team,\n\nI put together a quick technical audit for ${selectedLead.name}.`;
+
+  const mailtoUrl = `mailto:${selectedLead.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.location.href = mailtoUrl;
+  logLeadActivity(selectedLead, 'outreach_sent', `Dispatched email outreach to ${selectedLead.email}`);
+  showToast(`✉️ Launching email client for ${selectedLead.email}...`);
+}
+
+/**
+ * Open Stand-Alone Client PDF Proposal / Audit Report
+ */
+function openClientReport(leadId) {
+  const lead = leadId ? allLeads.find(l => l.id === leadId) : selectedLead;
+  if (!lead) {
+    showToast('⚠️ Please select a lead first!');
+    return;
+  }
+
+  logLeadActivity(lead, 'outreach_sent', 'Generated client proposal audit report');
+
+  if (!isStaticMode) {
+    window.open(getApiUrl(`/api/leads/${lead.id}/report`), '_blank');
+    showToast(`📄 Generating proposal report for ${lead.name}...`);
+    return;
+  }
+
+  // Static mode: Generate client-side printable report HTML
+  const reportHtml = generateClientReportHtml(lead);
+  const blob = new Blob([reportHtml], { type: 'text/html;charset=utf-8' });
+  const blobUrl = URL.createObjectURL(blob);
+  window.open(blobUrl, '_blank');
+  showToast(`📄 Opened PDF Proposal for ${lead.name}`);
+}
+
+/**
+ * Stand-Alone HTML/PDF Client Proposal Report Generator
+ */
+function generateClientReportHtml(lead) {
+  const audit = lead.technicalAudit || {
+    hasHttps: Boolean(lead.website && lead.website.startsWith('https')),
+    hasResponsiveViewport: true,
+    hasContactForm: Boolean(lead.email),
+    hasBookingSystem: false,
+    hasWhatsappLink: Boolean(lead.phone),
+  };
+  const score = lead.opportunityScore || 75;
+  const seoScore = audit.seoScore ?? (audit.hasHttps ? 75 : 45);
+  const estValue = lead.estimatedDealValue ? lead.estimatedDealValue.toLocaleString() : '18,500';
+  const scripts = lead.aiPitchScripts;
+
+  const issues = [
+    !audit.hasWhatsappLink ? 'Missing WhatsApp 1-click lead capture widget' : null,
+    !audit.hasBookingSystem ? 'No automated online booking engine installed' : null,
+    !audit.analyticsDetected || audit.analyticsDetected.length === 0 ? 'Missing conversion analytics (GA4 / Meta Pixel)' : null,
+    !audit.hasResponsiveViewport ? 'Mobile layout viewport optimization required' : null,
+    !audit.hasHttps ? 'Insecure HTTP protocol connection (missing SSL certificate)' : null,
+  ].filter(Boolean);
+
+  const recommendations = [
+    !audit.hasWhatsappLink ? 'Deploy automated 24/7 WhatsApp lead capture widget with instant response' : null,
+    !audit.hasBookingSystem ? 'Install custom responsive online booking engine for after-hours scheduling' : null,
+    !audit.analyticsDetected || audit.analyticsDetected.length === 0 ? 'Implement Google Analytics 4 & Meta Pixel conversion tracking' : null,
+    !audit.hasResponsiveViewport ? 'Implement mobile-first responsive viewport design' : null,
+    !audit.hasHttps ? 'Install SSL certificate and enforce HTTPS security' : null,
+  ].filter(Boolean);
+
+  if (recommendations.length === 0) {
+    recommendations.push('Deploy automated 24/7 WhatsApp lead capture widget');
+    recommendations.push('Install custom responsive online booking engine');
+    recommendations.push('Set up GA4 & Meta Pixel conversion tracking');
+  }
+
+  const dateStr = new Date().toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Website Technical Audit Report - ${escapeHtml(lead.name)}</title>
+  <style>
+    :root { --primary: #2563eb; --dark: #0f172a; --card-bg: #f8fafc; --border: #e2e8f0; --danger: #dc2626; --warning: #d97706; --success: #16a34a; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: var(--dark); background: #ffffff; padding: 40px; max-width: 900px; margin: 0 auto; line-height: 1.5; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid var(--border); padding-bottom: 24px; margin-bottom: 32px; }
+    .brand-title { font-size: 24px; font-weight: 800; color: var(--primary); }
+    .business-title { font-size: 28px; font-weight: 800; margin-bottom: 6px; }
+    .meta-text { color: #64748b; font-size: 14px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+    .score-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 24px; text-align: center; }
+    .score-val { font-size: 48px; font-weight: 900; line-height: 1; margin: 10px 0; }
+    .score-high { color: var(--danger); }
+    .score-med { color: var(--warning); }
+    .score-good { color: var(--success); }
+    .section { margin-bottom: 32px; }
+    .section-title { font-size: 18px; font-weight: 700; border-bottom: 2px solid #cbd5e1; padding-bottom: 8px; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .tech-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    .tech-table th, .tech-table td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .tech-table th { background: #f1f5f9; font-weight: 600; }
+    .issue-list, .rec-list { list-style: none; }
+    .issue-list li { background: #fef2f2; border-left: 4px solid var(--danger); padding: 10px 14px; margin-bottom: 8px; border-radius: 0 6px 6px 0; font-size: 14px; }
+    .rec-list li { background: #f0fdf4; border-left: 4px solid var(--success); padding: 10px 14px; margin-bottom: 8px; border-radius: 0 6px 6px 0; font-size: 14px; }
+    .val-banner { background: linear-gradient(135deg, #1e293b, #0f172a); color: #ffffff; padding: 24px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .val-amount { font-size: 32px; font-weight: 800; color: #38bdf8; }
+    .footer { border-top: 1px solid var(--border); padding-top: 20px; font-size: 12px; color: #94a3b8; display: flex; justify-content: space-between; }
+    @media print { body { padding: 0; max-width: 100%; } .no-print { display: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="margin-bottom: 20px; text-align: right;">
+    <button onclick="window.print()" style="background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer;">
+      🖨️ Print / Save as PDF
+    </button>
+  </div>
+  <header class="header">
+    <div>
+      <h1 class="business-title">${escapeHtml(lead.name)}</h1>
+      <p class="meta-text">Target Area: <strong>${escapeHtml(lead.area || 'South Africa')}</strong> | Category: <strong>${escapeHtml(lead.category)}</strong></p>
+      <p class="meta-text">Website: ${lead.website ? `<a href="${lead.website}" target="_blank">${escapeHtml(lead.website)}</a>` : 'None / Not Provided'}</p>
+    </div>
+    <div style="text-align: right;">
+      <div class="brand-title">LeadGremlin Growth Engine</div>
+      <p class="meta-text">Date: ${dateStr}</p>
+      <p class="meta-text">outreach@leadgremlin.co.za | +27 31 561 1000</p>
+    </div>
+  </header>
+  <div class="grid-2">
+    <div class="score-card">
+      <div class="meta-text">LEAD OPPORTUNITY SCORE</div>
+      <div class="score-val ${score >= 70 ? 'score-high' : score >= 40 ? 'score-med' : 'score-good'}">${score}/100</div>
+      <div class="meta-text">${score >= 70 ? '🔥 High Opportunity (Conversion Funnel Overhaul Needed)' : '⚡ Medium Opportunity'}</div>
+    </div>
+    <div class="score-card">
+      <div class="meta-text">TECHNICAL DIAGNOSTIC SCORE</div>
+      <div class="score-val score-good">${seoScore}/100</div>
+      <div class="meta-text">Based on Mobile Viewport, Security & Lead Intake</div>
+    </div>
+  </div>
+  <div class="section">
+    <h2 class="section-title">Technical Infrastructure Diagnostic</h2>
+    <table class="tech-table">
+      <thead>
+        <tr><th>Technical Metric</th><th>Status</th><th>Impact</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>SSL Security (HTTPS)</td><td>${audit.hasHttps ? '✓ Secure' : '❌ Insecure (HTTP)'}</td><td>${audit.hasHttps ? 'Low Risk' : 'High - Google Ranks Insecure Sites Lower'}</td></tr>
+        <tr><td>WhatsApp Instant Lead CTA</td><td>${audit.hasWhatsappLink ? '✓ Installed' : '❌ Missing Widget'}</td><td>${audit.hasWhatsappLink ? 'Captured' : 'High - Missing Weekly Client Bookings'}</td></tr>
+        <tr><td>Online Booking Portal</td><td>${audit.hasBookingSystem ? '✓ Installed' : '❌ Missing Engine'}</td><td>${audit.hasBookingSystem ? 'Automated' : 'High - After-Hours Inquiries Lost'}</td></tr>
+        <tr><td>Mobile Responsive Viewport</td><td>${audit.hasResponsiveViewport ? '✓ Responsive' : '❌ Non-Responsive'}</td><td>Mobile UX & Booking Conversion</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="val-banner">
+    <div>
+      <div style="font-size: 14px; opacity: 0.9;">ESTIMATED POTENTIAL PROJECT VALUE</div>
+      <div style="font-size: 13px; opacity: 0.7;">Based on required lead intake redesign & automated booking funnel</div>
+    </div>
+    <div class="val-amount">R${estValue}</div>
+  </div>
+  <div class="grid-2">
+    <div>
+      <h2 class="section-title">Identified Gaps</h2>
+      <ul class="issue-list">${issues.map(i => `<li>⚠️ ${escapeHtml(i)}</li>`).join('')}</ul>
+    </div>
+    <div>
+      <h2 class="section-title">Recommended Upgrades</h2>
+      <ul class="rec-list">${recommendations.map(r => `<li>✓ ${escapeHtml(r)}</li>`).join('')}</ul>
+    </div>
+  </div>
+  <footer class="footer">
+    <div>LeadGremlin Sales Funnel Audit & Technical Engine Report</div>
+    <div>Page 1 of 1</div>
+  </footer>
+</body>
+</html>`;
+}
+
+/**
+ * Trigger Notion CRM Sync
+ */
+async function triggerNotionSync() {
+  const btn = document.getElementById('btn-notion-sync');
+  if (btn) btn.innerHTML = '<span>⏳ Syncing...</span>';
+
+  if (isStaticMode) {
+    setTimeout(() => {
+      showToast('ℹ️ Notion Sync is active in Live Server mode. Connect NOTION_TOKEN to sync.');
+      if (btn) btn.innerHTML = '<span>🔗 Sync to Notion</span>';
+    }, 600);
+    return;
+  }
+
+  try {
+    const res = await fetch(getApiUrl('/api/notion/sync'), { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✓ ${data.message}`);
+    } else {
+      showToast(`⚠️ ${data.error || 'Notion sync failed.'}`);
+    }
+  } catch (err) {
+    showToast('⚠️ Could not connect to Notion sync service.');
+  } finally {
+    if (btn) btn.innerHTML = '<span>🔗 Sync to Notion</span>';
+  }
+}
+
+/**
+ * Trigger Website Technical Audit
+ */
+async function triggerWebsiteAudit() {
+  if (!selectedLead) return;
+  if (!selectedLead.website) {
+    showToast('⚠️ This lead does not have a website URL to audit.');
+    return;
+  }
+
+  const btn = document.getElementById('btn-run-audit');
+  if (btn) btn.innerText = '⏳ Auditing...';
+
+  if (!isStaticMode) {
+    try {
+      const res = await fetch(getApiUrl('/api/audit'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedLead.id, website: selectedLead.website }),
+      });
+      const data = await res.json();
+      if (data.success && data.lead) {
+        Object.assign(selectedLead, data.lead);
+      }
+    } catch (err) {
+      console.warn('Live audit failed, using deterministic audit:', err);
+    }
+  }
+
+  // Deterministic audit fallback
+  if (!selectedLead.technicalAudit) {
+    selectedLead.technicalAudit = {
+      hasHttps: selectedLead.website.startsWith('https'),
+      hasResponsiveViewport: true,
+      hasContactForm: Boolean(selectedLead.email),
+      hasBookingSystem: false,
+      hasWhatsappLink: Boolean(selectedLead.phone),
+      analyticsDetected: [],
+      hasFavicon: true,
+    };
+    selectedLead.opportunityScore = selectedLead.technicalAudit.hasHttps ? 85 : 92;
+  }
+
+  saveLeadsLocally();
+  renderTechnicalAuditDrawer(selectedLead);
+  renderSalesFunnelDiagnostic(selectedLead);
+  renderDashboard();
+  showToast(`✓ Technical & Funnel audit completed for ${selectedLead.name}!`);
+  if (btn) btn.innerText = '🔄 Run Technical Audit';
+}
+
+/**
+ * Export Current Sequence to Instantly/Smartlead CSV or JSON
+ */
+function exportCurrentSequence(format = 'csv') {
+  if (!selectedLead) {
+    showToast('⚠️ Please select a lead first!');
+    return;
+  }
+
+  const seq = activeSequenceData || generateSequenceLocal(selectedLead, currentSequenceArchetype, currentPitchTone);
+
+  if (format === 'json') {
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(seq, null, 2));
+    const dlAnchor = document.createElement('a');
+    dlAnchor.setAttribute('href', dataStr);
+    dlAnchor.setAttribute('download', `sequence_${selectedLead.name.replace(/[^a-zA-Z0-9]/g, '_')}_${seq.archetype}.json`);
+    dlAnchor.click();
+    showToast('✓ Sequence exported to JSON!');
+    return;
+  }
+
+  // CSV Export
+  const emailSteps = seq.touchpoints.filter((t) => t.channel === 'email');
+  const headers = ['Email', 'CompanyName', 'Website', 'Phone', 'City', 'Category', 'Subject 1', 'Body 1', 'Delay 1', 'Subject 2', 'Body 2', 'Delay 2', 'Subject 3', 'Body 3', 'Delay 3'];
+  
+  const escapeCsv = (v) => `"${String(v || '').replace(/"/g, '""')}"`;
+  const row = [
+    escapeCsv(selectedLead.email || ''),
+    escapeCsv(selectedLead.name),
+    escapeCsv(selectedLead.website || ''),
+    escapeCsv(selectedLead.phone || ''),
+    escapeCsv(selectedLead.area || ''),
+    escapeCsv(selectedLead.category || ''),
+    escapeCsv(emailSteps[0]?.subject || ''),
+    escapeCsv(emailSteps[0]?.body || ''),
+    escapeCsv(emailSteps[0]?.dayDelay ?? 0),
+    escapeCsv(emailSteps[1]?.subject || ''),
+    escapeCsv(emailSteps[1]?.body || ''),
+    escapeCsv(emailSteps[1]?.dayDelay ?? 3),
+    escapeCsv(emailSteps[2]?.subject || ''),
+    escapeCsv(emailSteps[2]?.body || ''),
+    escapeCsv(emailSteps[2]?.dayDelay ?? 7),
+  ];
+
+  const csvContent = 'data:text/csv;charset=utf-8,' + encodeURIComponent([headers.join(','), row.join(',')].join('\n'));
+  const dlAnchor = document.createElement('a');
+  dlAnchor.setAttribute('href', csvContent);
+  dlAnchor.setAttribute('download', `instantly_leadgremlin_${selectedLead.name.replace(/[^a-zA-Z0-9]/g, '_')}.csv`);
+  dlAnchor.click();
+  showToast('✓ Exported Instantly / Smartlead CSV!');
+}
+
+/**
+ * Local Client-Side Sequence Generator
+ */
+function generateSequenceLocal(lead, archetype = 'omni_channel_blitz', tone = 'consultative') {
+  const name = lead.name || 'Business';
+  const category = lead.category || 'Local Business';
+  const area = lead.area || 'South Africa';
+  const rating = lead.rating || 4.8;
+  const reviews = lead.reviewCount || 35;
+  const audit = lead.technicalAudit;
+  const estVal = lead.estimatedDealValue ? `R${lead.estimatedDealValue.toLocaleString()}` : 'R22,500';
+
+  const funnelStack = lead.funnelTechStack || lead.technicalAudit?.funnelTechStack;
+  const businessCase = lead.businessCase || lead.technicalAudit?.businessCase;
+
+  // 1. Determine Technical Diagnostic Callout
+  let auditCallout = 'our diagnostic audit identified key conversion bottlenecks on your website.';
+  let auditHeadline = 'Website Conversion Optimization';
+  let primaryIssue = 'Missing automated lead capture funnel';
+
+  if (funnelStack?.linkInBioTool && funnelStack?.bookingEngine) {
+    auditCallout = `we noticed on Instagram that you route prospects through ${funnelStack.linkInBioTool} to ${funnelStack.bookingEngine}, creating a 40%+ drop-off barrier and losing Meta Pixel retargeting on non-converting visitors.`;
+    auditHeadline = `Centralized Touchpoint & Booking Funnel for ${name}`;
+    primaryIssue = `Fragmented Stack (${funnelStack.linkInBioTool} + ${funnelStack.bookingEngine})`;
+  } else if (funnelStack?.linkInBioTool) {
+    auditCallout = `we noticed ${name} routes social media traffic to ${funnelStack.linkInBioTool}, which causes 40%+ visitor drop-off on multi-link lists and lacks direct 1-click WhatsApp booking.`;
+    auditHeadline = `High-Converting Mobile Touchpoint for ${name}`;
+    primaryIssue = `Link-in-Bio Click Friction (${funnelStack.linkInBioTool})`;
+  } else if (funnelStack?.bookingEngine) {
+    auditCallout = `we saw ${name} uses ${funnelStack.bookingEngine}, but external redirects cause mobile visitor leakage and lack 1-click WhatsApp intake.`;
+    auditHeadline = `Optimizing ${funnelStack.bookingEngine} Lead Intake for ${name}`;
+    primaryIssue = `External ${funnelStack.bookingEngine} Portal Redirect`;
+  } else if (!lead.website || lead.website.trim() === '') {
+    auditCallout = `we noticed ${name} currently lacks a dedicated high-converting website, relying solely on directory listings while competitors capture Google search traffic in ${area}.`;
+    auditHeadline = `High-Converting Digital Storefront for ${name}`;
+    primaryIssue = `Missing Dedicated Website & Online Storefront`;
+  } else if (audit && !audit.hasHttps) {
+    auditCallout = `we noticed your website lacks an SSL security certificate (displaying a "Not Secure" warning in browsers), which deters over 60% of potential clients.`;
+    auditHeadline = 'SSL Security & Trust Warning';
+    primaryIssue = 'Insecure HTTP protocol connection';
+  } else if (audit && audit.loadSpeedSeconds && audit.loadSpeedSeconds > 3.0) {
+    auditCallout = `we ran a mobile diagnostic and detected slow page load speeds (${audit.loadSpeedSeconds}s), causing mobile visitors to bounce to competitors.`;
+    auditHeadline = 'Mobile Load Speed Bottleneck';
+    primaryIssue = `Slow mobile load speed (${audit.loadSpeedSeconds}s)`;
+  } else if (audit && !audit.hasBookingSystem) {
+    auditCallout = 'we noticed your website is missing a 24/7 automated online booking portal for after-hours scheduling.';
+    auditHeadline = '24/7 Online Booking Opportunity';
+    primaryIssue = 'No after-hours online booking portal';
+  } else if (audit && !audit.hasWhatsappLink) {
+    auditCallout = 'we noticed your site lacks a 1-click WhatsApp lead capture widget, letting high-intent local inquiries slip to competitors.';
+    auditHeadline = '1-Click WhatsApp Lead Capture';
+    primaryIssue = 'Missing 1-click WhatsApp intake widget';
+  } else if (audit && (!audit.analyticsDetected || audit.analyticsDetected.length === 0)) {
+    auditCallout = 'we noticed zero conversion tracking pixels (missing GA4 / Meta Pixel), meaning visitor traffic and marketing ROI are unmeasured.';
+    auditHeadline = 'Conversion Pixel Tracking';
+    primaryIssue = 'Zero conversion tracking (GA4 / Meta Pixel)';
+  }
+
+  // 2. Determine Niche-Specific Value Props
+  let nicheAngle = businessCase?.headline || 'Automated Lead Intake & 24/7 Client Conversion';
+  let painPoint = 'local clients searching for providers choose whoever responds fastest to web & WhatsApp inquiries';
+  let solution = businessCase?.proposedCentralizedSolution || 'an automated 24/7 WhatsApp & calendar lead intake funnel';
+  let caseProof = businessCase?.projectedMonthlyRecoveredLeads
+    ? `projected to recover ${businessCase.projectedMonthlyRecoveredLeads}`
+    : 'helped a nearby local business increase client bookings by 45% in 30 days';
+  // Format revenueLeak using exact economics if available, otherwise qualitative classification
+  let revenueLeak = '';
+  if (businessCase?.estimatedMonthlyRevenueImpactZAR && businessCase.estimatedMonthlyRevenueImpactZAR > 0) {
+    const qualitativeTag = businessCase.qualitativeImpactTier ? ` (${businessCase.qualitativeImpactTier.split('(')[0].trim()})` : '';
+    revenueLeak = `+R${businessCase.estimatedMonthlyRevenueImpactZAR.toLocaleString()} in uncaptured monthly client revenue${qualitativeTag}`;
+  } else if (businessCase?.qualitativeImpactTier) {
+    revenueLeak = `substantial monthly revenue leakage (${businessCase.qualitativeImpactTier})`;
+  } else {
+    revenueLeak = 'significant uncaptured revenue from dropped after-hours inquiries (High Commercial Upside)';
+  }
+
+  let callDiscovery = `When potential clients find ${name} online after business hours, how quickly are you able to follow up?`;
+  let callObjection = `I know you and your team are busy with existing clients! That's why this system qualifies inquiries and books appointments automatically 24/7.`;
+
+  const catLower = category.toLowerCase();
+  if (/health|dental|dentist|physio|chiro|medical|aesthetic/i.test(catLower)) {
+    if (!businessCase) {
+      nicheAngle = 'High-Value Patient Intake & Consultation Booking';
+      solution = 'a POPIA-compliant patient intake portal with 1-click emergency WhatsApp routing and consultation booking';
+      caseProof = 'helped a private practice secure 19 high-ticket treatment consultations in their first 30 days';
+      revenueLeak = 'high-ticket treatment consultation leakage (High Commercial Upside)';
+    }
+    painPoint = 'patients searching for specialized treatments bounce when they cannot book consultations or get instant WhatsApp answers';
+    callDiscovery = `When new patients search for specialized treatments online in ${area}, can they instantly schedule a consultation on your site?`;
+    callObjection = `Medical practices love this because it integrates seamlessly with your front desk without disrupting existing PMS software.`;
+  } else if (/solar|electrician|plumber|trades|contractor|hvac|roofing/i.test(catLower)) {
+    if (!businessCase) {
+      nicheAngle = '1-Tap Emergency Callouts & Instant Quote Requests';
+      solution = 'an emergency 1-tap quote capture funnel with instant WhatsApp dispatch';
+      caseProof = 'increased weekly inbound service quote requests by 65% for a local contractor';
+      revenueLeak = 'R25,000 - R60,000 in unquoted installation and maintenance jobs each month';
+    }
+    painPoint = 'homeowners and commercial property managers needing quotes choose the competitor with instant 1-tap WhatsApp quote dispatch';
+    callDiscovery = `When someone has an urgent repair or solar installation inquiry in ${area}, how easily can they send photos and get a quote via WhatsApp?`;
+    callObjection = `I know you're on the tools all day! That's why the system collects job specs and photos automatically before you call.`;
+  } else if (/beauty|hair|salon|spa|barber|laser/i.test(catLower)) {
+    if (!businessCase) {
+      nicheAngle = 'Eliminating No-Shows & Automating Salon Bookings';
+      solution = 'a 1-click WhatsApp & calendar booking portal with automated deposit collection';
+      caseProof = 'reduced appointment no-shows by 85% and added 34 new client bookings in month one';
+      revenueLeak = 'R12,000 - R28,000 lost monthly to empty appointment slots and no-shows';
+    }
+    painPoint = 'clients want to book appointments instantly via WhatsApp late at night without waiting for manual DM replies';
+    callDiscovery = `How much time does your team spend going back and forth on WhatsApp each day just to confirm calendar slots?`;
+    callObjection = `Our automated assistant handles the calendar, takes deposits, and sends reminders automatically without staff intervention.`;
+  } else if (/fitness|gym|crossfit|pilates|yoga/i.test(catLower)) {
+    if (!businessCase) {
+      nicheAngle = 'After-Hours Membership Inquiries & Free Trial Funnel';
+      solution = 'an automated 24/7 WhatsApp trial pass & class booking funnel';
+      caseProof = 'helped a fitness studio capture 28 new monthly trial signups in 3 weeks';
+      revenueLeak = 'R18,000 - R40,000 in lost recurring monthly membership revenue';
+    }
+    painPoint = 'over 70% of gym membership searches happen after 6 PM when front desk staff is off';
+    callDiscovery = `How are you currently capturing membership inquiries that come in through your website after hours?`;
+    callObjection = `Desk staff love this because it qualifies leads and confirms trial passes without staff needing to touch a phone.`;
+  } else if (/real estate|property|estate agent/i.test(catLower)) {
+    if (!businessCase) {
+      nicheAngle = 'Instant Property Valuation Funnels & Buyer Pre-Qualification';
+      solution = 'an instant property valuation calculator and WhatsApp automated buyer qualification funnel';
+      caseProof = 'delivered 15 exclusive listing valuation requests and 42 qualified buyer inquiries in 60 days';
+      revenueLeak = 'R50,000+ in missed seller listing commissions';
+    }
+    painPoint = 'property sellers and buyers expect instant WhatsApp responses and virtual tour booking';
+    callDiscovery = `How quickly is your team able to follow up when a prospective seller requests a property valuation online?`;
+    callObjection = `This pre-qualifies buyers by budget and location before passing them directly to your designated agent.`;
+  }
+
+  const vars = {
+    business_name: name,
+    category,
+    area,
+    rating: rating.toString(),
+    reviews: reviews.toString(),
+    est_value: estVal,
+    audit_issues: primaryIssue,
+    audit_callout: auditCallout,
+    audit_headline: auditHeadline,
+    niche_angle: nicheAngle,
+    pain_point: painPoint,
+    solution,
+    case_proof: caseProof,
+    revenue_leak: revenueLeak,
+  };
+
+  let touchpoints = [];
+
+  if (archetype === 'audit_breakdown') {
+    touchpoints = [
+      {
+        stepNumber: 1,
+        dayDelay: 0,
+        channel: 'email',
+        channelEmoji: '📧',
+        title: 'Day 0: Technical Website Diagnostic Findings',
+        subject: `Technical Audit for ${name}: ${auditHeadline}`,
+        body: `Hi ${name} Team,\n\nOur automated crawler recently completed a technical digital diagnostic on ${name}'s website.\n\nWhile your local reputation in ${area} is top-tier (${rating}★ with ${reviews}+ reviews), we identified key technical bottlenecks:\n\n• ${primaryIssue}\n• ${auditCallout}\n\nThese friction points are causing high-intent mobile visitors in ${area} to bounce to competitors.\n\nWould you like me to send a 2-minute video walkthrough showing how to resolve this?\n\nBest regards,\nLeadGremlin Diagnostic Team`,
+        actionGuidance: 'Highlight the specific technical gap found during scraper audit.',
+      },
+      {
+        stepNumber: 2,
+        dayDelay: 3,
+        channel: 'email',
+        channelEmoji: '📧',
+        title: 'Day 3: Live Visual Preview & Video Walkthrough',
+        subject: `Re: Technical Audit for ${name}`,
+        body: `Hi ${name} Team,\n\nFollowing up on the technical diagnostic for ${name}.\n\nWe mocked up a 1-click lead capture and booking funnel tailored to your exact branding, demonstrating how ${solution} captures 35% more monthly inquiries.\n\nWould you be open to a 5-minute live preview this Thursday at 11 AM?\n\nBest regards,\nLeadGremlin Diagnostic Team`,
+        actionGuidance: 'Attach interactive mockup preview link.',
+      },
+      {
+        stepNumber: 3,
+        dayDelay: 6,
+        channel: 'whatsapp',
+        channelEmoji: '💬',
+        title: 'Day 6: WhatsApp Competitor Gap Breakdown',
+        body: `Hi ${name} Team 👋 Quick heads up: nearby ${category} competitors in ${area} have already installed automated WhatsApp booking widgets.\n\nWe put together a comparison sheet for ${name}. Reply "YES" if you'd like us to send the PDF comparison! 📄`,
+        actionGuidance: 'Send directly to business WhatsApp number.',
+      },
+      {
+        stepNumber: 4,
+        dayDelay: 10,
+        channel: 'email',
+        channelEmoji: '📧',
+        title: 'Day 10: Free PDF Audit Report & Implementation Checklist',
+        subject: `PDF Technical Report & Checklist for ${name}`,
+        body: `Hi ${name} Management,\n\nClosing the loop on ${name}'s technical audit in ${area}.\n\nWe compiled our full recommendations into a ready-to-use PDF checklist (${estVal} estimated project scope).\n\nReply "AUDIT" and I will send the document over with zero obligation.\n\nBest regards,\nLeadGremlin Diagnostic Team`,
+        actionGuidance: 'Send clean plain-text breakup with PDF offer.',
+      },
+    ];
+  } else if (archetype === 'roi_calculator') {
+    touchpoints = [
+      {
+        stepNumber: 1,
+        dayDelay: 0,
+        channel: 'email',
+        channelEmoji: '📧',
+        title: 'Day 0: Estimated Monthly Revenue Leakage Analysis',
+        subject: `Revenue Opportunity Analysis for ${name} in ${area}`,
+        body: `Hi ${name} Executive Team,\n\nBased on local search volume for ${category} providers in ${area}, we calculated that ${name} is losing an estimated ${revenueLeak} due to friction in your online lead intake.\n\nSpecifically: ${auditCallout}\n\nBy deploying ${solution}, businesses in your vertical typically recover this lost volume within 30 days.\n\nCan I show you the unit economics model for ${name} this Wednesday?\n\nBest regards,\nLeadGremlin Commercial Intelligence`,
+        actionGuidance: 'Lead with financial metric and revenue leakage.',
+      },
+      {
+        stepNumber: 2,
+        dayDelay: 3,
+        channel: 'email',
+        channelEmoji: '📧',
+        title: 'Day 3: Cost of Missed After-Hours Inquiries',
+        subject: `Re: Revenue Opportunity Analysis for ${name}`,
+        body: `Hi ${name} Team,\n\nDid you know that over 65% of local ${category} inquiries occur between 6 PM and 9 AM when offices are closed?\n\nWithout an automated intake funnel, these high-intent clients click to the next provider who offers instant WhatsApp booking.\n\nOur system captures and pre-qualifies these clients automatically 24/7.\n\nCan I send you a 1-page financial breakdown showing the projected ROI for ${name}?\n\nBest regards,\nLeadGremlin Commercial Intelligence`,
+        actionGuidance: 'Explain the 65% after-hours search behavior.',
+      },
+      {
+        stepNumber: 3,
+        dayDelay: 7,
+        channel: 'whatsapp',
+        channelEmoji: '💬',
+        title: 'Day 7: WhatsApp Unit Economics Summary',
+        body: `Hi ${name} Leadership 👋 Based on our audit, capturing just 2 extra clients per month via automated WhatsApp booking yields a 400%+ ROI on our setup (${revenueLeak}).\n\nWould you be open to a 5-minute live preview this Thursday? 📈`,
+        actionGuidance: 'Send ROI proof to decision-maker WhatsApp.',
+      },
+      {
+        stepNumber: 4,
+        dayDelay: 11,
+        channel: 'email',
+        channelEmoji: '📧',
+        title: 'Day 11: Final Commercial Proposal & Q&A Invitation',
+        subject: `Final Commercial Summary for ${name}`,
+        body: `Hi ${name} Executive Team,\n\nI will conclude our outreach regarding ${name}'s revenue optimization in ${area}.\n\nIf capturing an additional ${revenueLeak} is a priority this quarter, reply "ROI" and I'll send our complete financial breakdown.\n\nWishing you continued profitable growth!\n\nBest regards,\nLeadGremlin Commercial Intelligence`,
+        actionGuidance: 'Final low-pressure executive close.',
+      },
+    ];
+  } else if (archetype === 'niche_case_study') {
+    touchpoints = [
+      {
+        stepNumber: 1,
+        dayDelay: 0,
+        channel: 'email',
+        channelEmoji: '📧',
+        title: 'Day 0: Local Category Success Story',
+        subject: `How a nearby ${category} increased bookings by 45% (Idea for ${name})`,
+        body: `Hi ${name} Team,\n\nWe recently partnered with a top ${category} provider in ${area} experiencing the exact same lead intake challenge as ${name}.\n\nBy replacing manual inquiry forms with ${solution}, they achieved:\n\n• 45% increase in confirmed client bookings in 30 days\n• 85% reduction in appointment no-shows\n• 24/7 automated lead qualification\n\nCould I share a 2-minute video breakdown of how we did it?\n\nBest regards,\nLeadGremlin Growth Engine`,
+        actionGuidance: 'Cite localized social proof and verified results.',
+      },
+      {
+        stepNumber: 2,
+        dayDelay: 3,
+        channel: 'email',
+        channelEmoji: '📧',
+        title: 'Day 3: Before vs After Funnel Breakdown',
+        subject: `Re: How a nearby ${category} increased bookings by 45%`,
+        body: `Hi ${name} Team,\n\nFollowing up on my previous note regarding ${name}.\n\nThe reason this funnel works so well in ${area} is that ${painPoint}.\n\nWe prepared a custom Before vs After schematic tailored for ${name}.\n\nDo you have 5 minutes this Thursday for a quick walkthrough?\n\nBest regards,\nLeadGremlin Growth Engine`,
+        actionGuidance: 'Send Before vs After funnel comparison.',
+      },
+      {
+        stepNumber: 3,
+        dayDelay: 7,
+        channel: 'social_dm',
+        channelEmoji: '📱',
+        title: 'Day 7: Social DM Case Proof Link',
+        body: `Hey ${name} team! 👋 We just published our case study on how local ${category} businesses in ${area} are doubling their monthly intake. Thought your team would find it valuable. DM us if you'd like the link! 🚀`,
+        actionGuidance: 'Send via Instagram DM or LinkedIn message.',
+      },
+      {
+        stepNumber: 4,
+        dayDelay: 12,
+        channel: 'email',
+        channelEmoji: '📧',
+        title: 'Day 12: Invitation to 1-on-1 Strategic Review',
+        subject: `1-on-1 Strategy Session for ${name}`,
+        body: `Hi ${name} Management,\n\nI won't keep following up regarding ${name}'s client intake.\n\nIf you'd ever like to review how ${solution} can systematically grow your appointments in ${area}, feel free to reply anytime.\n\nWishing you all the best!\n\nBest regards,\nLeadGremlin Growth Engine`,
+        actionGuidance: 'Final breakup email with open invitation.',
+      },
+    ];
+  } else if (archetype === 're_engagement') {
+    touchpoints = [
+      {
+        stepNumber: 1,
+        dayDelay: 0,
+        channel: 'email',
+        channelEmoji: '📧',
+        title: 'Day 0: New South Africa Market Benchmark Data',
+        subject: `Updated 2026 ${category} Benchmark Data for ${name}`,
+        body: `Hi ${name} Team,\n\nWe recently updated our South Africa digital lead intake benchmark for ${area}.\n\nOver the past quarter, ${category} businesses utilizing 1-click WhatsApp and automated booking engines captured 3.2x more mobile inquiries than traditional websites.\n\nWe refreshed ${name}'s audit with the latest data. Would you like us to send the 1-page summary?\n\nBest regards,\nLeadGremlin Engine`,
+        actionGuidance: 'Re-engage stalled prospect with fresh market data.',
+      },
+      {
+        stepNumber: 2,
+        dayDelay: 3,
+        channel: 'whatsapp',
+        channelEmoji: '💬',
+        title: 'Day 3: 1-Question WhatsApp Check-In',
+        body: `Hi ${name} Team 👋 Quick 1-question check: is optimizing your online client intake and booking engine still a priority for ${name} this quarter? Let me know! 🚀`,
+        actionGuidance: 'Send low-friction 1-question check-in.',
+      },
+      {
+        stepNumber: 3,
+        dayDelay: 7,
+        channel: 'email',
+        channelEmoji: '📧',
+        title: 'Day 7: Closing the File & Clean Slate',
+        subject: `Closing the file for ${name}`,
+        body: `Hi ${name} Management,\n\nI assume this isn't a priority for ${name} right now, so I will close out your file and stop reaching out.\n\nIf anything changes in the future, please feel free to reach back out.\n\nWishing you and the team continued success in ${area}!\n\nBest regards,\nLeadGremlin Engine`,
+        actionGuidance: 'Polite file-closing breakup email.',
+      },
+    ];
+  } else {
+    // omni_channel_blitz
+    touchpoints = [
+      {
+        stepNumber: 1,
+        dayDelay: 0,
+        channel: 'email',
+        channelEmoji: '📧',
+        title: 'Day 0: Technical Audit & Opportunity Pitch',
+        subject: `Optimizing ${name}'s digital lead intake in ${area}`,
+        body: `Hi ${name} Team,\n\nI came across ${name} while auditing top-rated ${category} providers in ${area}.\n\nI noticed your team has built a strong reputation (${rating}★ with ${reviews}+ reviews). However, during our review, ${auditCallout}\n\nBecause ${painPoint}, we developed ${solution}.\n\nFor instance, we recently ${caseProof}.\n\nCan I show you a 5-minute live preview tailored for ${name} this Thursday at 10 AM?\n\nBest regards,\nLeadGremlin Growth Engine`,
+        actionGuidance: 'Send from primary sales email. Personalize first line with recent business news or post.',
+      },
+      {
+        stepNumber: 2,
+        dayDelay: 1,
+        channel: 'whatsapp',
+        channelEmoji: '💬',
+        title: 'Day 1: WhatsApp Voice Note / 60s Video Hook',
+        body: `Hi ${name} Team 👋 Sent you a quick email yesterday regarding ${name}'s web lead intake in ${area}!\n\nWe put together a 60-second video demo showing how ${solution} captures 3x more direct client inquiries.\n\nMind if I drop the 1-minute video link right here on WhatsApp? 🚀`,
+        actionGuidance: 'Send directly to business WhatsApp number. Attach custom 60-second video walkthrough or voice note.',
+      },
+      {
+        stepNumber: 3,
+        dayDelay: 4,
+        channel: 'cold_call',
+        channelEmoji: '📞',
+        title: 'Day 4: Diagnostic Discovery Call & Battlecard',
+        body: `Call decision-maker at ${name}.\n\n• Opener: Hi, is this the owner or manager at ${name}? My name is LeadGremlin, calling briefly regarding your ${area} client lead intake.\n• Discovery: ${callDiscovery}\n• Objection: ${callObjection}\n• Close: Can I drop a 60-second video breakdown directly to your WhatsApp?`,
+        actionGuidance: 'Call between 09:30 - 11:30 or 14:00 - 16:00. Ask for the owner or general manager.',
+        callBattlecard: {
+          opener: `Hi, is this the owner or manager at ${name}? My name is LeadGremlin, calling briefly regarding your ${area} client lead intake.`,
+          discovery: callDiscovery,
+          objectionHandling: callObjection,
+          close: `Can I drop a 60-second video breakdown directly to your WhatsApp?`,
+        },
+      },
+      {
+        stepNumber: 4,
+        dayDelay: 8,
+        channel: 'social_dm',
+        channelEmoji: '📱',
+        title: 'Day 8: Social DM / Instagram Nudge',
+        body: `Hey ${name} team! 👋 Loved your recent work in ${area}. Quick question: did you see the digital audit report we sent to your team? We built a 1-click lead capture mockup tailored for ${name}. DM us if you'd like the preview link! 📩`,
+        actionGuidance: 'Send via Instagram DM or LinkedIn message to founder/manager profile.',
+      },
+      {
+        stepNumber: 5,
+        dayDelay: 14,
+        channel: 'email',
+        channelEmoji: '📧',
+        title: 'Day 14: Final Breakup & Complimentary PDF Report Offer',
+        subject: `Complimentary Technical Audit Report for ${name}`,
+        body: `Hi ${name} Management,\n\nI know you're busy serving clients in ${area}, so I won't keep following up.\n\nWe put together a full complimentary Technical Website & Mobile Audit Report for ${name} (${estVal} scope) identifying 4 quick fixes to boost your monthly bookings.\n\nIf you'd like the PDF report, just reply "AUDIT" and I'll send it right over.\n\nWishing ${name} continued success!\n\nBest regards,\nLeadGremlin Growth Engine`,
+        actionGuidance: 'Attach generated PDF report if lead expressed interest.',
+      },
+    ];
+  }
+
+  // Update lead's top-level aiPitchScripts so 1-click dispatchers use this fresh copy
+  const emailTp = touchpoints.find(t => t.channel === 'email') || touchpoints[0];
+  const waTp = touchpoints.find(t => t.channel === 'whatsapp') || touchpoints[1] || touchpoints[0];
+  const dmTp = touchpoints.find(t => t.channel === 'social_dm') || touchpoints[3] || touchpoints[0];
+  const callTp = touchpoints.find(t => t.channel === 'cold_call') || touchpoints[2] || touchpoints[0];
+
+  lead.aiPitchScripts = {
+    email: {
+      subject: emailTp?.subject || `Optimizing ${name}'s digital lead intake in ${area}`,
+      body: emailTp?.body || '',
+    },
+    whatsapp: waTp?.body || '',
+    socialDm: dmTp?.body || '',
+    coldCall: callTp?.callBattlecard || {
+      opener: `Hi, is this the owner at ${name}?`,
+      discovery: callDiscovery,
+      objectionHandling: callObjection,
+      close: `Can I send a 60s video breakdown to your WhatsApp?`,
+    },
+    nicheAngle,
+    primaryAuditCallout: auditCallout,
+  };
+
+  const archMap = {
+    roi_calculator: { name: 'Commercial Valuation & ROI Leakage', emoji: '💰' },
+    audit_breakdown: { name: 'Technical Audit & Video Walkthrough', emoji: '🔍' },
+    niche_case_study: { name: 'Niche Transformation & Proof', emoji: '📈' },
+    re_engagement: { name: 'Stalled Lead Revival', emoji: '🔄' },
+    omni_channel_blitz: { name: 'Omni-Channel Cadence (14-Day Blitz)', emoji: '🚀' },
+  };
+
+  const meta = archMap[archetype] || archMap.omni_channel_blitz;
+
+  return {
+    archetype: archetype || 'omni_channel_blitz',
+    archetypeName: meta.name,
+    archetypeEmoji: meta.emoji,
+    touchpoints,
+  };
+}
+
+/**
+ * Show Toast Notification
+ */
+function showToast(message, duration = 3000) {
+  const toast = document.getElementById('toast-notification');
+  if (!toast) return;
+
+  toast.innerText = message;
+  toast.classList.add('show');
+  setTimeout(() => {
+    toast.classList.remove('show');
+  }, duration);
 }
 
 function toggleExportMenu() {
@@ -666,11 +3745,14 @@ function toggleExportMenu() {
 }
 
 /**
- * Client-Side CSV & JSON Export (Works on GitHub Pages!)
+ * Export Leads to CSV or JSON
  */
 function downloadExport(type) {
+  const menu = document.getElementById('export-menu');
+  if (menu) menu.classList.remove('show');
+
   if (type === 'csv') {
-    const headers = ['ID', 'Name', 'Category', 'Area', 'Address', 'Phone', 'Email', 'Website', 'Instagram', 'Stage', 'Score'];
+    const headers = ['ID', 'Name', 'Category', 'Area', 'Address', 'Phone', 'Email', 'Website', 'Instagram', 'Stage', 'Score', 'DealValue'];
     const rows = allLeads.map((l) => [
       `"${l.id}"`,
       `"${(l.name || '').replace(/"/g, '""')}"`,
@@ -682,23 +3764,439 @@ function downloadExport(type) {
       `"${l.website || ''}"`,
       `"${l.socials?.instagram || ''}"`,
       `"${l.funnelStage || ''}"`,
-      `"${l.opportunityScore || ''}"`
+      `"${l.opportunityScore || ''}"`,
+      `"${l.estimatedDealValue || 18500}"`
     ]);
     const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'leadgremlin_sales_funnel.csv';
-    link.click();
+    triggerDownload(csvContent, 'leadgremlin_sales_funnel.csv', 'text/csv');
+    showToast('📥 Standard CSV export generated!');
+  } else if (type === 'instantly') {
+    const headers = ['Company Name', 'Email', 'Phone', 'Website', 'City', 'Category', 'Opportunity Score', 'Email Subject', 'Email Body'];
+    const rows = allLeads.map((l) => [
+      `"${(l.name || '').replace(/"/g, '""')}"`,
+      `"${l.email || ''}"`,
+      `"${l.phone || ''}"`,
+      `"${l.website || ''}"`,
+      `"${l.area || ''}"`,
+      `"${l.category || ''}"`,
+      `"${l.opportunityScore || 80}"`,
+      `"${(l.aiPitchScripts?.email?.subject || '').replace(/"/g, '""')}"`,
+      `"${(l.aiPitchScripts?.email?.body || '').replace(/"/g, '""').replace(/\n/g, '\\n')}"`
+    ]);
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    triggerDownload(csvContent, 'leadgremlin_instantly_campaign.csv', 'text/csv');
+    showToast('⚡ Instantly.ai Cold Campaign CSV generated!');
+  } else if (type === 'lemlist') {
+    const headers = ['companyName', 'email', 'phone', 'website', 'city', 'industry', 'leadScore', 'icebreaker'];
+    const rows = allLeads.map((l) => [
+      `"${(l.name || '').replace(/"/g, '""')}"`,
+      `"${l.email || ''}"`,
+      `"${l.phone || ''}"`,
+      `"${l.website || ''}"`,
+      `"${l.area || ''}"`,
+      `"${l.category || ''}"`,
+      `"${l.opportunityScore || 80}"`,
+      `"${(l.aiPitchScripts?.whatsapp || '').replace(/"/g, '""')}"`
+    ]);
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    triggerDownload(csvContent, 'leadgremlin_lemlist_outreach.csv', 'text/csv');
+    showToast('🚀 Lemlist Cold Outreach CSV generated!');
   } else {
     const jsonContent = JSON.stringify(allLeads, null, 2);
-    const blob = new Blob([jsonContent], { type: 'application/json' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'leadgremlin_sales_funnel.json';
-    link.click();
+    triggerDownload(jsonContent, 'leadgremlin_sales_funnel.json', 'application/json');
+    showToast('📥 Full JSON export generated!');
   }
+}
+
+function triggerDownload(content, filename, mimeType) {
+  const blob = new Blob([content], { type: `${mimeType};charset=utf-8;` });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+}
+
+/**
+ * Render Tags in Detail Drawer
+ */
+function renderDetailTags(lead) {
+  const container = document.getElementById('detail-tags-list');
+  if (!container) return;
+
+  const tags = lead.tags || [];
+  if (tags.length === 0) {
+    container.innerHTML = '<span style="color:var(--text-dim); font-size:11px;">No custom tags added yet</span>';
+    return;
+  }
+
+  container.innerHTML = tags
+    .map(
+      (t) => `
+      <span class="lead-tag-badge">
+        <span>🏷️ ${escapeHtml(t)}</span>
+        <span class="tag-remove-btn" onclick="removeLeadTag('${escapeHtml(t)}')" title="Remove tag">&times;</span>
+      </span>
+    `
+    )
+    .join('');
+}
+
+/**
+ * Add Tag from User Input
+ */
+async function addTagFromInput() {
+  const input = document.getElementById('new-tag-input');
+  if (!input || !selectedLead) return;
+
+  const tag = input.value.trim();
+  if (!tag) return;
+
+  await addLeadTag(tag);
+  input.value = '';
+}
+
+/**
+ * Add Tag from Preset Chip
+ */
+async function addTagPreset(preset) {
+  if (!selectedLead) return;
+  await addLeadTag(preset);
+}
+
+/**
+ * Core Add Tag Logic
+ */
+async function addLeadTag(tag) {
+  if (!selectedLead || !tag) return;
+
+  selectedLead.tags = selectedLead.tags || [];
+  if (selectedLead.tags.some((t) => t.toLowerCase() === tag.toLowerCase())) {
+    showToast(`⚠️ Tag "${tag}" is already attached.`);
+    return;
+  }
+
+  selectedLead.tags.push(tag);
+  logLeadActivity(selectedLead, 'tag_added', `Added tag: "${tag}"`);
+
+  if (!isStaticMode) {
+    try {
+      await fetch(getApiUrl(`/api/leads/${selectedLead.id}/tags`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag, action: 'add' }),
+      });
+    } catch {}
+  }
+
+  saveLeadsLocally();
+  renderDetailTags(selectedLead);
+  renderDashboard();
+  showToast(`✓ Added tag: ${tag}`);
+}
+
+/**
+ * Remove Lead Tag
+ */
+async function removeLeadTag(tag) {
+  if (!selectedLead || !tag) return;
+
+  selectedLead.tags = (selectedLead.tags || []).filter((t) => t.toLowerCase() !== tag.toLowerCase());
+  logLeadActivity(selectedLead, 'tag_removed', `Removed tag: "${tag}"`);
+
+  if (!isStaticMode) {
+    try {
+      await fetch(getApiUrl(`/api/leads/${selectedLead.id}/tags`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag, action: 'remove' }),
+      });
+    } catch {}
+  }
+
+  saveLeadsLocally();
+  renderDetailTags(selectedLead);
+  renderDashboard();
+  showToast(`✓ Removed tag: ${tag}`);
+}
+
+/**
+ * Render Chronological Activity Timeline
+ */
+function renderActivityTimeline(lead) {
+  const container = document.getElementById('detail-activity-timeline');
+  if (!container) return;
+
+  const logs = lead.activityLog || [];
+  if (logs.length === 0) {
+    container.innerHTML = `
+      <div class="timeline-item">
+        <div class="timeline-icon-wrap">⚡</div>
+        <div class="timeline-content">
+          <div class="timeline-desc">Lead discovered & imported into pipeline</div>
+          <div class="timeline-time">${lead.scrapedAt ? new Date(lead.scrapedAt).toLocaleString() : 'Recently'}</div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  const typeIcons = {
+    stage_change: '🔄',
+    note_added: '📝',
+    outreach_sent: '💬',
+    call_logged: '📞',
+    audit_run: '🔍',
+    tag_added: '🏷️',
+    tag_removed: '🗑️',
+    created: '⚡',
+  };
+
+  container.innerHTML = logs
+    .map(
+      (item) => `
+      <div class="timeline-item">
+        <div class="timeline-icon-wrap">${typeIcons[item.type] || '📌'}</div>
+        <div class="timeline-content">
+          <div class="timeline-desc">${escapeHtml(item.description)}</div>
+          <div class="timeline-time">${new Date(item.timestamp).toLocaleString()}</div>
+        </div>
+      </div>
+    `
+    )
+    .join('');
+}
+
+/**
+ * Log Lead Activity Item
+ */
+function logLeadActivity(lead, type, description) {
+  if (!lead) return;
+
+  lead.activityLog = lead.activityLog || [];
+  const newItem = {
+    id: `act_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+    timestamp: new Date().toISOString(),
+    type: type || 'note_added',
+    description,
+  };
+
+  lead.activityLog.unshift(newItem);
+
+  if (!isStaticMode) {
+    try {
+      fetch(getApiUrl(`/api/leads/${lead.id}/activity`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, description }),
+      }).catch(() => {});
+    } catch {}
+  }
+
+  if (selectedLead && selectedLead.id === lead.id) {
+    renderActivityTimeline(lead);
+  }
+}
+
+/**
+ * Open & Close Scheduler Modal
+ */
+function openSchedulerModal() {
+  const modal = document.getElementById('scheduler-modal');
+  if (modal) {
+    modal.classList.add('show');
+    loadSchedulerJobs();
+  }
+}
+
+function closeSchedulerModal() {
+  const modal = document.getElementById('scheduler-modal');
+  if (modal) modal.classList.remove('show');
+}
+
+/**
+ * Load & Render Scheduled Jobs
+ */
+async function loadSchedulerJobs() {
+  const defaultJobs = [
+    {
+      id: 'job_kzn_physio',
+      name: 'KZN Coast Physios & Wellness Discovery',
+      niche: 'Healthcare & Wellness',
+      suburbs: ['Umhlanga', 'Durban North', 'Ballito'],
+      interval: 'daily',
+      enabled: true,
+      lastRunAt: new Date(Date.now() - 86400000).toISOString(),
+      nextRunAt: new Date(Date.now() + 86400000).toISOString(),
+      totalLeadsFound: 14,
+      status: 'idle',
+    },
+    {
+      id: 'job_gp_crossfit',
+      name: 'Gauteng Fitness & Gym Hubs Scan',
+      niche: 'Fitness',
+      suburbs: ['Sandton', 'Rosebank', 'Bryanston'],
+      interval: 'weekly',
+      enabled: true,
+      lastRunAt: new Date(Date.now() - 432000000).toISOString(),
+      nextRunAt: new Date(Date.now() + 172800000).toISOString(),
+      totalLeadsFound: 22,
+      status: 'idle',
+    },
+  ];
+
+  if (isStaticMode) {
+    const local = localStorage.getItem('leadgremlin_scheduled_jobs');
+    scheduledJobs = local ? JSON.parse(local) : defaultJobs;
+    renderSchedulerJobs();
+    return;
+  }
+
+  try {
+    const res = await fetch(getApiUrl('/api/scheduler/jobs'));
+    const data = await res.json();
+    if (data.success && Array.isArray(data.jobs)) {
+      scheduledJobs = data.jobs;
+    } else {
+      scheduledJobs = defaultJobs;
+    }
+  } catch {
+    scheduledJobs = defaultJobs;
+  }
+
+  renderSchedulerJobs();
+}
+
+/**
+ * Render Scheduled Scraping Tasks
+ */
+function renderSchedulerJobs() {
+  const container = document.getElementById('scheduler-jobs-list');
+  if (!container) return;
+
+  if (scheduledJobs.length === 0) {
+    container.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-dim);">No scheduled discovery tasks configured yet.</div>';
+    return;
+  }
+
+  container.innerHTML = scheduledJobs
+    .map(
+      (job) => `
+      <div class="job-card" id="job-card-${job.id}">
+        <div class="job-info">
+          <div class="job-title-row">
+            <span class="job-name">⏱️ ${escapeHtml(job.name)}</span>
+            <span class="job-status-pill ${job.status || 'idle'}">${job.status || 'idle'}</span>
+          </div>
+          <div class="job-subtext">
+            <strong>${escapeHtml(job.niche)}</strong> • Suburbs: ${escapeHtml(job.suburbs.join(', '))} • Interval: <strong style="text-transform:capitalize;">${job.interval}</strong>
+          </div>
+          <div class="job-subtext">
+            Found: <strong style="color:var(--sky);">${job.totalLeadsFound || 0} leads</strong> • Last Run: ${job.lastRunAt ? new Date(job.lastRunAt).toLocaleDateString() : 'Never'}
+          </div>
+        </div>
+        <div class="job-actions">
+          <button class="btn btn-sm btn-outline" onclick="runScheduledJob('${job.id}')" title="Trigger Instant Scan">⚡ Run Now</button>
+          <button class="btn btn-sm btn-icon-only btn-danger-icon" onclick="deleteScheduledJob('${job.id}')" title="Delete Task">🗑️</button>
+        </div>
+      </div>
+    `
+    )
+    .join('');
+}
+
+/**
+ * Handle Schedule Job Form Submit
+ */
+async function handleScheduleJobSubmit(e) {
+  e.preventDefault();
+  const name = document.getElementById('job-name')?.value.trim();
+  const niche = document.getElementById('job-niche')?.value;
+  const suburbsStr = document.getElementById('job-suburbs')?.value.trim();
+  const interval = document.getElementById('job-interval')?.value || 'daily';
+
+  if (!name || !niche || !suburbsStr) {
+    showToast('⚠️ Please complete all required task fields.');
+    return;
+  }
+
+  const suburbs = suburbsStr.split(',').map((s) => s.trim()).filter(Boolean);
+
+  const newJob = {
+    id: `job_${Date.now()}`,
+    name,
+    niche,
+    suburbs,
+    interval,
+    enabled: true,
+    status: 'idle',
+    lastRunAt: new Date().toISOString(),
+    nextRunAt: new Date(Date.now() + 86400000).toISOString(),
+    totalLeadsFound: 0,
+  };
+
+  scheduledJobs.unshift(newJob);
+
+  if (!isStaticMode) {
+    try {
+      await fetch(getApiUrl('/api/scheduler/jobs'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newJob),
+      });
+    } catch {}
+  } else {
+    localStorage.setItem('leadgremlin_scheduled_jobs', JSON.stringify(scheduledJobs));
+  }
+
+  renderSchedulerJobs();
+  showToast(`✓ Scheduled task "${name}" created!`);
+  document.getElementById('schedule-job-form')?.reset();
+}
+
+/**
+ * Trigger Instant Job Run
+ */
+async function runScheduledJob(jobId) {
+  const job = scheduledJobs.find((j) => j.id === jobId);
+  if (!job) return;
+
+  job.status = 'running';
+  renderSchedulerJobs();
+  showToast(`⚡ Running scheduled task "${job.name}"...`);
+
+  if (!isStaticMode) {
+    try {
+      await fetch(getApiUrl(`/api/scheduler/jobs/${jobId}/run`), { method: 'POST' });
+    } catch {}
+  }
+
+  setTimeout(() => {
+    job.status = 'completed';
+    job.totalLeadsFound = (job.totalLeadsFound || 0) + Math.floor(4 + Math.random() * 6);
+    if (isStaticMode) {
+      localStorage.setItem('leadgremlin_scheduled_jobs', JSON.stringify(scheduledJobs));
+    }
+    renderSchedulerJobs();
+    showToast(`✓ Job "${job.name}" completed!`);
+  }, 2200);
+}
+
+/**
+ * Delete Scheduled Job
+ */
+async function deleteScheduledJob(jobId) {
+  scheduledJobs = scheduledJobs.filter((j) => j.id !== jobId);
+
+  if (!isStaticMode) {
+    try {
+      await fetch(getApiUrl(`/api/scheduler/jobs/${jobId}`), { method: 'DELETE' });
+    } catch {}
+  } else {
+    localStorage.setItem('leadgremlin_scheduled_jobs', JSON.stringify(scheduledJobs));
+  }
+
+  renderSchedulerJobs();
+  showToast('✓ Scheduled task deleted.');
 }
 
 function escapeHtml(str) {

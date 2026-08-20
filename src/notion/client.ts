@@ -16,3 +16,26 @@ export const getNotionClient = (): Client => {
   }
   return notionClientInstance;
 };
+
+/**
+ * Exponential backoff retry wrapper for Notion API calls
+ */
+export async function withNotionRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      attempt++;
+      const isRateLimit = err?.status === 429 || err?.code === 'rate_limited';
+      const isNetworkErr = err?.message?.includes('fetch failed') || err?.code === 'ECONNRESET';
+
+      if (attempt >= maxRetries || (!isRateLimit && !isNetworkErr)) {
+        throw err;
+      }
+      const delayMs = Math.pow(2, attempt) * 1000 + Math.random() * 500;
+      console.warn(`[Notion Retry] Rate limit / connection issue. Attempt ${attempt}/${maxRetries} in ${Math.round(delayMs)}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}

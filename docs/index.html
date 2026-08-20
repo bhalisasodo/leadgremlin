@@ -2,24 +2,31 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LeadGremlin | Sales Funnel & Business Lead Engine</title>
-  <meta name="description" content="AI Outbound Lead Engine & Sales Funnel Dashboard for local business discovery and contact extraction.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#070a12">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>LeadGremlin | AI Outbound Lead Engine & South Africa Search Universe</title>
+  <meta name="description" content="AI Outbound Lead Engine & Sales Funnel Dashboard for South African business discovery across Durban, Sandton, Cape Town, and national metro hubs.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div id="app" class="dashboard-layout">
+    <!-- Sidebar Backdrop for Mobile Drawer -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleMobileSidebar(false)"></div>
+
     <!-- Sidebar Navigation -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
       <div class="brand">
         <div class="logo-icon">⚡</div>
         <div class="brand-text">
           <h2>LeadGremlin</h2>
-          <span class="version-badge">v2.0 Funnel</span>
+          <span class="version-badge">v2.5 SA Engine</span>
         </div>
+        <button class="sidebar-close-btn" onclick="toggleMobileSidebar(false)" aria-label="Close Sidebar">&times;</button>
       </div>
 
       <nav class="nav-menu">
@@ -38,16 +45,36 @@
       </nav>
 
       <div class="sidebar-preset">
-        <div class="preset-label">TARGET REGION</div>
-        <div class="region-badge">
+        <div class="preset-label">TARGET SA REGION</div>
+        <div class="region-badge" id="active-region-badge">
           <span class="pulse-dot"></span>
-          <strong>Umhlanga & Coast</strong>
+          <strong id="active-region-text">KZN Coast Metro</strong>
         </div>
-        <p class="preset-desc">Umhlanga Rocks, Ridge, Gateway, La Lucia & Cornubia</p>
+        <select id="sidebar-region-select" class="form-control-sm mt-2" onchange="handleSidebarRegionChange(this.value)">
+          <option value="ALL">🇿🇦 All South Africa</option>
+          <option value="KZN" selected>🌊 KZN (Durban & Coast)</option>
+          <option value="GP">🏙️ Gauteng (JHB & Pretoria)</option>
+          <option value="WC">⛰️ Western Cape (Cape Town)</option>
+          <option value="EC">🏖️ Eastern Cape (Gqeberha)</option>
+          <option value="FS">🌾 Free State (Bloemfontein)</option>
+          <option value="MP">🌄 Mpumalanga (Nelspruit)</option>
+          <option value="LP">🦁 Limpopo (Polokwane)</option>
+          <option value="NW">⛏️ North West (Rustenburg)</option>
+          <option value="NC">💎 Northern Cape (Kimberley)</option>
+        </select>
+      </div>
+
+      <div class="notion-status-card" id="notion-status-box">
+        <div class="notion-status-header">
+          <span class="notion-icon">🔗</span>
+          <span class="notion-label">Notion Integration</span>
+          <span class="notion-dot-status" id="notion-dot"></span>
+        </div>
+        <div class="notion-status-text" id="notion-status-text">Checking status...</div>
       </div>
 
       <div class="sidebar-footer">
-        <button class="btn btn-primary btn-block" id="open-extract-btn" onclick="openExtractModal()">
+        <button class="btn btn-primary btn-block glow-btn" id="open-extract-btn" onclick="openExtractModal()">
           <span class="btn-icon">⚡</span> Extract New Leads
         </button>
       </div>
@@ -55,6 +82,34 @@
 
     <!-- Main Workspace -->
     <main class="main-content">
+      <!-- Mobile Top Bar (Visible only on mobile/tablet) -->
+      <header class="mobile-top-bar">
+        <button class="mobile-menu-btn" onclick="toggleMobileSidebar(true)" aria-label="Open Navigation Menu">
+          <span class="menu-icon">☰</span>
+        </button>
+        <div class="mobile-brand">
+          <span class="mobile-logo">⚡</span>
+          <span class="mobile-title">LeadGremlin</span>
+        </div>
+        <div class="mobile-top-actions">
+          <button class="btn btn-sm btn-primary mobile-extract-quick" onclick="openExtractModal()">
+            <span>⚡ Extract</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Top Live Extraction Progress Banner (Floating) -->
+      <div class="live-extraction-banner hidden" id="live-extraction-banner">
+        <div class="banner-content">
+          <div class="pulse-loader"></div>
+          <div class="banner-text">
+            <strong>Lead Extraction Active:</strong>
+            <span id="banner-status-text">Searching businesses across South Africa...</span>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-outline-light" onclick="openExtractModal()">View Execution Log</button>
+      </div>
+
       <!-- Top Action Header -->
       <header class="top-header">
         <div class="header-left">
@@ -65,11 +120,20 @@
         <div class="header-actions">
           <div class="search-box">
             <span class="search-icon">🔍</span>
-            <input type="text" id="global-search" placeholder="Search business, email, phone..." oninput="handleSearch(this.value)">
+            <input type="text" id="global-search" placeholder="Search business, suburb, email..." oninput="handleSearch(this.value)">
+            <kbd class="shortcut-badge">Ctrl K</kbd>
           </div>
 
-          <button class="btn btn-secondary" onclick="triggerEnrichment()">
-            <span>✨ Enrich Missing Contacts</span>
+          <button class="btn btn-secondary" onclick="triggerEnrichment()" id="btn-enrich">
+            <span>✨ Enrich Contacts</span>
+          </button>
+
+          <button class="btn btn-outline" id="btn-scheduler" onclick="openSchedulerModal()">
+            <span>⏱️ Scheduler</span>
+          </button>
+
+          <button class="btn btn-outline" id="btn-notion-sync" onclick="triggerNotionSync()">
+            <span>🔗 Sync to Notion</span>
           </button>
           
           <div class="dropdown">
@@ -77,8 +141,10 @@
               <span>📥 Export</span>
             </button>
             <div class="dropdown-menu" id="export-menu">
-              <button onclick="downloadExport('csv')" class="dropdown-item" style="width:100%; text-align:left; background:none; border:none; cursor:pointer;">CSV Format (.csv)</button>
-              <button onclick="downloadExport('json')" class="dropdown-item" style="width:100%; text-align:left; background:none; border:none; cursor:pointer;">JSON Format (.json)</button>
+              <button onclick="downloadExport('csv')" class="dropdown-item">CSV Format (.csv)</button>
+              <button onclick="downloadExport('json')" class="dropdown-item">JSON Format (.json)</button>
+              <button onclick="downloadExport('instantly')" class="dropdown-item">⚡ Instantly.ai Campaign CSV</button>
+              <button onclick="downloadExport('lemlist')" class="dropdown-item">🚀 Lemlist Outreach CSV</button>
             </div>
           </div>
         </div>
@@ -92,6 +158,7 @@
             <span class="metric-title">Total Prospects</span>
             <h3 id="stat-total">0</h3>
           </div>
+          <div class="metric-sparkline" id="spark-total"></div>
         </div>
 
         <div class="metric-card">
@@ -100,6 +167,7 @@
             <span class="metric-title">Website Coverage</span>
             <h3 id="stat-web">0%</h3>
           </div>
+          <div class="metric-progress-bar"><div class="bar-fill web" id="bar-web"></div></div>
         </div>
 
         <div class="metric-card">
@@ -108,6 +176,7 @@
             <span class="metric-title">Email Verified</span>
             <h3 id="stat-email">0%</h3>
           </div>
+          <div class="metric-progress-bar"><div class="bar-fill email" id="bar-email"></div></div>
         </div>
 
         <div class="metric-card">
@@ -116,29 +185,80 @@
             <span class="metric-title">Phone Contactable</span>
             <h3 id="stat-phone">0%</h3>
           </div>
+          <div class="metric-progress-bar"><div class="bar-fill phone" id="bar-phone"></div></div>
         </div>
 
         <div class="metric-card">
           <div class="metric-icon social">📱</div>
           <div class="metric-data">
-            <span class="metric-title">Social Media Links</span>
+            <span class="metric-title">Social Links</span>
             <h3 id="stat-social">0%</h3>
           </div>
+          <div class="metric-progress-bar"><div class="bar-fill social" id="bar-social"></div></div>
         </div>
       </section>
 
-      <!-- Category Filter Tabs -->
-      <section class="category-filters">
-        <span class="filter-label">Category Group:</span>
-        <div class="filter-pills" id="category-pills">
-          <button class="pill active" onclick="filterByCategory('ALL')">All Categories</button>
-          <button class="pill" onclick="filterByCategory('Fitness')">🏋️ Fitness</button>
-          <button class="pill" onclick="filterByCategory('Beauty and Hair')">💇 Beauty & Hair</button>
-          <button class="pill" onclick="filterByCategory('Restaurant')">🍽️ Restaurants</button>
-          <button class="pill" onclick="filterByCategory('Healthcare & Wellness')">🩺 Healthcare</button>
-          <button class="pill" onclick="filterByCategory('Real Estate')">🏠 Real Estate</button>
-          <button class="pill" onclick="filterByCategory('Professional Services')">⚖️ Professional</button>
-          <button class="pill" onclick="filterByCategory('Automotive & Trades')">🔧 Automotive</button>
+      <!-- Category & Quick Filter Bar -->
+      <section class="filter-toolbar">
+        <div class="category-filters">
+          <span class="filter-label">Category:</span>
+          <div class="filter-pills" id="category-pills">
+            <button class="pill active" data-category="ALL" onclick="filterByCategory('ALL')">All Categories</button>
+            <button class="pill" data-category="Fitness" onclick="filterByCategory('Fitness')">🏋️ Fitness</button>
+            <button class="pill" data-category="Beauty and Hair" onclick="filterByCategory('Beauty and Hair')">💇 Beauty & Hair</button>
+            <button class="pill" data-category="Restaurant" onclick="filterByCategory('Restaurant')">🍽️ Restaurants</button>
+            <button class="pill" data-category="Healthcare & Wellness" onclick="filterByCategory('Healthcare & Wellness')">🩺 Healthcare</button>
+            <button class="pill" data-category="Real Estate" onclick="filterByCategory('Real Estate')">🏠 Real Estate</button>
+            <button class="pill" data-category="Professional Services" onclick="filterByCategory('Professional Services')">⚖️ Professional</button>
+            <button class="pill" data-category="Automotive & Trades" onclick="filterByCategory('Automotive & Trades')">🔧 Automotive</button>
+          </div>
+        </div>
+
+        <!-- Quick Filter Presets -->
+        <div class="quick-filter-presets">
+          <span class="filter-label">Quick Presets:</span>
+          <div class="preset-chips" id="preset-chips">
+            <button class="preset-chip active" data-preset="ALL" onclick="filterByPreset('ALL')">All Prospects</button>
+            <button class="preset-chip" data-preset="HOT" onclick="filterByPreset('HOT')">🔥 Hot Priority (80+)</button>
+            <button class="preset-chip" data-preset="HIGH_VAL" onclick="filterByPreset('HIGH_VAL')">💰 High Value (R20k+)</button>
+            <button class="preset-chip" data-preset="NO_SSL" onclick="filterByPreset('NO_SSL')">🔒 Insecure HTTP</button>
+            <button class="preset-chip" data-preset="NO_WA" onclick="filterByPreset('NO_WA')">💬 Missing WhatsApp</button>
+            <button class="preset-chip" data-preset="HAS_EMAIL" onclick="filterByPreset('HAS_EMAIL')">📧 Has Email</button>
+          </div>
+        </div>
+
+        <div class="sub-filter-bar">
+          <div class="toggle-group">
+            <label class="toggle-btn"><input type="checkbox" id="filter-has-email" onchange="applyFilters()"> 📧 Has Email</label>
+            <label class="toggle-btn"><input type="checkbox" id="filter-has-website" onchange="applyFilters()"> 🌐 Has Website</label>
+            <label class="toggle-btn"><input type="checkbox" id="filter-has-phone" onchange="applyFilters()"> 📞 Has Phone</label>
+          </div>
+
+          <div class="filter-controls-right">
+            <div class="tag-selector">
+              <label>Tag:</label>
+              <select id="filter-tag-select" class="form-control-sm" onchange="applyFilters()">
+                <option value="ALL">All Tags</option>
+              </select>
+            </div>
+            
+            <div class="area-selector">
+              <label>SA Area:</label>
+              <select id="filter-area-select" class="form-control-sm" onchange="applyFilters()">
+                <option value="ALL">All South Africa Areas</option>
+              </select>
+            </div>
+
+            <div class="sort-selector">
+              <label>Sort By:</label>
+              <select id="sort-select" class="form-control-sm" onchange="applySort(this.value)">
+                <option value="score-desc">Opportunity Score (High to Low)</option>
+                <option value="name-asc">Business Name (A-Z)</option>
+                <option value="rating-desc">Rating (Highest)</option>
+                <option value="date-desc">Recently Scraped</option>
+              </select>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -160,18 +280,48 @@
               <button class="btn btn-sm btn-outline" onclick="openAddLeadModal()">+ Add Prospect Manually</button>
             </div>
           </div>
+
+          <!-- Bulk Actions Floating Bar -->
+          <div class="bulk-actions-bar hidden" id="bulk-actions-bar">
+            <div class="bulk-selected-info">
+              <span class="bulk-selected-count" id="bulk-selected-count">0</span> leads selected
+            </div>
+            <div class="bulk-action-buttons">
+              <div class="bulk-stage-selector">
+                <span>Move to:</span>
+                <select id="bulk-stage-select" class="form-control-sm" onchange="handleBulkStageChange(this.value)">
+                  <option value="" disabled selected>Select Stage</option>
+                  <option value="new">New Lead</option>
+                  <option value="enriched">Enriched</option>
+                  <option value="outreach">Outreach Sent</option>
+                  <option value="meeting">Meeting Booked</option>
+                  <option value="proposal">Proposal Sent</option>
+                  <option value="won">Closed Won 🏆</option>
+                  <option value="lost">Closed Lost</option>
+                </select>
+              </div>
+              <button class="btn btn-sm btn-outline-light" onclick="handleBulkExport('csv')">📥 Export CSV</button>
+              <button class="btn btn-sm btn-outline-light" onclick="handleBulkExport('instantly')">⚡ Instantly CSV</button>
+              <button class="btn btn-sm btn-outline-danger" onclick="handleBulkDelete()">🗑️ Delete</button>
+              <button class="btn btn-sm btn-ghost" onclick="clearLeadSelection()">✕ Deselect</button>
+            </div>
+          </div>
+
           <div class="table-responsive">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>Business Name</th>
-                  <th>Category</th>
-                  <th>Area</th>
+                  <th style="width: 42px; text-align: center;">
+                    <input type="checkbox" id="select-all-leads-cb" onchange="toggleSelectAllLeads(this.checked)" title="Select All Prospects">
+                  </th>
+                  <th onclick="toggleSort('name')" class="sortable">Business Name ↕</th>
+                  <th onclick="toggleSort('category')" class="sortable">Category ↕</th>
+                  <th>Area / Suburb</th>
                   <th>Contact Info</th>
                   <th>Website</th>
                   <th>Social Handles</th>
                   <th>Stage</th>
-                  <th>Score</th>
+                  <th onclick="toggleSort('opportunityScore')" class="sortable">Opp. Score ↕</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -183,16 +333,85 @@
         </div>
       </div>
 
-      <!-- VIEW 3: ANALYTICS & COVERAGE -->
+      <!-- VIEW 3: ANALYTICS & CONVERSION SUITE -->
       <div id="view-analytics-container" class="view-panel">
+        <!-- Analytics Top KPI Summary -->
+        <div class="analytics-kpi-grid">
+          <div class="analytics-kpi-card glass-panel">
+            <div class="kpi-icon gold">💰</div>
+            <div class="kpi-info">
+              <span class="kpi-label">Total Pipeline (ZAR)</span>
+              <h3 id="analytics-total-value">R0</h3>
+            </div>
+          </div>
+          <div class="analytics-kpi-card glass-panel">
+            <div class="kpi-icon sky">📈</div>
+            <div class="kpi-info">
+              <span class="kpi-label">Weighted Forecast (ZAR)</span>
+              <h3 id="analytics-weighted-value">R0</h3>
+            </div>
+          </div>
+          <div class="analytics-kpi-card glass-panel">
+            <div class="kpi-icon green">🎉</div>
+            <div class="kpi-info">
+              <span class="kpi-label">Won Revenue (ZAR)</span>
+              <h3 id="analytics-won-value">R0</h3>
+            </div>
+          </div>
+          <div class="analytics-kpi-card glass-panel">
+            <div class="kpi-icon flame">📊</div>
+            <div class="kpi-info">
+              <span class="kpi-label">Average Deal Size</span>
+              <h3 id="analytics-avg-deal">R18,500</h3>
+            </div>
+          </div>
+        </div>
+
         <div class="analytics-grid">
+          <div class="analytics-card glass-panel full-width">
+            <div class="card-header-sm">
+              <h3>🎯 Stage Conversion Funnel & Probability Waterfall</h3>
+              <span class="hint">Prospect progression from Discovery to Closed Won</span>
+            </div>
+            <div class="funnel-waterfall-container" id="funnel-waterfall">
+              <!-- Dynamically populated via app.js -->
+            </div>
+          </div>
+
           <div class="analytics-card glass-panel">
-            <h3>Prospect Category Distribution</h3>
+            <div class="card-header-sm">
+              <h3>Prospect Category Distribution</h3>
+              <span class="hint">Breakdown by business type</span>
+            </div>
             <div class="chart-bars" id="category-chart"></div>
           </div>
+          
           <div class="analytics-card glass-panel">
-            <h3>Funnel Stage Pipeline Breakdown</h3>
+            <div class="card-header-sm">
+              <h3>Funnel Stage Pipeline Breakdown</h3>
+              <span class="hint">Active deal volume</span>
+            </div>
             <div class="chart-bars" id="stage-chart"></div>
+          </div>
+
+          <div class="analytics-card glass-panel full-width">
+            <div class="card-header-sm">
+              <h3>🇿🇦 Top South Africa Suburb Performance</h3>
+              <span class="hint">Prospect density & average opportunity score by suburb</span>
+            </div>
+            <div class="suburb-leaderboard-grid" id="suburb-leaderboard">
+              <!-- Dynamically populated via app.js -->
+            </div>
+          </div>
+
+          <div class="analytics-card glass-panel full-width">
+            <div class="card-header-sm">
+              <h3>Contact Enrichment & Audit Readiness</h3>
+              <span class="hint">Lead data completion score</span>
+            </div>
+            <div class="coverage-meters-grid" id="coverage-meters">
+              <!-- Dynamically populated -->
+            </div>
           </div>
         </div>
       </div>
@@ -201,13 +420,13 @@
 
   <!-- MODAL 1: EXTRACT LEADS SCRAPER TRIGGER -->
   <div class="modal-overlay" id="extract-modal">
-    <div class="modal-card glass-panel">
+    <div class="modal-card glass-panel wide">
       <div class="modal-header">
         <div class="modal-title">
-          <span class="modal-icon">⚡</span>
+          <span class="modal-icon">🇿🇦</span>
           <div>
-            <h3>Extract New Leads</h3>
-            <p>One-click scraper targeting businesses in Umhlanga & Surrounds</p>
+            <h3>Extract New Leads - South Africa Universe</h3>
+            <p>Batch scrape businesses across KwaZulu-Natal, Gauteng, Western Cape & national hubs</p>
           </div>
         </div>
         <button class="close-btn" onclick="closeExtractModal()">&times;</button>
@@ -216,31 +435,78 @@
       <div class="modal-body">
         <form id="extract-form" onsubmit="handleStartExtraction(event)">
           <div class="form-group">
-            <label>Target Area / Location</label>
-            <select id="extract-area" class="form-control">
-              <option value="Umhlanga" selected>Umhlanga (Rocks, Ridge, Gateway, La Lucia)</option>
-              <option value="Durban North">Durban North & Broadway</option>
-              <option value="Ballito">Ballito & North Coast</option>
-              <option value="Durban Central">Durban Central & Morningside</option>
+            <div class="section-title-row">
+              <label>Industry Niche Preset & Target Vertical</label>
+              <span class="badge badge-sm" id="preset-badge">⚡ Multi-Niche Enabled</span>
+            </div>
+            <select id="extract-niche-preset" class="form-control" onchange="handleNichePresetChange(this.value)">
+              <option value="all_high_yield">🚀 All High-Yield Niches (Full Spectrum B2B & Services)</option>
+              <option value="healthcare_medical">🩺 Healthcare & Specialized Medical (Dentists, Physios, MedSpas)</option>
+              <option value="trades_home_services">⚡ Home Services, Solar & Trades (Solar, Electricians, Plumbers)</option>
+              <option value="beauty_aesthetics">💅 Beauty, Hair & MedSpas (Salons, Spas, Barbers, Laser)</option>
+              <option value="fitness_wellness">🏋️ Fitness, CrossFit & Wellness (Gyms, Pilates, Personal Trainers)</option>
+              <option value="hospitality_dining">🍽️ Hospitality, Dining & Venues (Fine Dining, Cafes, Steakhouses)</option>
+              <option value="professional_legal">⚖️ Legal, Accounting & Corporate (Law Firms, Tax, Financial)</option>
+              <option value="automotive_services">🚗 Automotive Repair & Detailing (Workshops, Ceramic Coating)</option>
+              <option value="real_estate">🏡 Real Estate & Property Management (Agencies, Commercial Brokers)</option>
+              <option value="custom">✏️ Custom Category Selection Below</option>
             </select>
           </div>
 
           <div class="form-group">
-            <label>Prospect Categories to Extract</label>
+            <div class="section-title-row">
+              <label>Target Regions & Locations across South Africa</label>
+              <div class="btn-group-sm">
+                <button type="button" class="btn-text" onclick="selectAllSuburbs(true)">Select All SA</button>
+                <button type="button" class="btn-text ml-2" onclick="selectTopMetroHubs()">Top Metros</button>
+              </div>
+            </div>
+
+            <!-- Province Tabs -->
+            <div class="province-tabs" id="province-tabs">
+              <button type="button" class="province-tab active" data-province="KZN" onclick="switchProvinceTab('KZN')">🌊 KZN</button>
+              <button type="button" class="province-tab" data-province="GP" onclick="switchProvinceTab('GP')">🏙️ Gauteng</button>
+              <button type="button" class="province-tab" data-province="WC" onclick="switchProvinceTab('WC')">⛰️ W. Cape</button>
+              <button type="button" class="province-tab" data-province="EC" onclick="switchProvinceTab('EC')">🏖️ E. Cape</button>
+              <button type="button" class="province-tab" data-province="FS" onclick="switchProvinceTab('FS')">🌾 Free State</button>
+              <button type="button" class="province-tab" data-province="MP" onclick="switchProvinceTab('MP')">🌄 Mpumalanga</button>
+              <button type="button" class="province-tab" data-province="LP" onclick="switchProvinceTab('LP')">🦁 Limpopo</button>
+              <button type="button" class="province-tab" data-province="NW" onclick="switchProvinceTab('NW')">⛏️ North West</button>
+              <button type="button" class="province-tab" data-province="NC" onclick="switchProvinceTab('NC')">💎 N. Cape</button>
+            </div>
+
+            <!-- Suburbs Checkbox Grid -->
+            <div class="checkbox-grid mt-2" id="suburbs-checkbox-grid">
+              <!-- Dynamically populated via app.js -->
+            </div>
+
+            <!-- Custom Location Input -->
+            <div class="mt-3">
+              <label style="font-size:11px; color:var(--text-dim);">Additional Custom SA Cities / Suburbs (comma-separated):</label>
+              <input type="text" id="extract-custom-areas" class="form-control" placeholder="e.g. Umhlanga, Sandton, Sea Point, Rosebank, Constantia, Pretoria East">
+            </div>
+          </div>
+
+          <div class="form-group" id="categories-select-wrap">
+            <label>Specific Business Categories</label>
             <div class="checkbox-grid">
-              <label class="checkbox-label"><input type="checkbox" name="categories" value="gym" checked> Gym & Fitness</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="dentist" checked> Dentists & Medical Clinics</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="solar installer" checked> Solar & Renewable Energy</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="gym" checked> Gyms, CrossFit & Fitness</label>
               <label class="checkbox-label"><input type="checkbox" name="categories" value="beauty salon" checked> Beauty & Hair Salons</label>
-              <label class="checkbox-label"><input type="checkbox" name="categories" value="restaurant" checked> Restaurants & Cafes</label>
-              <label class="checkbox-label"><input type="checkbox" name="categories" value="dentist" checked> Dentists & Clinics</label>
-              <label class="checkbox-label"><input type="checkbox" name="categories" value="real estate agent" checked> Real Estate</label>
-              <label class="checkbox-label"><input type="checkbox" name="categories" value="law firm" checked> Professional Services</label>
-              <label class="checkbox-label"><input type="checkbox" name="categories" value="car detailing" checked> Auto & Services</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="restaurant" checked> Restaurants & Dining</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="real estate agent" checked> Real Estate & Property</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="law firm" checked> Law Firms & Legal</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="car detailing" checked> Auto Repair & Detailing</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="electrician" checked> Electricians & Trades</label>
+              <label class="checkbox-label"><input type="checkbox" name="categories" value="plumber" checked> Plumbers & Gas</label>
             </div>
           </div>
 
           <div class="form-group">
-            <label>Extended Search Engines Beyond Google Maps</label>
+            <label>Search Optimization & Intent Modifiers</label>
             <div class="checkbox-group">
+              <label class="checkbox-label"><input type="checkbox" id="ext-use-modifiers" checked> Generate Commercial Intent Queries ("best", "top rated", "specialist")</label>
               <label class="checkbox-label"><input type="checkbox" id="ext-google-maps" checked disabled> Google Maps Scraper</label>
               <label class="checkbox-label"><input type="checkbox" id="ext-web-search" checked> DuckDuckGo / Web Engine Search</label>
               <label class="checkbox-label"><input type="checkbox" id="ext-deep-crawl" checked> Direct Website Deep Crawl (Email & Socials)</label>
@@ -248,7 +514,7 @@
           </div>
 
           <div class="form-group">
-            <label>Max Results Per Category</label>
+            <label>Max Results Per Category & Location</label>
             <input type="number" id="extract-max" class="form-control" value="5" min="1" max="25">
           </div>
 
@@ -258,7 +524,7 @@
               <span class="terminal-dot red"></span>
               <span class="terminal-dot yellow"></span>
               <span class="terminal-dot green"></span>
-              <span class="terminal-title">Scraper Execution Engine</span>
+              <span class="terminal-title">Scraper Execution Engine - SA Universe</span>
             </div>
             <div class="terminal-body" id="terminal-logs">
               <div class="log-line info">Initialising Playwright Chromium...</div>
@@ -266,9 +532,9 @@
           </div>
 
           <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" onclick="closeExtractModal()">Cancel</button>
+            <button type="button" class="btn btn-secondary" onclick="closeExtractModal()">Close</button>
             <button type="submit" class="btn btn-primary" id="btn-run-scraper">
-              <span>🚀 Start Lead Extraction</span>
+              <span>🚀 Start Multi-Area Lead Extraction</span>
             </button>
           </div>
         </form>
@@ -320,7 +586,7 @@
               <div class="contact-card">
                 <span class="icon">📍</span>
                 <div class="info">
-                  <span class="label">Address</span>
+                  <span class="label">Address / Suburb</span>
                   <span id="detail-address">Umhlanga</span>
                 </div>
               </div>
@@ -331,6 +597,62 @@
             <h4 class="section-title">Social Media Profiles</h4>
             <div class="social-badges-list" id="detail-socials">
               <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <!-- Custom Prospect Tags Manager -->
+          <div class="detail-section">
+            <h4 class="section-title">Prospect Tags</h4>
+            <div class="lead-tags-container" id="detail-tags-list"></div>
+            <div class="tag-input-row">
+              <input type="text" id="new-tag-input" class="form-control-sm" placeholder="Add custom tag..." onkeydown="if(event.key==='Enter'){event.preventDefault();addTagFromInput();}">
+              <button type="button" class="btn btn-sm btn-outline" onclick="addTagFromInput()">+ Add</button>
+            </div>
+            <div class="tag-suggestion-chips">
+              <span class="tag-chip-sm" onclick="addTagPreset('VIP')">+ VIP</span>
+              <span class="tag-chip-sm" onclick="addTagPreset('High Intent')">+ High Intent</span>
+              <span class="tag-chip-sm" onclick="addTagPreset('No SSL')">+ No SSL</span>
+              <span class="tag-chip-sm" onclick="addTagPreset('Needs WhatsApp')">+ Needs WhatsApp</span>
+              <span class="tag-chip-sm" onclick="addTagPreset('Followup Scheduled')">+ Followup</span>
+            </div>
+          </div>
+
+          <!-- AI Sales Intelligence Dossier & Opportunity Diagnosis -->
+          <div class="detail-section" id="detail-sales-intelligence-section">
+            <div class="section-title-row">
+              <h4 class="section-title">🧠 AI Sales Intelligence Dossier</h4>
+              <button class="btn-text" id="btn-run-intelligence" onclick="triggerSalesIntelligence(true)">⚡ Re-Analyze Lead</button>
+            </div>
+            <div class="sales-intelligence-card" id="detail-intelligence-card">
+              <!-- Dynamically populated via app.js -->
+              <div class="intel-placeholder">
+                <span>⚡ Generating deep sales research & customer journey audit...</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Technical Website Audit Breakdown -->
+          <div class="detail-section">
+            <div class="section-title-row">
+              <h4 class="section-title">Technical Website Audit</h4>
+              <button class="btn-text" id="btn-run-audit" onclick="triggerWebsiteAudit()">🔄 Run Technical Audit</button>
+            </div>
+            <div class="audit-chips-grid" id="detail-audit-box">
+              <!-- Populated by app.js -->
+            </div>
+          </div>
+
+          <!-- Sales Funnel & Workflow Architecture Diagnostic -->
+          <div class="detail-section" id="detail-funnel-section">
+            <div class="section-title-row">
+              <h4 class="section-title">Sales Funnel & Workflow Diagnostic</h4>
+              <span class="badge badge-sm" id="detail-funnel-arch-badge">⚡ Analyzing</span>
+            </div>
+            <div class="funnel-stack-chips" id="detail-funnel-stack-chips">
+              <!-- Populated by app.js -->
+            </div>
+            <div class="business-case-card" id="detail-business-case-card">
+              <!-- Populated by app.js -->
             </div>
           </div>
         </div>
@@ -354,21 +676,101 @@
             <h4 class="section-title">Opportunity & Lead Score</h4>
             <div class="score-container">
               <div class="score-badge" id="detail-score">85</div>
-              <p class="score-desc">High priority lead. Missing website optimization and social booking link.</p>
+              <div class="score-info">
+                <span class="est-value" id="detail-est-value">Est. Deal: R18,500</span>
+                <p class="score-desc" id="detail-score-desc">High priority lead. Target for AI outreach script generation.</p>
+              </div>
             </div>
           </div>
 
           <div class="detail-section">
-            <h4 class="section-title">Notes & Activity Log</h4>
-            <textarea id="detail-notes" class="form-control" rows="4" placeholder="Add notes about conversations or follow-up details..."></textarea>
+            <h4 class="section-title">Notes</h4>
+            <textarea id="detail-notes" class="form-control" rows="3" placeholder="Add notes about conversations or follow-up details..."></textarea>
             <button class="btn btn-sm btn-secondary mt-2" onclick="saveLeadNotes()">Save Notes</button>
           </div>
 
+          <!-- Chronological Activity Timeline Log -->
           <div class="detail-section">
-            <h4 class="section-title">AI Email & Cold Outreach Script</h4>
-            <button class="btn btn-outline btn-block" onclick="generateAiScript()">✨ Generate Tailored Email Pitch</button>
-            <div class="ai-output-box hidden" id="ai-script-output">
-              <pre id="ai-script-text"></pre>
+            <h4 class="section-title">Activity Timeline History</h4>
+            <div class="activity-timeline" id="detail-activity-timeline">
+              <!-- Dynamically populated via app.js -->
+            </div>
+          </div>
+
+          <!-- Multi-Channel AI Outreach Pitch Suite & Sequence Playbooks -->
+          <div class="detail-section">
+            <div class="section-title-row">
+              <h4 class="section-title">Multi-Channel Outreach Sequences</h4>
+              <div class="tone-select-wrap">
+                <select id="pitch-tone-select" class="form-control-sm" onchange="changePitchTone(this.value)">
+                  <option value="consultative">Consultative Tone</option>
+                  <option value="direct">Direct Tone</option>
+                  <option value="casual">Casual Tone</option>
+                  <option value="urgent">Urgent Tone</option>
+                  <option value="roi_focused">ROI / Commercial Model</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Sequence Playbook Archetype Selector Bar -->
+            <div class="sequence-controls-bar">
+              <div style="flex: 1; min-width: 220px;">
+                <label style="font-size: 11px; color: var(--text-dim); display: block; margin-bottom: 4px;">Outreach Cadence Playbook:</label>
+                <select id="sequence-archetype-select" class="form-control-sm" style="width: 100%;" onchange="changeSequenceArchetype(this.value)">
+                  <option value="omni_channel_blitz">🚀 Omni-Channel Cadence (14-Day Blitz: Email + WA + Call + DM)</option>
+                  <option value="audit_breakdown">🔍 Technical Audit & Video Walkthrough (10-Day Cadence)</option>
+                  <option value="roi_calculator">💰 Commercial Valuation & ROI Leakage (10-Day Cadence)</option>
+                  <option value="niche_case_study">📈 Niche Transformation & Proof (12-Day Cadence)</option>
+                  <option value="re_engagement">🔄 Stalled Lead Revival (7-Day Re-engagement)</option>
+                </select>
+              </div>
+              <div class="btn-group-sm mt-3" style="display: flex; gap: 6px;">
+                <button type="button" class="btn btn-sm btn-outline" onclick="exportCurrentSequence('csv')">📥 Instantly CSV</button>
+                <button type="button" class="btn btn-sm btn-outline" onclick="exportCurrentSequence('json')">📄 JSON</button>
+              </div>
+            </div>
+
+            <!-- Interactive Cadence Timeline Chips -->
+            <div class="timeline-scroll-wrap" id="sequence-timeline-chips">
+              <!-- Dynamically populated via app.js -->
+            </div>
+
+            <!-- Pitch Channel Tabs -->
+            <div class="pitch-tabs" id="pitch-tabs">
+              <button class="pitch-tab active" data-channel="email" onclick="switchPitchTab('email')">📧 Email</button>
+              <button class="pitch-tab" data-channel="whatsapp" onclick="switchPitchTab('whatsapp')">💬 WhatsApp</button>
+              <button class="pitch-tab" data-channel="socialDm" onclick="switchPitchTab('socialDm')">📱 Social DM</button>
+              <button class="pitch-tab" data-channel="coldCall" onclick="switchPitchTab('coldCall')">📞 Cold Call</button>
+              <button class="pitch-tab" data-channel="dripSequence" onclick="switchPitchTab('dripSequence')">🗓️ Full Cadence</button>
+            </div>
+
+            <div class="pitch-body-wrap">
+              <div class="pitch-body-header">
+                <span class="pitch-channel-label" id="pitch-channel-label">Email Outreach Script</span>
+                <div class="pitch-header-actions">
+                  <button class="btn btn-sm btn-outline" id="btn-copy-pitch" onclick="copyPitchToClipboard()">📋 Copy Script</button>
+                </div>
+              </div>
+
+              <!-- 1-Click Multi-Channel Outreach Dispatch Bar -->
+              <div class="outreach-dispatch-bar">
+                <button class="btn btn-sm btn-whatsapp-dispatch" id="btn-dispatch-wa" onclick="dispatchWhatsApp()">
+                  <span>💬 Launch WhatsApp Web</span>
+                </button>
+                <button class="btn btn-sm btn-mail-dispatch" id="btn-dispatch-email" onclick="dispatchEmail()">
+                  <span>✉️ Open in Mail Client</span>
+                </button>
+                <button class="btn btn-sm btn-proposal-dispatch" id="btn-dispatch-report" onclick="openClientReport()">
+                  <span>📄 Client PDF Proposal</span>
+                </button>
+              </div>
+
+              <div class="ai-output-box" id="ai-script-output">
+                <pre id="ai-script-text">Select or generate pitch script above...</pre>
+              </div>
+              <div id="action-guidance-container" class="action-guidance-box hidden">
+                <!-- Action guidance note -->
+              </div>
             </div>
           </div>
         </div>
@@ -376,6 +778,157 @@
     </div>
   </div>
 
+  <!-- MODAL 3: ADD MANUAL LEAD -->
+  <div class="modal-overlay" id="add-lead-modal">
+    <div class="modal-card glass-panel">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span class="modal-icon">➕</span>
+          <div>
+            <h3>Add New Prospect</h3>
+            <p>Manually insert lead entry into sales pipeline</p>
+          </div>
+        </div>
+        <button class="close-btn" onclick="closeAddLeadModal()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <form id="add-lead-form" onsubmit="handleAddLeadSubmit(event)">
+          <div class="form-group">
+            <label>Business Name *</label>
+            <input type="text" id="add-name" class="form-control" placeholder="e.g. Sandton Fitness Club" required>
+          </div>
+          <div class="form-group">
+            <label>Category *</label>
+            <select id="add-category" class="form-control" required>
+              <option value="Fitness">Fitness & Gyms</option>
+              <option value="Beauty and Hair">Beauty & Salons</option>
+              <option value="Restaurant">Restaurants & Dining</option>
+              <option value="Healthcare & Wellness">Healthcare & Wellness</option>
+              <option value="Real Estate">Real Estate</option>
+              <option value="Professional Services">Professional Services</option>
+              <option value="Automotive & Trades">Automotive & Trades</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Area / Location (South Africa)</label>
+            <input type="text" id="add-area" class="form-control" placeholder="e.g. Sandton, JHB" value="Umhlanga">
+          </div>
+          <div class="form-group">
+            <label>Website</label>
+            <input type="url" id="add-website" class="form-control" placeholder="https://example.co.za">
+          </div>
+          <div class="form-group">
+            <label>Phone Number</label>
+            <input type="tel" id="add-phone" class="form-control" placeholder="+27 11 123 4567">
+          </div>
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" id="add-email" class="form-control" placeholder="info@example.co.za">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeAddLeadModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Lead</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 4: AUTOMATED SCRAPER JOB SCHEDULER -->
+  <div class="modal-overlay" id="scheduler-modal">
+    <div class="modal-card glass-panel" style="max-width: 780px;">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span class="modal-icon">⏱️</span>
+          <div>
+            <h3>Automated Discovery Job Scheduler</h3>
+            <p>Configure recurring search universe scraping jobs across South Africa</p>
+          </div>
+        </div>
+        <button class="close-btn" onclick="closeSchedulerModal()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- New Scheduled Job Form -->
+        <div class="scheduler-create-card glass-panel mb-4">
+          <h4 style="font-size: 13px; font-weight: 700; color: var(--sky); margin-bottom: 10px;">➕ Create Scheduled Discovery Task</h4>
+          <form id="schedule-job-form" onsubmit="handleScheduleJobSubmit(event)">
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>Task Name *</label>
+                <input type="text" id="job-name" class="form-control" placeholder="e.g. Cape Town Dental Clinics" required>
+              </div>
+              <div class="form-group">
+                <label>Industry Niche *</label>
+                <select id="job-niche" class="form-control" required>
+                  <option value="Healthcare & Wellness">🩺 Healthcare & Dental</option>
+                  <option value="Fitness">🏋️ Fitness & Gyms</option>
+                  <option value="Beauty and Hair">💇 Beauty & Salons</option>
+                  <option value="Restaurant">🍽️ Restaurants & Cafes</option>
+                  <option value="Real Estate">🏠 Real Estate Agencies</option>
+                  <option value="Professional Services">⚖️ Professional Services</option>
+                  <option value="Automotive & Trades">🔧 Automotive & Trades</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>Target Suburbs (comma-separated) *</label>
+                <input type="text" id="job-suburbs" class="form-control" placeholder="e.g. Umhlanga, Durban North, Ballito" required>
+              </div>
+              <div class="form-group">
+                <label>Run Frequency *</label>
+                <select id="job-interval" class="form-control">
+                  <option value="daily">Daily (Every 24h)</option>
+                  <option value="weekly">Weekly (Every 7 days)</option>
+                  <option value="hourly">Hourly (Active scan)</option>
+                </select>
+              </div>
+            </div>
+            <div style="text-align: right; margin-top: 10px;">
+              <button type="submit" class="btn btn-sm btn-primary">➕ Schedule Job</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Active Jobs List -->
+        <h4 style="font-size: 13px; font-weight: 700; color: var(--text-main); margin-bottom: 12px;">Active Scheduled Tasks</h4>
+        <div class="scheduler-jobs-list" id="scheduler-jobs-list">
+          <!-- Dynamically populated via app.js -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Bottom Sticky Navigation Bar -->
+  <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+    <button class="mobile-nav-item active" id="mob-nav-kanban" onclick="switchView('kanban')">
+      <span class="mob-icon">📊</span>
+      <span class="mob-label">Pipeline</span>
+    </button>
+    <button class="mobile-nav-item" id="mob-nav-table" onclick="switchView('table')">
+      <span class="mob-icon">📋</span>
+      <span class="mob-label">Database</span>
+    </button>
+    <button class="mobile-nav-item" id="mob-nav-analytics" onclick="switchView('analytics')">
+      <span class="mob-icon">📈</span>
+      <span class="mob-label">Analytics</span>
+    </button>
+    <button class="mobile-nav-item mobile-nav-highlight" onclick="openExtractModal()">
+      <span class="mob-icon">⚡</span>
+      <span class="mob-label">Extract</span>
+    </button>
+    <button class="mobile-nav-item" onclick="toggleMobileSidebar(true)">
+      <span class="mob-icon">⚙️</span>
+      <span class="mob-label">Region</span>
+    </button>
+  </nav>
+
+  <!-- Toast Notification System -->
+  <div id="toast-notification" class="toast"></div>
+
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

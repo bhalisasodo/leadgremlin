@@ -1,4 +1,7 @@
 import { ProspectCategory } from '../utils/categoryClassifier.js';
+import { TechnicalAudit, MultiChannelScripts, FunnelTechStack, TailoredBusinessCase } from './scorer.js';
+import { ComprehensiveSequence } from './outreach.js';
+import { SalesIntelligenceReport } from './intelligence.js';
 
 export type FunnelStage =
   | 'new'
@@ -16,6 +19,44 @@ export interface SocialLinks {
   twitter?: string;
   tiktok?: string;
   youtube?: string;
+}
+
+export interface ActivityLogItem {
+  id: string;
+  timestamp: string;
+  type:
+    | 'stage_change'
+    | 'note_added'
+    | 'outreach_sent'
+    | 'call_logged'
+    | 'audit_run'
+    | 'tag_added'
+    | 'tag_removed'
+    | 'created';
+  description: string;
+  user?: string;
+}
+
+export interface CustomPipelineStage {
+  id: string;
+  label: string;
+  emoji?: string;
+  probability: number;
+  color?: string;
+  order: number;
+}
+
+export interface ScheduledJob {
+  id: string;
+  name: string;
+  niche: string;
+  suburbs: string[];
+  interval: 'hourly' | 'daily' | 'weekly' | 'manual';
+  enabled: boolean;
+  lastRunAt?: string;
+  nextRunAt?: string;
+  totalLeadsFound?: number;
+  status: 'idle' | 'running' | 'completed' | 'failed';
 }
 
 /**
@@ -40,11 +81,21 @@ export interface Business {
   plusCode?: string;
   funnelStage: FunnelStage;
   opportunityScore: number; // 1 - 100
+  websiteScore?: number;
+  estimatedDealValue?: number;
+  technicalAudit?: TechnicalAudit;
+  aiPitchScripts?: MultiChannelScripts;
+  outreachSequences?: Record<string, ComprehensiveSequence>;
+  funnelTechStack?: FunnelTechStack;
+  businessCase?: TailoredBusinessCase;
+  salesIntelligence?: SalesIntelligenceReport;
+  tags?: string[];
+  activityLog?: ActivityLogItem[];
   notes?: string;
   lastContactedAt?: string;
   scrapedAt: string;
   searchTerm?: string;
-  source: 'google_maps' | 'web_search' | 'directory' | 'manual' | 'multi_source';
+  source: 'google_maps' | 'web_search' | 'directory' | 'manual' | 'multi_source' | 'pipeline';
 }
 
 /**
@@ -57,6 +108,7 @@ export interface ScraperOptions {
   timeoutMs?: number;
   includeWebSearch?: boolean;
   includeDeepCrawl?: boolean;
+  concurrency?: number;
 }
 
 /**
