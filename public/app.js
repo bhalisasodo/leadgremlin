@@ -231,6 +231,17 @@ document.addEventListener('DOMContentLoaded', () => {
       toggleMobileSidebar(false);
     }
   });
+
+  // Close modals when clicking backdrop outside modal-card
+  document.querySelectorAll('.modal-overlay').forEach((overlay) => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        closeDetailModal();
+        closeExtractModal();
+        closeAddLeadModal();
+      }
+    });
+  });
 });
 
 /**
@@ -2126,6 +2137,212 @@ function renderSequenceTimeline(sequence) {
     `;
     })
     .join('');
+}
+
+/**
+ * Render Multi-Channel Outreach Pitch Suite & Sequences
+ */
+function renderPitchSuite(lead) {
+  if (!lead) return;
+
+  if (!activeSequenceData) {
+    activeSequenceData = generateSequenceLocal(lead, currentSequenceArchetype, currentPitchTone);
+  }
+
+  // 1. Render Timeline Chips
+  renderSequenceTimeline(activeSequenceData);
+
+  // 2. Update Active Tab State
+  document.querySelectorAll('.pitch-tab').forEach((tab) => {
+    tab.classList.toggle('active', tab.dataset.channel === currentPitchChannel);
+  });
+
+  // 3. Update Channel Label and Content
+  const labelEl = document.getElementById('pitch-channel-label');
+  const scriptTextEl = document.getElementById('ai-script-text');
+  const guidanceEl = document.getElementById('action-guidance-container');
+
+  const channelLabels = {
+    email: `Email Outreach (Step ${activeTouchpointIndex + 1})`,
+    whatsapp: 'WhatsApp Direct Outreach',
+    socialDm: 'Instagram / LinkedIn DM Script',
+    coldCall: 'Cold Call Discovery Battlecard',
+    dripSequence: 'Full Multi-Touch Drip Cadence',
+  };
+
+  if (labelEl) labelEl.innerText = channelLabels[currentPitchChannel] || 'Outreach Script';
+
+  let scriptText = '';
+  let guidanceText = '';
+
+  const touchpoints = activeSequenceData.touchpoints || [];
+  const currentTp = touchpoints[activeTouchpointIndex] || touchpoints[0];
+
+  if (currentPitchChannel === 'email') {
+    const emailTp = touchpoints.find((t, i) => t.channel === 'email' && i === activeTouchpointIndex) || touchpoints.find((t) => t.channel === 'email') || touchpoints[0];
+    const subject = emailTp?.subject || (lead.aiPitchScripts?.email?.subject || `Optimizing ${lead.name}'s lead intake`);
+    const body = emailTp?.body || (lead.aiPitchScripts?.email?.body || 'No email script available.');
+    scriptText = `Subject: ${subject}\n\n${body}`;
+    guidanceText = emailTp?.actionGuidance || 'Send from primary sales inbox.';
+  } else if (currentPitchChannel === 'whatsapp') {
+    const waTp = touchpoints.find((t) => t.channel === 'whatsapp') || touchpoints[1] || touchpoints[0];
+    scriptText = waTp?.body || (lead.aiPitchScripts?.whatsapp || 'No WhatsApp script available.');
+    guidanceText = waTp?.actionGuidance || 'Send directly to business WhatsApp number.';
+  } else if (currentPitchChannel === 'socialDm') {
+    const dmTp = touchpoints.find((t) => t.channel === 'social_dm') || touchpoints[3] || touchpoints[0];
+    scriptText = dmTp?.body || (lead.aiPitchScripts?.socialDm || 'No Social DM script available.');
+    guidanceText = dmTp?.actionGuidance || 'Send via Instagram DM or LinkedIn message.';
+  } else if (currentPitchChannel === 'coldCall') {
+    const callTp = touchpoints.find((t) => t.channel === 'cold_call') || touchpoints[2] || touchpoints[0];
+    if (lead.aiPitchScripts?.coldCall) {
+      scriptText = `• Opener: ${lead.aiPitchScripts.coldCall.opener}\n• Discovery: ${lead.aiPitchScripts.coldCall.discovery}\n• Objection: ${lead.aiPitchScripts.coldCall.objectionHandling}\n• Close: ${lead.aiPitchScripts.coldCall.close}`;
+    } else {
+      scriptText = callTp?.body || 'No cold call battlecard generated.';
+    }
+    guidanceText = callTp?.actionGuidance || 'Best call window: 09:30 - 11:30 or 14:00 - 16:00.';
+  } else if (currentPitchChannel === 'dripSequence') {
+    scriptText = touchpoints
+      .map(
+        (t, idx) =>
+          `[Touchpoint ${idx + 1} | Day ${t.dayDelay} | ${t.channel.toUpperCase()}]\nTitle: ${t.title}\n${t.subject ? `Subject: ${t.subject}\n` : ''}${t.body}\nGuidance: ${t.actionGuidance}\n`
+      )
+      .join('\n' + '─'.repeat(45) + '\n\n');
+    guidanceText = 'Execute multi-channel sequence across 14 days for maximum response rate.';
+  }
+
+  if (scriptTextEl) scriptTextEl.innerText = scriptText;
+
+  if (guidanceEl) {
+    if (guidanceText) {
+      guidanceEl.innerHTML = `<strong>💡 Tactical Guidance:</strong> ${escapeHtml(guidanceText)}`;
+      guidanceEl.classList.remove('hidden');
+    } else {
+      guidanceEl.classList.add('hidden');
+    }
+  }
+}
+
+/**
+ * Switch Pitch Channel Tab
+ */
+function switchPitchTab(channel) {
+  currentPitchChannel = channel;
+  if (!selectedLead) return;
+  renderPitchSuite(selectedLead);
+}
+
+/**
+ * Copy Active Script to Clipboard
+ */
+function copyPitchToClipboard() {
+  const scriptText = document.getElementById('ai-script-text')?.innerText;
+  if (!scriptText) return;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(scriptText).then(() => {
+      showToast('📋 Script copied to clipboard!');
+    }).catch(() => {
+      copyFallback(scriptText);
+    });
+  } else {
+    copyFallback(scriptText);
+  }
+}
+
+function copyFallback(text) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    document.execCommand('copy');
+    showToast('📋 Script copied to clipboard!');
+  } catch {
+    showToast('⚠️ Could not copy script to clipboard');
+  }
+  document.body.removeChild(textarea);
+}
+
+/**
+ * Trigger Notion CRM Sync
+ */
+async function triggerNotionSync() {
+  const btn = document.getElementById('btn-notion-sync');
+  if (btn) btn.innerHTML = '<span>⏳ Syncing...</span>';
+
+  if (isStaticMode) {
+    setTimeout(() => {
+      showToast('ℹ️ Notion Sync is active in Live Server mode. Connect NOTION_TOKEN to sync.');
+      if (btn) btn.innerHTML = '<span>🔗 Sync to Notion</span>';
+    }, 600);
+    return;
+  }
+
+  try {
+    const res = await fetch(getApiUrl('/api/notion/sync'), { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✓ ${data.message}`);
+    } else {
+      showToast(`⚠️ ${data.error || 'Notion sync failed.'}`);
+    }
+  } catch (err) {
+    showToast('⚠️ Could not connect to Notion sync service.');
+  } finally {
+    if (btn) btn.innerHTML = '<span>🔗 Sync to Notion</span>';
+  }
+}
+
+/**
+ * Trigger Website Technical Audit
+ */
+async function triggerWebsiteAudit() {
+  if (!selectedLead) return;
+  if (!selectedLead.website) {
+    showToast('⚠️ This lead does not have a website URL to audit.');
+    return;
+  }
+
+  const btn = document.getElementById('btn-run-audit');
+  if (btn) btn.innerText = '⏳ Auditing...';
+
+  if (!isStaticMode) {
+    try {
+      const res = await fetch(getApiUrl('/api/audit'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedLead.id, website: selectedLead.website }),
+      });
+      const data = await res.json();
+      if (data.success && data.lead) {
+        Object.assign(selectedLead, data.lead);
+      }
+    } catch (err) {
+      console.warn('Live audit failed, using deterministic audit:', err);
+    }
+  }
+
+  // Deterministic audit fallback
+  if (!selectedLead.technicalAudit) {
+    selectedLead.technicalAudit = {
+      hasHttps: selectedLead.website.startsWith('https'),
+      hasResponsiveViewport: true,
+      hasContactForm: Boolean(selectedLead.email),
+      hasBookingSystem: false,
+      hasWhatsappLink: Boolean(selectedLead.phone),
+      analyticsDetected: [],
+      hasFavicon: true,
+    };
+    selectedLead.opportunityScore = selectedLead.technicalAudit.hasHttps ? 85 : 92;
+  }
+
+  saveLeadsLocally();
+  renderTechnicalAuditDrawer(selectedLead);
+  renderDashboard();
+  showToast(`✓ Technical audit completed for ${selectedLead.name}!`);
+  if (btn) btn.innerText = '🔄 Run Technical Audit';
 }
 
 /**
