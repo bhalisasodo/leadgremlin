@@ -17,6 +17,8 @@ import { AnalyticsEngine } from './utils/analytics.js';
 import { PdfReportGenerator } from './utils/pdfGenerator.js';
 import { WebhookNotifier } from './outreach/webhookNotifier.js';
 import { EmailSequenceManager, SequenceEngine, SequenceExporter } from './outreach/emailSequence.js';
+import { salesIntelligenceEngine } from './intelligence/salesIntelligenceEngine.js';
+import { intelligenceCache } from './intelligence/intelligenceCache.js';
 import crypto from 'crypto';
 
 const INITIAL_PORT = parseInt(process.env.PORT || '3005', 10);
@@ -805,6 +807,9 @@ app.post('/api/audit', async (req: Request, res: Response) => {
 
         (updatedLead as Business).aiPitchScripts = pitchOutput.multiChannelScripts;
         (updatedLead as Business).estimatedDealValue = pitchOutput.estimatedProjectValueZAR;
+        if (pitchOutput.salesIntelligence) {
+          (updatedLead as Business).salesIntelligence = pitchOutput.salesIntelligence;
+        }
       } catch (err) {
         logger.warn(`AI Pitch generation skipped during audit: ${String(err)}`);
       }
@@ -851,6 +856,9 @@ app.post('/api/leads/:id/pitch', async (req: Request, res: Response) => {
 
     lead.aiPitchScripts = pitchOutput.multiChannelScripts;
     lead.estimatedDealValue = pitchOutput.estimatedProjectValueZAR;
+    if (pitchOutput.salesIntelligence) {
+      lead.salesIntelligence = pitchOutput.salesIntelligence;
+    }
 
     saveLeads(leads);
 
@@ -860,11 +868,103 @@ app.post('/api/leads/:id/pitch', async (req: Request, res: Response) => {
       issues: pitchOutput.issues,
       recommendations: pitchOutput.recommendations,
       estimatedValue: pitchOutput.estimatedProjectValueZAR,
+      salesIntelligence: pitchOutput.salesIntelligence,
       lead,
     });
   } catch (err: any) {
     logger.error('AI Pitch API error:', err);
     res.status(500).json({ success: false, error: err.message || 'Pitch generation failed.' });
+  }
+});
+
+/**
+ * POST /api/leads/:id/intelligence - Run full 10-stage AI Sales Intelligence Pipeline on a lead
+ */
+app.post('/api/leads/:id/intelligence', async (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  const { preferredAngle, forceFresh, additionalContext, llmApiKey } = req.body;
+
+  const leads = loadLeads();
+  const lead = leads.find((l) => l.id === id);
+
+  if (!lead) {
+    return res.status(404).json({ success: false, error: 'Lead not found.' });
+  }
+
+  try {
+    const report = await salesIntelligenceEngine.analyzeLead(lead, {
+      preferredAngle,
+      forceFresh: Boolean(forceFresh),
+      additionalContext,
+      llmApiKey,
+    });
+
+    lead.salesIntelligence = report;
+    lead.estimatedDealValue = report.business_case.estimated_deal_value_zar;
+    if (report.outreach_strategy.messages) {
+      lead.aiPitchScripts = {
+        email: {
+          subject: report.outreach_strategy.messages.email.subject,
+          body: report.outreach_strategy.messages.email.body,
+        },
+        whatsapp: report.outreach_strategy.messages.whatsapp.message,
+        socialDm: report.outreach_strategy.messages.instagram_dm.message,
+        coldCall: {
+          opener: `Hi, calling for ${report.identity.decision_maker.name || lead.name} leadership regarding ${lead.area} client intake.`,
+          discovery: report.opportunity.primary_bottleneck,
+          objectionHandling: report.business_case.commercial_mechanism,
+          close: `Can I share a 60-second video demo showing this in action?`,
+        },
+        primaryAuditCallout: report.opportunity.primary_bottleneck,
+        nicheAngle: report.outreach_strategy.selected_angle.title,
+      };
+    }
+
+    saveLeads(leads);
+
+    res.json({
+      success: true,
+      report,
+      lead,
+    });
+  } catch (err: any) {
+    logger.error('Sales Intelligence API error:', err);
+    res.status(500).json({ success: false, error: err.message || 'Sales Intelligence analysis failed.' });
+  }
+});
+
+/**
+ * GET /api/leads/:id/intelligence - Retrieve cached sales intelligence report for a lead
+ */
+app.get('/api/leads/:id/intelligence', async (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  const leads = loadLeads();
+  const lead = leads.find((l) => l.id === id);
+
+  if (!lead) {
+    return res.status(404).json({ success: false, error: 'Lead not found.' });
+  }
+
+  if (lead.salesIntelligence) {
+    return res.json({ success: true, report: lead.salesIntelligence, lead });
+  }
+
+  const cached = intelligenceCache.get(id);
+  if (cached) {
+    lead.salesIntelligence = cached;
+    saveLeads(leads);
+    return res.json({ success: true, report: cached, lead });
+  }
+
+  // Generate on demand if not yet analyzed
+  try {
+    const report = await salesIntelligenceEngine.analyzeLead(lead);
+    lead.salesIntelligence = report;
+    saveLeads(leads);
+    return res.json({ success: true, report, lead });
+  } catch (err: any) {
+    logger.error('Failed to generate sales intelligence on demand:', err);
+    return res.status(500).json({ success: false, error: 'Failed to generate intelligence.' });
   }
 });
 

@@ -321,7 +321,10 @@ export class PdfReportGenerator {
   <div class="section">
     <h2 class="section-title">Tailored Commercial Business Case</h2>
     <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px;">
-      <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 10px; color: var(--primary);">${(audit?.businessCase || lead.businessCase)?.headline}</h3>
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+        <h3 style="font-size: 16px; font-weight: 700; color: var(--primary); margin: 0;">${(audit?.businessCase || lead.businessCase)?.headline}</h3>
+        ${(audit?.businessCase || lead.businessCase)?.qualitativeImpactTier ? `<span style="background: #e0f2fe; color: #0369a1; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 9999px; border: 1px solid #bae6fd;">🎯 ${(audit?.businessCase || lead.businessCase)?.qualitativeImpactTier}</span>` : ''}
+      </div>
       <p style="font-size: 14px; margin-bottom: 12px;"><strong>Current Customer Journey:</strong> ${(audit?.businessCase || lead.businessCase)?.currentWorkflowSummary}</p>
       
       <div style="margin-bottom: 14px;">
@@ -336,16 +339,77 @@ export class PdfReportGenerator {
         <p style="font-size: 13px; color: #14532d; margin-top: 4px;">${(audit?.businessCase || lead.businessCase)?.proposedCentralizedSolution}</p>
       </div>
 
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; font-size: 13px;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 14px; font-size: 13px;">
         <div style="background: #ffffff; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
-          <div style="color: #64748b; font-size: 11px; text-transform: uppercase;">Projected Recovered Inquiries</div>
-          <div style="font-size: 16px; font-weight: 800; color: var(--primary); margin-top: 2px;">${(audit?.businessCase || lead.businessCase)?.projectedMonthlyRecoveredLeads}</div>
+          <div style="color: #64748b; font-size: 11px; text-transform: uppercase;">Projected Recovered Volume</div>
+          <div style="font-size: 15px; font-weight: 800; color: var(--primary); margin-top: 2px;">${(audit?.businessCase || lead.businessCase)?.projectedMonthlyRecoveredLeads}</div>
         </div>
         <div style="background: #ffffff; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
-          <div style="color: #64748b; font-size: 11px; text-transform: uppercase;">Est. Monthly Revenue Impact</div>
-          <div style="font-size: 16px; font-weight: 800; color: var(--success); margin-top: 2px;">+R${((audit?.businessCase || lead.businessCase)?.estimatedMonthlyRevenueImpactZAR || 25000).toLocaleString('en-US')} / mo</div>
+          <div style="color: #64748b; font-size: 11px; text-transform: uppercase;">Commercial Economic Impact</div>
+          <div style="font-size: 15px; font-weight: 800; color: var(--success); margin-top: 2px;">
+            ${(audit?.businessCase || lead.businessCase)?.estimatedMonthlyRevenueImpactZAR ? `+R${(audit?.businessCase || lead.businessCase)?.estimatedMonthlyRevenueImpactZAR?.toLocaleString('en-US')} / mo` : ((audit?.businessCase || lead.businessCase)?.qualitativeImpactTier || 'High Commercial Upside')}
+          </div>
+        </div>
+        <div style="background: #ffffff; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+          <div style="color: #64748b; font-size: 11px; text-transform: uppercase;">Payback Horizon</div>
+          <div style="font-size: 15px; font-weight: 800; color: #0f766e; margin-top: 2px;">${(audit?.businessCase || lead.businessCase)?.qualitativePaybackHorizon || '< 30 Days (Immediate)'}</div>
         </div>
       </div>
+    </div>
+  </div>
+  `
+      : ''
+  }
+
+  <!-- Sales Intelligence & Opportunity Diagnosis -->
+  ${
+    lead.salesIntelligence
+      ? `
+  <div class="section">
+    <h2 class="section-title">AI Sales Intelligence & Opportunity Diagnosis</h2>
+    <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px;">
+        <div>
+          <span style="font-size: 11px; text-transform: uppercase; color: #64748b;">Canonical Business</span>
+          <div style="font-size: 15px; font-weight: 700; color: var(--dark);">${lead.salesIntelligence.identity.canonical_name}</div>
+        </div>
+        <div>
+          <span style="font-size: 11px; text-transform: uppercase; color: #64748b;">Lead Temperature</span>
+          <div><span style="background: ${lead.salesIntelligence.outreach_strategy.prospect_temperature === 'VERY_WARM' ? '#fef2f2; color: #dc2626' : '#eff6ff; color: #2563eb'}; font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 4px;">🔥 ${lead.salesIntelligence.outreach_strategy.prospect_temperature}</span></div>
+        </div>
+        <div>
+          <span style="font-size: 11px; text-transform: uppercase; color: #64748b;">Decision Maker</span>
+          <div style="font-size: 14px; font-weight: 700; color: var(--dark);">${lead.salesIntelligence.identity.decision_maker.name || 'Leadership Team'} ${lead.salesIntelligence.identity.decision_maker.role ? `(${lead.salesIntelligence.identity.decision_maker.role})` : ''}</div>
+        </div>
+        <div>
+          <span style="font-size: 11px; text-transform: uppercase; color: #64748b;">Recommended CTA</span>
+          <div style="font-size: 14px; font-weight: 700; color: #0284c7;">🎯 ${lead.salesIntelligence.opportunity.appropriate_cta}</div>
+        </div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid var(--border); border-left: 4px solid var(--primary); padding: 14px; border-radius: 6px; margin-bottom: 12px;">
+        <strong style="font-size: 13px; text-transform: uppercase; color: var(--primary);">Primary Commercial Bottleneck:</strong>
+        <p style="font-size: 14px; color: var(--dark); margin-top: 4px; font-weight: 500;">${lead.salesIntelligence.opportunity.primary_bottleneck}</p>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid var(--border); border-left: 4px solid var(--success); padding: 14px; border-radius: 6px; margin-bottom: 12px;">
+        <strong style="font-size: 13px; text-transform: uppercase; color: var(--success);">Recommended Intervention:</strong>
+        <p style="font-size: 14px; color: var(--dark); margin-top: 4px; font-weight: 600;">${lead.salesIntelligence.opportunity.intervention_label}</p>
+        <p style="font-size: 13px; color: #475569; margin-top: 2px;">${lead.salesIntelligence.opportunity.intervention_rationale}</p>
+      </div>
+
+      ${
+        lead.salesIntelligence.sources && lead.salesIntelligence.sources.length > 0
+          ? `
+      <div style="margin-top: 14px;">
+        <strong style="font-size: 12px; text-transform: uppercase; color: #64748b;">Verified Research Evidence Trail:</strong>
+        <ul style="margin: 6px 0 0 18px; font-size: 12px; color: #475569;">
+          ${lead.salesIntelligence.sources.map(s => `<li style="margin-bottom:3px;"><strong>[${s.source_type.toUpperCase()} / ${s.epistemic_status}]:</strong> ${s.claim} <span style="color:#94a3b8;">(${s.confidence} Confidence)</span></li>`).join('')}
+        </ul>
+      </div>
+      `
+          : ''
+      }
     </div>
   </div>
   `

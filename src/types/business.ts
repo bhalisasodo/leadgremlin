@@ -1,6 +1,7 @@
 import { ProspectCategory } from '../utils/categoryClassifier.js';
 import { TechnicalAudit, MultiChannelScripts, FunnelTechStack, TailoredBusinessCase } from './scorer.js';
 import { ComprehensiveSequence } from './outreach.js';
+import { SalesIntelligenceReport } from './intelligence.js';
 
 export type FunnelStage =
   | 'new'
@@ -87,6 +88,7 @@ export interface Business {
   outreachSequences?: Record<string, ComprehensiveSequence>;
   funnelTechStack?: FunnelTechStack;
   businessCase?: TailoredBusinessCase;
+  salesIntelligence?: SalesIntelligenceReport;
   tags?: string[];
   activityLog?: ActivityLogItem[];
   notes?: string;

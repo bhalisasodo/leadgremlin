@@ -9,6 +9,7 @@ import {
   TailoredBusinessCase,
 } from '../types/scorer.js';
 import { logger } from '../utils/logger.js';
+import { salesIntelligenceEngine } from '../intelligence/salesIntelligenceEngine.js';
 
 interface NicheStrategy {
   headline: string;
@@ -24,7 +25,7 @@ interface NicheStrategy {
  */
 export class AIAuditor {
   /**
-   * Generates AI Website Audit, Sales Funnel Diagnostic, Business Case, and Multi-Channel Outreach Pitch Scripts
+   * Generates AI Website Audit, Sales Funnel Diagnostic, Business Case, Multi-Channel Outreach Pitch Scripts, and Full Sales Intelligence
    */
   public async generateAudit(input: AIAuditInput): Promise<AIAuditOutput> {
     logger.info(`Generating AI Multi-Channel Audit & Business Case Pitch for: ${input.businessName}`);
@@ -70,14 +71,38 @@ export class AIAuditor {
       estimatedProjectValueZAR
     );
 
-    // 4. Determine Niche Strategy & Value Proposition
+    // 4. Run Full Sales Intelligence Pipeline
+    let salesIntelligence;
+    try {
+      salesIntelligence = await salesIntelligenceEngine.analyzeLead(
+        {
+          name,
+          category: category as any,
+          area,
+          rating,
+          reviewCount: reviews,
+          website,
+          technicalAudit: input.technicalAudit,
+          funnelTechStack,
+          businessCase,
+        },
+        {
+          llmApiKey: input.llmApiKey,
+          additionalContext: input.customPrompt,
+        }
+      );
+    } catch (intelErr) {
+      logger.warn(`Sales intelligence pipeline encountered warning: ${String(intelErr)}`);
+    }
+
+    // 5. Determine Niche Strategy & Value Proposition
     const niche = this.getNicheStrategy(category, area, primaryGap);
 
-    // 5. Attempt LLM API if key is available, else use intelligent deterministic engine
+    // 6. Attempt LLM API if key is available, else use intelligent deterministic engine
     let multiChannelScripts: MultiChannelScripts;
     let generatedBy: 'llm' | 'deterministic_engine' = 'deterministic_engine';
 
-    const apiKey = input.llmApiKey || process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
+    const apiKey = input.llmApiKey || (process.env.NODE_ENV !== 'test' && (process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY));
     if (apiKey) {
       try {
         const llmResult = await this.generateViaLlm(input, niche, issues, recommendations, apiKey);
@@ -97,7 +122,8 @@ export class AIAuditor {
             primaryGap,
             website,
             funnelTechStack,
-            businessCase
+            businessCase,
+            salesIntelligence
           );
         }
       } catch (err) {
@@ -114,7 +140,8 @@ export class AIAuditor {
           primaryGap,
           website,
           funnelTechStack,
-          businessCase
+          businessCase,
+          salesIntelligence
         );
       }
     } else {
@@ -130,7 +157,8 @@ export class AIAuditor {
         primaryGap,
         website,
         funnelTechStack,
-        businessCase
+        businessCase,
+        salesIntelligence
       );
     }
 
@@ -142,6 +170,7 @@ export class AIAuditor {
       multiChannelScripts,
       funnelTechStack,
       businessCase,
+      salesIntelligence,
       auditTimestamp: new Date().toISOString(),
       generatedBy,
     };
@@ -456,6 +485,34 @@ export class AIAuditor {
 
     const estimatedMonthlyRevenueImpactZAR = Math.round((estimatedProjectValueZAR || 18500) * 1.4);
 
+    // Qualitative Economic Classifications (used when exact economics are unavailable or for tiering)
+    let qualitativeImpactTier = 'Moderate Conversion Opportunity';
+    let qualitativePaybackHorizon = 'Rapid Turnaround (1–2 Months)';
+    let dealScopeClassification = '24/7 Lead Intake & WhatsApp Engine';
+    let commercialValuationRange = 'R15,000 – R25,000 (Focused Intake Engine)';
+
+    if (linkTool && booking) {
+      qualitativeImpactTier = 'High Commercial Upside (Top-Tier Friction Recovery)';
+      qualitativePaybackHorizon = 'Immediate (< 30 Days)';
+      dealScopeClassification = 'Centralized Multi-Tool Hub Transformation';
+      commercialValuationRange = 'R28,000 – R45,000 (Omnichannel Hub)';
+    } else if (linkTool) {
+      qualitativeImpactTier = 'Substantial Inbound Expansion (Bio-Link Friction Elimination)';
+      qualitativePaybackHorizon = 'Immediate (< 30 Days)';
+      dealScopeClassification = 'Branded Mobile Touchpoint & Booking Hub';
+      commercialValuationRange = 'R20,000 – R35,000 (Mobile Funnel)';
+    } else if (booking) {
+      qualitativeImpactTier = 'Substantial Conversion Recovery (External Leakage Prevention)';
+      qualitativePaybackHorizon = 'Rapid Turnaround (< 45 Days)';
+      dealScopeClassification = 'Integrated Booking & Retargeting Portal';
+      commercialValuationRange = 'R18,000 – R30,000 (Portal Integration)';
+    } else if (!website || website.trim() === '') {
+      qualitativeImpactTier = 'Foundational Digital Intake Opportunity (Zero Existing Web Funnel)';
+      qualitativePaybackHorizon = 'Rapid Turnaround (1–2 Months)';
+      dealScopeClassification = 'Complete Mobile-First Web & Booking Storefront';
+      commercialValuationRange = 'R22,000 – R38,000 (Full Storefront)';
+    }
+
     return {
       headline: `Centralized Touchpoint & Workflow Optimization for ${name}`,
       currentWorkflowSummary,
@@ -464,7 +521,11 @@ export class AIAuditor {
       proposedCentralizedSolution,
       projectedMonthlyRecoveredLeads: `+12 to +25 qualified monthly inquiries`,
       estimatedMonthlyRevenueImpactZAR,
+      qualitativeImpactTier,
       paybackPeriodDays: 18,
+      qualitativePaybackHorizon,
+      dealScopeClassification,
+      commercialValuationRange,
       strategicPitchHook,
     };
   }
@@ -484,7 +545,8 @@ export class AIAuditor {
     primaryGap: string,
     website: string,
     funnelStack?: FunnelTechStack,
-    businessCase?: TailoredBusinessCase
+    businessCase?: TailoredBusinessCase,
+    salesIntelligence?: import('../types/intelligence.js').SalesIntelligenceReport
   ): MultiChannelScripts {
     // Generate audit callout snippet for the pitch
     let auditCalloutText = '';

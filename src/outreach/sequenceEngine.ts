@@ -107,13 +107,18 @@ export class SequenceEngine {
 
     const funnelStack = lead.funnelTechStack || lead.technicalAudit?.funnelTechStack;
     const businessCase = lead.businessCase || lead.technicalAudit?.businessCase;
+    const salesIntel = lead.salesIntelligence;
 
     // 1. Determine Technical Diagnostic Callout
-    let auditCallout = 'our automated diagnostic identified conversion bottlenecks on your website.';
-    let auditHeadline = 'Website Conversion Optimization';
-    let primaryIssue = 'Missing automated lead capture funnel';
+    let auditCallout = salesIntel?.opportunity.primary_bottleneck || 'our automated diagnostic identified conversion bottlenecks on your website.';
+    let auditHeadline = salesIntel?.opportunity.intervention_label || 'Website Conversion Optimization';
+    let primaryIssue = salesIntel?.opportunity.primary_bottleneck || 'Missing automated lead capture funnel';
 
-    if (funnelStack?.linkInBioTool && funnelStack?.bookingEngine) {
+    if (salesIntel) {
+      auditCallout = salesIntel.opportunity.primary_bottleneck;
+      auditHeadline = salesIntel.opportunity.intervention_label;
+      primaryIssue = salesIntel.opportunity.primary_bottleneck;
+    } else if (funnelStack?.linkInBioTool && funnelStack?.bookingEngine) {
       auditCallout = `we noticed on Instagram that you route prospects through ${funnelStack.linkInBioTool} to ${funnelStack.bookingEngine}, creating a 40%+ drop-off barrier and losing Meta Pixel retargeting on non-converting visitors.`;
       auditHeadline = `Centralized Touchpoint & Booking Funnel for ${name}`;
       primaryIssue = `Fragmented Stack (${funnelStack.linkInBioTool} + ${funnelStack.bookingEngine})`;
@@ -152,15 +157,26 @@ export class SequenceEngine {
     }
 
     // 2. Determine Niche-Specific Value Props
-    let nicheAngle = businessCase?.headline || 'Automated Lead Intake & 24/7 Client Conversion';
+    let nicheAngle = salesIntel?.business_case.headline || businessCase?.headline || 'Automated Lead Intake & 24/7 Client Conversion';
     let painPoint = 'local clients searching for providers choose whoever responds fastest to web & WhatsApp inquiries';
-    let solution = businessCase?.proposedCentralizedSolution || 'an automated 24/7 WhatsApp & calendar lead intake funnel';
-    let caseProof = businessCase?.projectedMonthlyRecoveredLeads
+    let solution = salesIntel?.opportunity.intervention_rationale || businessCase?.proposedCentralizedSolution || 'an automated 24/7 WhatsApp & calendar lead intake funnel';
+    let caseProof = salesIntel?.business_case.projected_monthly_recovered_volume
+      ? `projected to recover ${salesIntel.business_case.projected_monthly_recovered_volume}`
+      : businessCase?.projectedMonthlyRecoveredLeads
       ? `projected to recover ${businessCase.projectedMonthlyRecoveredLeads}`
       : 'helped a nearby local business increase client bookings by 45% in 30 days';
-    let revenueLeak = businessCase?.estimatedMonthlyRevenueImpactZAR
-      ? `+R${businessCase.estimatedMonthlyRevenueImpactZAR.toLocaleString()} in uncaptured monthly client revenue`
-      : 'R15,000 - R35,000 in missed monthly client retainers';
+
+    // Format revenueLeak using exact economics if available, otherwise qualitative classification
+    let revenueLeak = '';
+    if (businessCase?.estimatedMonthlyRevenueImpactZAR && businessCase.estimatedMonthlyRevenueImpactZAR > 0) {
+      const qualitativeTag = businessCase.qualitativeImpactTier ? ` (${businessCase.qualitativeImpactTier.split('(')[0].trim()})` : '';
+      revenueLeak = `+R${businessCase.estimatedMonthlyRevenueImpactZAR.toLocaleString()} in uncaptured monthly client revenue${qualitativeTag}`;
+    } else if (businessCase?.qualitativeImpactTier) {
+      revenueLeak = `substantial monthly revenue leakage (${businessCase.qualitativeImpactTier})`;
+    } else {
+      revenueLeak = 'significant uncaptured revenue from dropped after-hours inquiries (High Commercial Upside)';
+    }
+
     let callDiscovery = `When potential clients find ${name} online after business hours, how quickly are you able to follow up?`;
     let callObjection = `I know you and your team are busy with existing clients! That's why this system qualifies inquiries and books appointments automatically 24/7.`;
 
@@ -170,7 +186,7 @@ export class SequenceEngine {
         nicheAngle = 'High-Value Patient Intake & Consultation Booking';
         solution = 'a POPIA-compliant patient intake portal with 1-click emergency WhatsApp routing and consultation booking';
         caseProof = 'helped a private practice secure 19 high-ticket treatment consultations in their first 30 days';
-        revenueLeak = 'R30,000 - R75,000 in uncaptured specialized treatment bookings every month';
+        revenueLeak = 'high-ticket treatment consultation leakage (High Commercial Upside)';
       }
       painPoint = 'patients searching for specialized treatments bounce when they cannot book consultations or get instant WhatsApp answers';
       callDiscovery = `When new patients search for specialized treatments online in ${area}, can they instantly schedule a consultation on your site?`;
