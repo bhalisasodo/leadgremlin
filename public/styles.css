@@ -701,6 +701,48 @@ body {
   font-weight: 600;
 }
 
+/* Quick Filter Presets */
+.quick-filter-presets {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.preset-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+}
+
+.preset-chip {
+  padding: 4px 12px;
+  background-color: rgba(255, 255, 255, 0.02);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.preset-chip:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: var(--text-main);
+  border-style: solid;
+}
+
+.preset-chip.active {
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid var(--primary);
+  color: var(--sky);
+  border-style: solid;
+}
+
 /* Sub-filter Bar */
 .sub-filter-bar {
   display: flex;
@@ -1247,6 +1289,141 @@ body {
   white-space: pre-wrap;
   max-height: 220px;
   overflow-y: auto;
+}
+
+/* 1-Click Multi-Channel Outreach Dispatch Bar */
+.outreach-dispatch-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 6px 0 10px 0;
+}
+
+.btn-whatsapp-dispatch {
+  background: #15803d;
+  color: #fff;
+  border: 1px solid #22c55e;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+.btn-whatsapp-dispatch:hover {
+  background: #16a34a;
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.4);
+}
+
+.btn-mail-dispatch {
+  background: #1d4ed8;
+  color: #fff;
+  border: 1px solid #3b82f6;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+.btn-mail-dispatch:hover {
+  background: #2563eb;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+}
+
+.btn-proposal-dispatch {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--amber);
+  border: 1px solid var(--amber);
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+.btn-proposal-dispatch:hover {
+  background: rgba(245, 158, 11, 0.25);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
+}
+
+/* Stage Conversion Waterfall */
+.funnel-waterfall-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.waterfall-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.waterfall-stage-info {
+  width: 170px;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.waterfall-stage-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.waterfall-stage-prob {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.waterfall-track {
+  flex: 1;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+}
+
+.waterfall-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  align-items: center;
+  padding-left: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.waterfall-fill.new { background: linear-gradient(90deg, #475569, #64748b); }
+.waterfall-fill.enriched { background: linear-gradient(90deg, #0284c7, #38bdf8); }
+.waterfall-fill.outreach { background: linear-gradient(90deg, #6366f1, #818cf8); }
+.waterfall-fill.meeting { background: linear-gradient(90deg, #d97706, #fbbf24); }
+.waterfall-fill.proposal { background: linear-gradient(90deg, #ea580c, #f97316); }
+.waterfall-fill.won { background: linear-gradient(90deg, #16a34a, #22c55e); }
+
+.waterfall-val {
+  width: 150px;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sky);
+  flex-shrink: 0;
 }
 
 /* Section Header Buttons */

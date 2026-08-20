@@ -210,6 +210,19 @@
           </div>
         </div>
 
+        <!-- Quick Filter Presets -->
+        <div class="quick-filter-presets">
+          <span class="filter-label">Quick Presets:</span>
+          <div class="preset-chips" id="preset-chips">
+            <button class="preset-chip active" data-preset="ALL" onclick="filterByPreset('ALL')">All Prospects</button>
+            <button class="preset-chip" data-preset="HOT" onclick="filterByPreset('HOT')">🔥 Hot Priority (80+)</button>
+            <button class="preset-chip" data-preset="HIGH_VAL" onclick="filterByPreset('HIGH_VAL')">💰 High Value (R20k+)</button>
+            <button class="preset-chip" data-preset="NO_SSL" onclick="filterByPreset('NO_SSL')">🔒 Insecure HTTP</button>
+            <button class="preset-chip" data-preset="NO_WA" onclick="filterByPreset('NO_WA')">💬 Missing WhatsApp</button>
+            <button class="preset-chip" data-preset="HAS_EMAIL" onclick="filterByPreset('HAS_EMAIL')">📧 Has Email</button>
+          </div>
+        </div>
+
         <div class="sub-filter-bar">
           <div class="toggle-group">
             <label class="toggle-btn"><input type="checkbox" id="filter-has-email" onchange="applyFilters()"> 📧 Has Email</label>
@@ -316,34 +329,44 @@
           <div class="analytics-kpi-card glass-panel">
             <div class="kpi-icon gold">💰</div>
             <div class="kpi-info">
-              <span class="kpi-label">Pipeline Valuation (ZAR)</span>
+              <span class="kpi-label">Total Pipeline (ZAR)</span>
               <h3 id="analytics-total-value">R0</h3>
+            </div>
+          </div>
+          <div class="analytics-kpi-card glass-panel">
+            <div class="kpi-icon sky">📈</div>
+            <div class="kpi-info">
+              <span class="kpi-label">Weighted Forecast (ZAR)</span>
+              <h3 id="analytics-weighted-value">R0</h3>
             </div>
           </div>
           <div class="analytics-kpi-card glass-panel">
             <div class="kpi-icon green">🎉</div>
             <div class="kpi-info">
-              <span class="kpi-label">Conversion Win Rate</span>
-              <h3 id="analytics-win-rate">0%</h3>
+              <span class="kpi-label">Won Revenue (ZAR)</span>
+              <h3 id="analytics-won-value">R0</h3>
             </div>
           </div>
           <div class="analytics-kpi-card glass-panel">
-            <div class="kpi-icon sky">📊</div>
+            <div class="kpi-icon flame">📊</div>
             <div class="kpi-info">
               <span class="kpi-label">Average Deal Size</span>
               <h3 id="analytics-avg-deal">R18,500</h3>
             </div>
           </div>
-          <div class="analytics-kpi-card glass-panel">
-            <div class="kpi-icon flame">🔥</div>
-            <div class="kpi-info">
-              <span class="kpi-label">High Priority Prospects</span>
-              <h3 id="analytics-high-opp">0</h3>
-            </div>
-          </div>
         </div>
 
         <div class="analytics-grid">
+          <div class="analytics-card glass-panel full-width">
+            <div class="card-header-sm">
+              <h3>🎯 Stage Conversion Funnel & Probability Waterfall</h3>
+              <span class="hint">Prospect progression from Discovery to Closed Won</span>
+            </div>
+            <div class="funnel-waterfall-container" id="funnel-waterfall">
+              <!-- Dynamically populated via app.js -->
+            </div>
+          </div>
+
           <div class="analytics-card glass-panel">
             <div class="card-header-sm">
               <h3>Prospect Category Distribution</h3>
@@ -660,8 +683,24 @@
             <div class="pitch-body-wrap">
               <div class="pitch-body-header">
                 <span class="pitch-channel-label" id="pitch-channel-label">Email Outreach Script</span>
-                <button class="btn btn-sm btn-outline" id="btn-copy-pitch" onclick="copyPitchToClipboard()">📋 Copy Script</button>
+                <div class="pitch-header-actions">
+                  <button class="btn btn-sm btn-outline" id="btn-copy-pitch" onclick="copyPitchToClipboard()">📋 Copy Script</button>
+                </div>
               </div>
+
+              <!-- 1-Click Multi-Channel Outreach Dispatch Bar -->
+              <div class="outreach-dispatch-bar">
+                <button class="btn btn-sm btn-whatsapp-dispatch" id="btn-dispatch-wa" onclick="dispatchWhatsApp()">
+                  <span>💬 Launch WhatsApp Web</span>
+                </button>
+                <button class="btn btn-sm btn-mail-dispatch" id="btn-dispatch-email" onclick="dispatchEmail()">
+                  <span>✉️ Open in Mail Client</span>
+                </button>
+                <button class="btn btn-sm btn-proposal-dispatch" id="btn-dispatch-report" onclick="openClientReport()">
+                  <span>📄 Client PDF Proposal</span>
+                </button>
+              </div>
+
               <div class="ai-output-box" id="ai-script-output">
                 <pre id="ai-script-text">Select or generate pitch script above...</pre>
               </div>

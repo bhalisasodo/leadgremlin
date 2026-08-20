@@ -17,6 +17,7 @@ let currentSequenceArchetype = 'omni_channel_blitz';
 let activeSequenceData = null;
 let activeTouchpointIndex = 0;
 let currentPitchTone = 'consultative';
+let currentQuickFilter = 'ALL';
 let selectedLeadIds = new Set();
 
 /**
@@ -816,7 +817,21 @@ function getFilteredLeads() {
     const matchesWebsite = !hasWebsiteOnly || Boolean(lead.website && lead.website.trim() !== '');
     const matchesPhone = !hasPhoneOnly || Boolean(lead.phone && lead.phone.trim() !== '');
 
-    return matchesCategory && matchesArea && matchesSearch && matchesEmail && matchesWebsite && matchesPhone;
+    // Quick Filter Preset matching
+    let matchesPreset = true;
+    if (currentQuickFilter === 'HOT') {
+      matchesPreset = (lead.opportunityScore || 0) >= 80;
+    } else if (currentQuickFilter === 'HIGH_VAL') {
+      matchesPreset = (lead.estimatedDealValue || 0) >= 20000;
+    } else if (currentQuickFilter === 'NO_SSL') {
+      matchesPreset = Boolean((lead.technicalAudit && !lead.technicalAudit.hasHttps) || (lead.website && !lead.website.startsWith('https')));
+    } else if (currentQuickFilter === 'NO_WA') {
+      matchesPreset = !lead.technicalAudit?.hasWhatsappLink;
+    } else if (currentQuickFilter === 'HAS_EMAIL') {
+      matchesPreset = Boolean(lead.email && lead.email.trim() !== '');
+    }
+
+    return matchesCategory && matchesArea && matchesSearch && matchesEmail && matchesWebsite && matchesPhone && matchesPreset;
   });
 
   // Apply Sorting
@@ -1269,9 +1284,22 @@ function copyEmailToClipboard(email, e) {
 function renderAnalytics() {
   const categoryCounts = {};
   const stageCounts = { new: 0, enriched: 0, outreach: 0, meeting: 0, proposal: 0, won: 0, lost: 0 };
+  const stageValSums = { new: 0, enriched: 0, outreach: 0, meeting: 0, proposal: 0, won: 0, lost: 0 };
   const suburbMap = {};
 
+  const stageProbs = {
+    new: 0.10,
+    enriched: 0.20,
+    outreach: 0.35,
+    meeting: 0.60,
+    proposal: 0.80,
+    won: 1.00,
+    lost: 0.00,
+  };
+
   let totalPipelineVal = 0;
+  let weightedPipelineVal = 0;
+  let wonRevenueVal = 0;
   let wonCount = 0;
   let highOppCount = 0;
   let totalWithWeb = 0, totalWithEmail = 0, totalWithPhone = 0;
@@ -1280,12 +1308,21 @@ function renderAnalytics() {
 
   allLeads.forEach((l) => {
     categoryCounts[l.category] = (categoryCounts[l.category] || 0) + 1;
-    if (stageCounts[l.funnelStage] !== undefined) stageCounts[l.funnelStage]++;
-    if (l.funnelStage === 'won') wonCount++;
+    const stage = l.funnelStage || 'new';
+    if (stageCounts[stage] !== undefined) {
+      stageCounts[stage]++;
+      const dealVal = l.estimatedDealValue || 18500;
+      stageValSums[stage] += dealVal;
+      totalPipelineVal += dealVal;
+      weightedPipelineVal += Math.round(dealVal * (stageProbs[stage] ?? 0.10));
+
+      if (stage === 'won') {
+        wonCount++;
+        wonRevenueVal += dealVal;
+      }
+    }
 
     const score = l.opportunityScore || 75;
-    const dealVal = l.estimatedDealValue || 18500;
-    totalPipelineVal += dealVal;
     if (score >= 70) highOppCount++;
 
     if (l.website) totalWithWeb++;
@@ -1296,19 +1333,57 @@ function renderAnalytics() {
     if (!suburbMap[sub]) suburbMap[sub] = { count: 0, scoreSum: 0, valSum: 0 };
     suburbMap[sub].count++;
     suburbMap[sub].scoreSum += score;
-    suburbMap[sub].valSum += dealVal;
+    suburbMap[sub].valSum += (l.estimatedDealValue || 18500);
   });
 
   // Top KPI Elements
   const totalValEl = document.getElementById('analytics-total-value');
-  const winRateEl = document.getElementById('analytics-win-rate');
+  const weightedValEl = document.getElementById('analytics-weighted-value');
+  const wonValEl = document.getElementById('analytics-won-value');
   const avgDealEl = document.getElementById('analytics-avg-deal');
-  const highOppEl = document.getElementById('analytics-high-opp');
 
   if (totalValEl) totalValEl.innerText = `R${totalPipelineVal.toLocaleString()}`;
-  if (winRateEl) winRateEl.innerText = `${Math.round((wonCount / total) * 100)}%`;
+  if (weightedValEl) weightedValEl.innerText = `R${weightedPipelineVal.toLocaleString()}`;
+  if (wonValEl) wonValEl.innerText = `R${wonRevenueVal.toLocaleString()}`;
   if (avgDealEl) avgDealEl.innerText = `R${Math.round(totalPipelineVal / total).toLocaleString()}`;
-  if (highOppEl) highOppEl.innerText = highOppCount;
+
+  // Stage Conversion Funnel & Probability Waterfall
+  const funnelWaterfall = document.getElementById('funnel-waterfall');
+  if (funnelWaterfall) {
+    const funnelStages = [
+      { id: 'new', name: '1. New Prospect', prob: '10% Win Prob', class: 'new' },
+      { id: 'enriched', name: '2. Enriched / Qualified', prob: '20% Win Prob', class: 'enriched' },
+      { id: 'outreach', name: '3. Outreach Sent', prob: '35% Win Prob', class: 'outreach' },
+      { id: 'meeting', name: '4. Meeting Booked', prob: '60% Win Prob', class: 'meeting' },
+      { id: 'proposal', name: '5. Proposal Sent', prob: '80% Win Prob', class: 'proposal' },
+      { id: 'won', name: '6. Closed Won', prob: '100% Win Prob', class: 'won' },
+    ];
+
+    const maxCount = Math.max(...funnelStages.map(s => stageCounts[s.id]), 1);
+
+    funnelWaterfall.innerHTML = funnelStages.map((s) => {
+      const count = stageCounts[s.id] || 0;
+      const pct = Math.max(Math.round((count / maxCount) * 100), count > 0 ? 8 : 0);
+      const stageVal = stageValSums[s.id] || 0;
+
+      return `
+        <div class="waterfall-row">
+          <div class="waterfall-stage-info">
+            <span class="waterfall-stage-name">${s.name}</span>
+            <span class="waterfall-stage-prob">${s.prob}</span>
+          </div>
+          <div class="waterfall-track">
+            <div class="waterfall-fill ${s.class}" style="width: ${pct}%;">
+              ${count > 0 ? `${count} leads` : ''}
+            </div>
+          </div>
+          <div class="waterfall-val">
+            <strong>R${stageVal.toLocaleString()}</strong> (${count})
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
 
   // Category Chart
   const categoryChart = document.getElementById('category-chart');
@@ -1523,6 +1598,14 @@ function filterByCategory(cat) {
     } else {
       pill.classList.remove('active');
     }
+  });
+  renderDashboard();
+}
+
+function filterByPreset(preset) {
+  currentQuickFilter = preset;
+  document.querySelectorAll('#preset-chips .preset-chip').forEach((chip) => {
+    chip.classList.toggle('active', chip.dataset.preset === preset);
   });
   renderDashboard();
 }
@@ -2263,6 +2346,229 @@ function copyFallback(text) {
     showToast('⚠️ Could not copy script to clipboard');
   }
   document.body.removeChild(textarea);
+}
+
+/**
+ * 1-Click WhatsApp Outreach Dispatcher
+ */
+function dispatchWhatsApp() {
+  if (!selectedLead) {
+    showToast('⚠️ Please select a prospect first!');
+    return;
+  }
+
+  const rawPhone = selectedLead.phone || '';
+  // Format South African phone to international format e.g. 082 123 4567 -> 27821234567
+  let cleanPhone = rawPhone.replace(/\D/g, '');
+  if (cleanPhone.startsWith('0')) {
+    cleanPhone = '27' + cleanPhone.slice(1);
+  } else if (!cleanPhone.startsWith('27') && cleanPhone.length === 9) {
+    cleanPhone = '27' + cleanPhone;
+  }
+
+  if (!cleanPhone) {
+    showToast('⚠️ No phone number available for WhatsApp outreach.');
+    return;
+  }
+
+  // Get active WhatsApp script
+  const waScript = selectedLead.aiPitchScripts?.whatsapp || 
+    activeSequenceData?.touchpoints?.find(t => t.channel === 'whatsapp')?.body ||
+    `Hi ${selectedLead.name} Team 👋 I came across your business in ${selectedLead.area || 'South Africa'} and put together a quick conversion audit for you!`;
+
+  const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(waScript)}`;
+  window.open(waUrl, '_blank', 'noopener,noreferrer');
+  showToast(`💬 Launching WhatsApp for ${selectedLead.name}...`);
+}
+
+/**
+ * 1-Click Native Mail Client Dispatcher
+ */
+function dispatchEmail() {
+  if (!selectedLead) {
+    showToast('⚠️ Please select a prospect first!');
+    return;
+  }
+
+  if (!selectedLead.email) {
+    showToast('⚠️ No email address available for this prospect.');
+    return;
+  }
+
+  const emailTp = activeSequenceData?.touchpoints?.find(t => t.channel === 'email') || {};
+  const subject = emailTp.subject || selectedLead.aiPitchScripts?.email?.subject || `Optimizing ${selectedLead.name}'s digital lead intake`;
+  const body = emailTp.body || selectedLead.aiPitchScripts?.email?.body || `Hi ${selectedLead.name} Team,\n\nI put together a quick technical audit for ${selectedLead.name}.`;
+
+  const mailtoUrl = `mailto:${selectedLead.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.location.href = mailtoUrl;
+  showToast(`✉️ Launching email client for ${selectedLead.email}...`);
+}
+
+/**
+ * Open Stand-Alone Client PDF Proposal / Audit Report
+ */
+function openClientReport(leadId) {
+  const lead = leadId ? allLeads.find(l => l.id === leadId) : selectedLead;
+  if (!lead) {
+    showToast('⚠️ Please select a lead first!');
+    return;
+  }
+
+  if (!isStaticMode) {
+    window.open(getApiUrl(`/api/leads/${lead.id}/report`), '_blank');
+    showToast(`📄 Generating proposal report for ${lead.name}...`);
+    return;
+  }
+
+  // Static mode: Generate client-side printable report HTML
+  const reportHtml = generateClientReportHtml(lead);
+  const blob = new Blob([reportHtml], { type: 'text/html;charset=utf-8' });
+  const blobUrl = URL.createObjectURL(blob);
+  window.open(blobUrl, '_blank');
+  showToast(`📄 Opened PDF Proposal for ${lead.name}`);
+}
+
+/**
+ * Stand-Alone HTML/PDF Client Proposal Report Generator
+ */
+function generateClientReportHtml(lead) {
+  const audit = lead.technicalAudit || {
+    hasHttps: Boolean(lead.website && lead.website.startsWith('https')),
+    hasResponsiveViewport: true,
+    hasContactForm: Boolean(lead.email),
+    hasBookingSystem: false,
+    hasWhatsappLink: Boolean(lead.phone),
+  };
+  const score = lead.opportunityScore || 75;
+  const seoScore = audit.seoScore ?? (audit.hasHttps ? 75 : 45);
+  const estValue = lead.estimatedDealValue ? lead.estimatedDealValue.toLocaleString() : '18,500';
+  const scripts = lead.aiPitchScripts;
+
+  const issues = [
+    !audit.hasWhatsappLink ? 'Missing WhatsApp 1-click lead capture widget' : null,
+    !audit.hasBookingSystem ? 'No automated online booking engine installed' : null,
+    !audit.analyticsDetected || audit.analyticsDetected.length === 0 ? 'Missing conversion analytics (GA4 / Meta Pixel)' : null,
+    !audit.hasResponsiveViewport ? 'Mobile layout viewport optimization required' : null,
+    !audit.hasHttps ? 'Insecure HTTP protocol connection (missing SSL certificate)' : null,
+  ].filter(Boolean);
+
+  const recommendations = [
+    !audit.hasWhatsappLink ? 'Deploy automated 24/7 WhatsApp lead capture widget with instant response' : null,
+    !audit.hasBookingSystem ? 'Install custom responsive online booking engine for after-hours scheduling' : null,
+    !audit.analyticsDetected || audit.analyticsDetected.length === 0 ? 'Implement Google Analytics 4 & Meta Pixel conversion tracking' : null,
+    !audit.hasResponsiveViewport ? 'Implement mobile-first responsive viewport design' : null,
+    !audit.hasHttps ? 'Install SSL certificate and enforce HTTPS security' : null,
+  ].filter(Boolean);
+
+  if (recommendations.length === 0) {
+    recommendations.push('Deploy automated 24/7 WhatsApp lead capture widget');
+    recommendations.push('Install custom responsive online booking engine');
+    recommendations.push('Set up GA4 & Meta Pixel conversion tracking');
+  }
+
+  const dateStr = new Date().toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Website Technical Audit Report - ${escapeHtml(lead.name)}</title>
+  <style>
+    :root { --primary: #2563eb; --dark: #0f172a; --card-bg: #f8fafc; --border: #e2e8f0; --danger: #dc2626; --warning: #d97706; --success: #16a34a; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: var(--dark); background: #ffffff; padding: 40px; max-width: 900px; margin: 0 auto; line-height: 1.5; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid var(--border); padding-bottom: 24px; margin-bottom: 32px; }
+    .brand-title { font-size: 24px; font-weight: 800; color: var(--primary); }
+    .business-title { font-size: 28px; font-weight: 800; margin-bottom: 6px; }
+    .meta-text { color: #64748b; font-size: 14px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+    .score-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 24px; text-align: center; }
+    .score-val { font-size: 48px; font-weight: 900; line-height: 1; margin: 10px 0; }
+    .score-high { color: var(--danger); }
+    .score-med { color: var(--warning); }
+    .score-good { color: var(--success); }
+    .section { margin-bottom: 32px; }
+    .section-title { font-size: 18px; font-weight: 700; border-bottom: 2px solid #cbd5e1; padding-bottom: 8px; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .tech-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    .tech-table th, .tech-table td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .tech-table th { background: #f1f5f9; font-weight: 600; }
+    .issue-list, .rec-list { list-style: none; }
+    .issue-list li { background: #fef2f2; border-left: 4px solid var(--danger); padding: 10px 14px; margin-bottom: 8px; border-radius: 0 6px 6px 0; font-size: 14px; }
+    .rec-list li { background: #f0fdf4; border-left: 4px solid var(--success); padding: 10px 14px; margin-bottom: 8px; border-radius: 0 6px 6px 0; font-size: 14px; }
+    .val-banner { background: linear-gradient(135deg, #1e293b, #0f172a); color: #ffffff; padding: 24px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .val-amount { font-size: 32px; font-weight: 800; color: #38bdf8; }
+    .footer { border-top: 1px solid var(--border); padding-top: 20px; font-size: 12px; color: #94a3b8; display: flex; justify-content: space-between; }
+    @media print { body { padding: 0; max-width: 100%; } .no-print { display: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="margin-bottom: 20px; text-align: right;">
+    <button onclick="window.print()" style="background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer;">
+      🖨️ Print / Save as PDF
+    </button>
+  </div>
+  <header class="header">
+    <div>
+      <h1 class="business-title">${escapeHtml(lead.name)}</h1>
+      <p class="meta-text">Target Area: <strong>${escapeHtml(lead.area || 'South Africa')}</strong> | Category: <strong>${escapeHtml(lead.category)}</strong></p>
+      <p class="meta-text">Website: ${lead.website ? `<a href="${lead.website}" target="_blank">${escapeHtml(lead.website)}</a>` : 'None / Not Provided'}</p>
+    </div>
+    <div style="text-align: right;">
+      <div class="brand-title">LeadGremlin Growth Engine</div>
+      <p class="meta-text">Date: ${dateStr}</p>
+      <p class="meta-text">outreach@leadgremlin.co.za | +27 31 561 1000</p>
+    </div>
+  </header>
+  <div class="grid-2">
+    <div class="score-card">
+      <div class="meta-text">LEAD OPPORTUNITY SCORE</div>
+      <div class="score-val ${score >= 70 ? 'score-high' : score >= 40 ? 'score-med' : 'score-good'}">${score}/100</div>
+      <div class="meta-text">${score >= 70 ? '🔥 High Opportunity (Conversion Funnel Overhaul Needed)' : '⚡ Medium Opportunity'}</div>
+    </div>
+    <div class="score-card">
+      <div class="meta-text">TECHNICAL DIAGNOSTIC SCORE</div>
+      <div class="score-val score-good">${seoScore}/100</div>
+      <div class="meta-text">Based on Mobile Viewport, Security & Lead Intake</div>
+    </div>
+  </div>
+  <div class="section">
+    <h2 class="section-title">Technical Infrastructure Diagnostic</h2>
+    <table class="tech-table">
+      <thead>
+        <tr><th>Technical Metric</th><th>Status</th><th>Impact</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>SSL Security (HTTPS)</td><td>${audit.hasHttps ? '✓ Secure' : '❌ Insecure (HTTP)'}</td><td>${audit.hasHttps ? 'Low Risk' : 'High - Google Ranks Insecure Sites Lower'}</td></tr>
+        <tr><td>WhatsApp Instant Lead CTA</td><td>${audit.hasWhatsappLink ? '✓ Installed' : '❌ Missing Widget'}</td><td>${audit.hasWhatsappLink ? 'Captured' : 'High - Missing Weekly Client Bookings'}</td></tr>
+        <tr><td>Online Booking Portal</td><td>${audit.hasBookingSystem ? '✓ Installed' : '❌ Missing Engine'}</td><td>${audit.hasBookingSystem ? 'Automated' : 'High - After-Hours Inquiries Lost'}</td></tr>
+        <tr><td>Mobile Responsive Viewport</td><td>${audit.hasResponsiveViewport ? '✓ Responsive' : '❌ Non-Responsive'}</td><td>Mobile UX & Booking Conversion</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="val-banner">
+    <div>
+      <div style="font-size: 14px; opacity: 0.9;">ESTIMATED POTENTIAL PROJECT VALUE</div>
+      <div style="font-size: 13px; opacity: 0.7;">Based on required lead intake redesign & automated booking funnel</div>
+    </div>
+    <div class="val-amount">R${estValue}</div>
+  </div>
+  <div class="grid-2">
+    <div>
+      <h2 class="section-title">Identified Gaps</h2>
+      <ul class="issue-list">${issues.map(i => `<li>⚠️ ${escapeHtml(i)}</li>`).join('')}</ul>
+    </div>
+    <div>
+      <h2 class="section-title">Recommended Upgrades</h2>
+      <ul class="rec-list">${recommendations.map(r => `<li>✓ ${escapeHtml(r)}</li>`).join('')}</ul>
+    </div>
+  </div>
+  <footer class="footer">
+    <div>LeadGremlin Sales Funnel Audit & Technical Engine Report</div>
+    <div>Page 1 of 1</div>
+  </footer>
+</body>
+</html>`;
 }
 
 /**

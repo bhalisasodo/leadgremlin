@@ -18,6 +18,8 @@ export interface SuburbPerformance {
 export interface AnalyticsSummary {
   totalLeads: number;
   totalPipelineValueZAR: number;
+  weightedPipelineValueZAR: number;
+  wonRevenueZAR: number;
   avgDealValueZAR: number;
   highOpportunityCount: number; // Score >= 70
   medOpportunityCount: number;  // Score 40 - 69
@@ -44,6 +46,16 @@ const STAGE_LABELS: Record<FunnelStage, string> = {
   lost: '❌ Closed Lost',
 };
 
+const STAGE_PROBABILITIES: Record<FunnelStage, number> = {
+  new: 0.10,
+  enriched: 0.20,
+  outreach: 0.35,
+  meeting: 0.60,
+  proposal: 0.80,
+  won: 1.00,
+  lost: 0.00,
+};
+
 const STAGE_ORDER: FunnelStage[] = ['new', 'enriched', 'outreach', 'meeting', 'proposal', 'won'];
 
 export class AnalyticsEngine {
@@ -54,6 +66,8 @@ export class AnalyticsEngine {
     const total = leads.length;
 
     let totalPipelineValueZAR = 0;
+    let weightedPipelineValueZAR = 0;
+    let wonRevenueZAR = 0;
     let highOpp = 0;
     let medOpp = 0;
     let lowOpp = 0;
@@ -91,6 +105,13 @@ export class AnalyticsEngine {
       const score = l.opportunityScore || 75;
       const dealVal = l.estimatedDealValue || 18500;
       totalPipelineValueZAR += dealVal;
+
+      const prob = STAGE_PROBABILITIES[l.funnelStage] ?? 0.10;
+      weightedPipelineValueZAR += Math.round(dealVal * prob);
+
+      if (l.funnelStage === 'won') {
+        wonRevenueZAR += dealVal;
+      }
 
       if (score >= 70) highOpp++;
       else if (score >= 40) medOpp++;
@@ -145,6 +166,8 @@ export class AnalyticsEngine {
     return {
       totalLeads: total,
       totalPipelineValueZAR,
+      weightedPipelineValueZAR,
+      wonRevenueZAR,
       avgDealValueZAR,
       highOpportunityCount: highOpp,
       medOpportunityCount: medOpp,

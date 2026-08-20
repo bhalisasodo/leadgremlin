@@ -18,7 +18,7 @@ export class PdfReportGenerator {
     const audit = lead.technicalAudit;
     const score = lead.opportunityScore || 75;
     const seoScore = audit?.seoScore ?? 50;
-    const estValue = lead.estimatedDealValue ? lead.estimatedDealValue.toLocaleString() : '18,500';
+    const estValue = lead.estimatedDealValue ? lead.estimatedDealValue.toLocaleString('en-US') : '18,500';
     const scripts = lead.aiPitchScripts;
 
     const issues = lead.notes?.includes('Audit:')
